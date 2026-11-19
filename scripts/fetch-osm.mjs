@@ -4,7 +4,14 @@
 import { writeFile } from 'node:fs/promises'
 import { AREA } from './area.mjs'
 
-const ENDPOINT = process.env.OVERPASS_URL ?? 'https://overpass-api.de/api/interpreter'
+// Public Overpass servers are often busy, so try a few, with retries.
+const ENDPOINTS = process.env.OVERPASS_URL
+  ? [process.env.OVERPASS_URL]
+  : [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.private.coffee/api/interpreter',
+      'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+    ]
 const { south, west, north, east } = AREA.bbox
 const bb = `${south},${west},${north},${east}`
 
@@ -29,17 +36,27 @@ const query = `
 out geom;
 `
 
-const res = await fetch(ENDPOINT, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'japango-map-builder/0.1' },
-  body: 'data=' + encodeURIComponent(query),
-})
-if (!res.ok) {
-  console.error(`Overpass request failed: ${res.status} ${res.statusText}`)
-  console.error(await res.text())
+async function download() {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    for (const url of ENDPOINTS) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'japango-map-builder/0.1' },
+          body: 'data=' + encodeURIComponent(query),
+        })
+        if (res.ok) return await res.json()
+        console.warn(`${url}: ${res.status} ${res.statusText}`)
+      } catch (err) {
+        console.warn(`${url}: ${err.message}`)
+      }
+    }
+    await new Promise((r) => setTimeout(r, 15000 * (attempt + 1)))
+  }
+  console.error('Could not download map data from any Overpass server.')
   process.exit(1)
 }
-const json = await res.json()
+const json = await download()
 
 const r = (n) => Math.round(n * 1e7) / 1e7
 const pt = (p) => [r(p.lat), r(p.lon)]
