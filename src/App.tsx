@@ -27,7 +27,7 @@ export default function App() {
   const [map, setMap] = useState<GameMap | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pos, setPos] = useState<PlayerState | null>(null)
-  const [zoom, setZoom] = useState(32)
+  const [zoom, setZoom] = useState(20)
   const [bigMap, setBigMap] = useState(false)
   const [view, setView] = useState({ w: window.innerWidth, h: window.innerHeight })
   const labelLayer = useRef<HTMLDivElement>(null)

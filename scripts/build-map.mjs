@@ -277,7 +277,7 @@ for (let r = 0; !spawn && r < 200; r++) {
 }
 
 const counts = {}
-for (const [k, v] of Object.entries(T)) counts[k] = 0
+for (const k of Object.keys(T)) counts[k] = 0
 const names = Object.fromEntries(Object.entries(T).map(([k, v]) => [v, k]))
 for (const t of tiles) counts[names[t]]++
 
