@@ -12,7 +12,8 @@
     "map:build": "node scripts/build-map.mjs",
     "map:mapillary": "node scripts/fetch-mapillary.mjs",
     "map:plateau": "node scripts/fetch-plateau.mjs",
-    "map:terrain": "node scripts/fetch-terrain.mjs"
+    "map:terrain": "node scripts/fetch-terrain.mjs",
+    "map:bridges": "node scripts/fetch-bridges.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

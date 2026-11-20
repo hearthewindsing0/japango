@@ -13,6 +13,7 @@ on:
       - scripts/fetch-mapillary.mjs
       - scripts/fetch-plateau.mjs
       - scripts/fetch-terrain.mjs
+      - scripts/fetch-bridges.mjs
       - .github/workflows/map-data.yml
 
 permissions:
@@ -38,6 +39,8 @@ jobs:
         run: node scripts/fetch-plateau.mjs
       - name: Fetch PLATEAU terrain
         run: node scripts/fetch-terrain.mjs
+      - name: Fetch PLATEAU bridges
+        run: node scripts/fetch-bridges.mjs
       - name: Install script dependencies
         run: npm ci
       - name: Fetch Mapillary street-level data
