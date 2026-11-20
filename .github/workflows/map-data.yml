@@ -15,6 +15,7 @@ on:
       - scripts/fetch-terrain.mjs
       - scripts/fetch-bridges.mjs
       - scripts/fetch-wiki.mjs
+      - scripts/fetch-aerial.mjs
       - .github/workflows/map-data.yml
 
 permissions:
@@ -46,6 +47,8 @@ jobs:
         run: node scripts/fetch-wiki.mjs
       - name: Install script dependencies
         run: npm ci
+      - name: Roof colors from GSI aerial photos
+        run: node scripts/fetch-aerial.mjs
       - name: Fetch Mapillary street-level data
         # Skipped until the MAPILLARY_TOKEN repository secret is set.
         if: ${{ env.MAPILLARY_TOKEN != '' }}

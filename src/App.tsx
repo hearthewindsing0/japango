@@ -275,6 +275,14 @@ export default function App() {
             </a>
           </>
         )}
+        {map.credits?.some((c) => c.includes('国土地理院')) && (
+          <>
+            {' · '}Roof colors:{' '}
+            <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noreferrer">
+              出典：国土地理院ウェブサイト
+            </a>
+          </>
+        )}
         {map.credits?.some((c) => c.includes('PLATEAU')) && (
           <>
             {' · '}Buildings and terrain:{' '}

@@ -62,6 +62,8 @@ Map data © OpenStreetMap contributors, available under the
 Street-level data © Mapillary contributors, under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 Buildings and terrain: 3D都市モデル（Project PLATEAU）国土交通省.
+Roof colors are measured from aerial photos (`npm run map:aerial`):
+出典：国土地理院ウェブサイト（地理院タイル シームレス空中写真）.
 Place text from Wikipedia (CC BY-SA 4.0) and Wikidata (CC0).
 Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
 

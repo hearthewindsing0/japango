@@ -263,7 +263,7 @@ export function buildingBase(p: Flat, height: HeightFn) {
  *  along the wall), aTop (the building's height) and aBase (the ground
  *  height it stands on). */
 export function buildingsGeometry(
-  buildings: { p: Flat; h: number; v: number; ho?: Flat[]; c?: [number, number, number] }[],
+  buildings: { p: Flat; h: number; v: number; ho?: Flat[]; c?: [number, number, number]; rc?: [number, number, number] }[],
   height: HeightFn = () => 0,
 ) {
   const pos: number[] = []
@@ -290,7 +290,10 @@ export function buildingsGeometry(
     base = baseByBuilding[bi]
     const holes = (b.ho ?? []).map(toPts).filter((h) => h.length >= 3)
     const h = b.h
-    const roof = ROOF[b.v % ROOF.length]
+    // Roof color seen in aerial photos when there is one.
+    const roof = b.rc
+      ? new THREE.Color().setRGB(b.rc[0] / 255, b.rc[1] / 255, b.rc[2] / 255, THREE.SRGBColorSpace)
+      : ROOF[b.v % ROOF.length]
     // Use the color measured from street photos when there is one.
     const wallC = b.c
       ? new THREE.Color().setRGB(b.c[0] / 255, b.c[1] / 255, b.c[2] / 255, THREE.SRGBColorSpace)

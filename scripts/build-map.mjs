@@ -339,6 +339,30 @@ const plateau = existsSync(plateauFile) ? JSON.parse(await readFile(plateauFile,
 // buildings south of the player don't wall off the view.
 const gameHeight = (real) => (real <= 8 ? real : Math.min(15, 8 + Math.sqrt(real - 8) * 1.3))
 
+// Roof colors measured from GSI aerial photos (fetch-aerial.mjs), toned
+// down so shadows and glare don't make roofs black or white.
+const roofsFile = `data/${AREA.id}.roofs.json`
+const roofData = existsSync(roofsFile) ? JSON.parse(await readFile(roofsFile, 'utf8')) : null
+const roofColor = (ring) => {
+  const c = roofData?.roofs?.[`${ring[0][0]},${ring[0][1]}`]
+  if (!c) return null
+  const [r, g, b] = c.map((v) => v / 255)
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  let l = (max + min) / 2
+  const d = max - min
+  let s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
+  let h = 0
+  if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  s = Math.min(s, 0.35)
+  l = Math.min(0.78, Math.max(0.38, l * 1.1))
+  const C = (1 - Math.abs(2 * l - 1)) * s
+  const X = C * (1 - Math.abs((h % 2) - 1))
+  const m = l - C / 2
+  const [r1_, g1_, b1_] = h < 1 ? [C, X, 0] : h < 2 ? [X, C, 0] : h < 3 ? [0, C, X] : h < 4 ? [0, X, C] : h < 5 ? [X, 0, C] : [C, 0, X]
+  return [r1_ + m, g1_ + m, b1_ + m].map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255))
+}
+
 const buildings = []
 if (plateau?.buildings?.length) {
   const seenRings = new Set()
@@ -354,7 +378,10 @@ if (plateau?.buildings?.length) {
     if (fx !== lx || fy !== ly) ring.push([fx, fy])
     fillPolygon([ring], T.BUILDING)
     const real = b.h > 0 ? b.h : b.st > 0 ? b.st * 3.3 : 8
-    buildings.push({ p: flat(ring), h: r1(gameHeight(real)), v: hash(i + 1) % 8, ho: [] })
+    const bld = { p: flat(ring), h: r1(gameHeight(real)), v: hash(i + 1) % 8, ho: [] }
+    const rc = roofColor(b.ring)
+    if (rc) bld.rc = rc
+    buildings.push(bld)
   })
   console.log(`Buildings from PLATEAU: ${buildings.length}`)
 } else {
@@ -1002,7 +1029,7 @@ await writeFile(
     name: AREA.name,
     nameEn: AREA.nameEn,
     attribution: osm.attribution,
-    credits: [osm.attribution, plateau?.buildings?.length || terrain ? '3D都市モデル（Project PLATEAU）国土交通省' : null, mly?.attribution, wiki ? wiki.attribution : null].filter(Boolean),
+    credits: [osm.attribution, plateau?.buildings?.length || terrain ? '3D都市モデル（Project PLATEAU）国土交通省' : null, mly?.attribution, wiki ? wiki.attribution : null, roofData ? roofData.attribution : null].filter(Boolean),
     fetchedAt: osm.fetchedAt,
     rotationDeg: AREA.rotationDeg,
     width: FW,

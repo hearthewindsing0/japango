@@ -47,7 +47,8 @@ export interface MapFile {
   spawn: { x: number; y: number }
   grid: { cell: number; width: number; height: number; rle: string }
   /** c: wall color measured from street photos (sRGB 0-255), if any. */
-  buildings: { p: Flat; h: number; v: number; ho?: Flat[]; c?: [number, number, number] }[]
+  /** rc: roof color from aerial photos (sRGB 0-255), if any. */
+  buildings: { p: Flat; h: number; v: number; ho?: Flat[]; c?: [number, number, number]; rc?: [number, number, number] }[]
   roads: { t: string; w: number; s: number; p: Flat; b: number }[]
   paths: { t: string; w: number; p: Flat }[]
   areas: { t: number; p: Flat; h: Flat[] }[]

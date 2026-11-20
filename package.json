@@ -14,7 +14,8 @@
     "map:plateau": "node scripts/fetch-plateau.mjs",
     "map:terrain": "node scripts/fetch-terrain.mjs",
     "map:bridges": "node scripts/fetch-bridges.mjs",
-    "map:wiki": "node scripts/fetch-wiki.mjs"
+    "map:wiki": "node scripts/fetch-wiki.mjs",
+    "map:aerial": "node scripts/fetch-aerial.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
