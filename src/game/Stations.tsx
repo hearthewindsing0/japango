@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { type Station, type StationFloor, type StationRamp, type StationSign, type Underground } from './station'
+import { gateBoxes, type Station, type StationFloor, type StationRamp, type StationSign, type Underground } from './station'
 import type { Focus } from './World'
 import { view } from './input'
 import { patternedMaterial } from './patterns'
@@ -211,24 +211,24 @@ function useStationPieces(stations: Station[], ug: Underground) {
         const sides = merged(rampSides(r, r.exit ? r.za + 1.0 : null))
         if (sides) pieces.push({ z: Math.min(r.za, r.zb), geo: sides, mat: r.exit ? stripe : mats.wall })
       }
-      // Ticket gates: a row of cabinets with blue tops.
+      // Ticket gates: a row of cabinets with blue tops, and fare fence.
       for (const g of st.gates) {
-        const n = Math.floor(g.w / 1.0)
         const body: THREE.BufferGeometry[] = []
         const tops: THREE.BufferGeometry[] = []
-        for (let i = 0; i <= n; i++) {
-          const o = -g.w / 2 + (i * g.w) / n
-          const cx = g.x + g.ax * o
-          const cy = g.y + g.ay * o
-          const b = new THREE.BoxGeometry(g.ax ? 0.26 : 1.2, 1.0, g.ay ? 0.26 : 1.2)
-          b.translate(cx, g.z + 0.5, cy)
+        for (const c of gateBoxes(g)) {
+          const h = g.solid ? 1.1 : 1.0
+          const b = new THREE.BoxGeometry(c.hl * 2, h, c.hd * 2)
+          b.rotateY(-Math.atan2(c.ay, c.ax))
+          b.translate(c.x, g.z + h / 2, c.y)
           body.push(b)
-          const t = new THREE.BoxGeometry(g.ax ? 0.27 : 1.21, 0.06, g.ay ? 0.27 : 1.21)
-          t.translate(cx, g.z + 1.03, cy)
+          if (g.solid) continue
+          const t = new THREE.BoxGeometry(c.hl * 2 + 0.01, 0.06, c.hd * 2 + 0.01)
+          t.rotateY(-Math.atan2(c.ay, c.ax))
+          t.translate(c.x, g.z + 1.03, c.y)
           tops.push(t)
         }
         pieces.push({ z: g.z, geo: merged(body)!, mat: mats.gate })
-        pieces.push({ z: g.z, geo: merged(tops)!, mat: mats.gateTop })
+        if (tops.length) pieces.push({ z: g.z, geo: merged(tops)!, mat: mats.gateTop })
       }
       // Tracks: a trench with rails, a wall behind with the line's stripe,
       // and platform doors along the edge.

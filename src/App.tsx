@@ -320,7 +320,7 @@ export default function App() {
             <JaText text={sign.s.t} dict={dict} furigana={furigana} onWord={setWord} />
           </div>
           <div className="hud-slope-en">{sign.s.en}</div>
-          <div className="hud-slope-note">{SIGN_NOTES[sign.s.k]}</div>
+          <div className="hud-slope-note">{sign.s.n ?? SIGN_NOTES[sign.s.k]}</div>
         </div>
       )}
 

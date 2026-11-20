@@ -1,35 +1,57 @@
-// Underground stations you can walk into, built from OpenStreetMap:
-// subway entrances (exit numbers and positions), platforms and the subway
-// lines' tracks. OSM rarely maps the corridors in between, so those are
-// laid out here: each exit gets stairs down to a corridor that runs to its
-// station's concourse, with ticket gates where the corridor meets it, and
-// stairs or escalators down to each platform.
+// Underground stations you can walk into. Positions come from
+// OpenStreetMap: subway entrances (exit numbers), platforms and the subway
+// lines' tracks. OSM doesn't map what's in between, so the layout comes
+// from STATION_INFO, written from the operators' published station guides
+// and the stations' Wikipedia articles: which floor each platform is on,
+// where the ticket gates are, which exits each gate serves, and how you get
+// down to the platforms.
+//
+// Each station is laid out along its platforms' axis (a, along the tracks)
+// and across it (b). Ticket-gate halls sit on B1 over the ends of the
+// platforms: the outer part (toward the exits) is outside the gates, the
+// inner part is inside, with stairs or escalators down. Exits come down to
+// the outer part along corridors that keep clear of the inner part.
 //
 // Everything is in game units: map meters across, and heights on the same
 // scale as the ground (real depths × TERRAIN_SCALE).
 
 /** Facts OSM doesn't hold, by station ref. Depths in real meters below the
- *  street; dirs: per platform (west/north first), the way trains leave and
- *  the line's terminus, so signs read "〜方面". */
+ *  street. Platforms are listed in order across the tracks (smallest b
+ *  first); `extent` stretches OSM's platform to its real length, in meters
+ *  along the tracks from OSM's center. `heading` (+1/−1 along a) is for
+ *  stacked platforms, where "keep left" can't tell the direction. */
 const STATION_INFO = {
-  // Hibiya Line, Roppongi (H04): side platforms one floor down.
+  // Hibiya Line, Roppongi (H04). Two side platforms on B2 under
+  // Roppongi-dōri, staggered: platform 1 reaches further toward Kamiyachō
+  // (east), platform 2 toward Hiroo (west). Two separate gates on B1, one at
+  // each end, not linked outside the gates.
   H04: {
     line: { ja: '日比谷線', en: 'Hibiya Line', operator: '東京メトロ', operatorEn: 'Tokyo Metro' },
-    platformDepth: [11, 11],
-    dirs: [
-      { num: '1', ja: '北千住方面', en: 'for Kita-senju', next: '神谷町' },
-      { num: '2', ja: '中目黒方面', en: 'for Naka-meguro', next: '広尾' },
+    platforms: [
+      { num: '1', ja: '北千住方面', en: 'for Kita-senju', next: '神谷町', depth: 11, extent: [-83, 45] },
+      { num: '2', ja: '中目黒方面', en: 'for Naka-meguro', next: '広尾', depth: 11, extent: [-97, 30] },
+    ],
+    halls: [
+      { end: -1, ja: '西麻布方面改札', en: 'Nishi-Azabu gate', exits: ['1a', '1b', '1c', '2'] },
+      { end: 1, ja: '六本木交差点方面改札', en: 'Roppongi Crossing gate', exits: ['3', '4a', '4b'] },
     ],
   },
-  // Ōedo Line, Roppongi (E23): among the deepest in Tokyo, with the two
-  // platforms stacked one above the other (about 32 m and 42 m down).
+  // Ōedo Line, Roppongi (E23), under Gaien-Higashi-dōri. One platform per
+  // level, stacked: 2番線 (for Daimon) on B5, 32.8 m down, and 1番線 (for
+  // Shinjuku and Tochōmae) on B7, 42.3 m down, the deepest subway platform
+  // in Japan. Gates on B1 at both ends; escalators go down to a B4 passage
+  // that splits to the two levels.
   E23: {
     line: { ja: '大江戸線', en: 'Ōedo Line', operator: '都営地下鉄', operatorEn: 'Toei Subway' },
-    platformDepth: [32, 42],
-    stacked: true,
-    dirs: [
-      { ja: '都庁前・光が丘方面', en: 'for Tochōmae and Hikarigaoka', next: '青山一丁目' },
-      { ja: '大門・両国方面', en: 'for Daimon and Ryōgoku', next: '麻布十番' },
+    via: { depth: 24, floor: 'B4' },
+    platforms: [
+      { num: '2', ja: '大門・両国方面', en: 'for Daimon and Ryōgoku', next: '麻布十番', depth: 32.8, heading: 1, extent: [-67, 67] },
+      { num: '1', ja: '都庁前・光が丘方面', en: 'for Tochōmae and Hikarigaoka', next: '青山一丁目', depth: 42.3, heading: -1, extent: [-67, 67] },
+    ],
+    halls: [
+      { end: -1, ja: '東京ミッドタウン方面改札', en: 'Tokyo Midtown gate', exits: ['7', '8'] },
+      // Linked outside the gates to the Hibiya Line's crossing-side gate.
+      { end: 1, ja: '六本木交差点・六本木ヒルズ方面改札', en: 'Roppongi Crossing and Roppongi Hills gate', exits: ['5', '6'], link: { station: 'H04', hall: 1 } },
     ],
   },
 }
@@ -38,6 +60,9 @@ const CONCOURSE_DEPTH = 5 // real meters, B1
 const CORRIDOR_W = 4.5
 const STAIR_SLOPE = 0.55 // rise per meter of run (about 29°)
 const PLATFORM_EDGE_TO_TRACK = 1.8
+/** Gate hall: meters inside the gates, and outside them. */
+const PAID = 12
+const UNPAID = 14
 
 const r1 = (v) => Math.round(v * 10) / 10
 const r2 = (v) => Math.round(v * 100) / 100
@@ -55,6 +80,8 @@ function longAxis(pts) {
       best = [dx / l, dy / l]
     }
   }
+  // Point it east (or south, for one that runs north–south).
+  if (Math.abs(best[0]) >= Math.abs(best[1]) ? best[0] < 0 : best[1] < 0) best = [-best[0], -best[1]]
   return best
 }
 
@@ -88,25 +115,27 @@ function platformFrame(pts) {
   }
 }
 
-/** Rectangle (as a flat polygon) centered at c, along axis u. */
-function rect(cx, cy, ux, uy, halfL, halfW) {
-  const px = -uy
-  const py = ux
-  return [
-    [cx - ux * halfL - px * halfW, cy - uy * halfL - py * halfW],
-    [cx + ux * halfL - px * halfW, cy + uy * halfL - py * halfW],
-    [cx + ux * halfL + px * halfW, cy + uy * halfL + py * halfW],
-    [cx - ux * halfL + px * halfW, cy - uy * halfL + py * halfW],
-  ].flatMap(([x, y]) => [r1(x), r1(y)])
-}
-
-const axisRect = (x0, y0, x1, y1) => [r1(Math.min(x0, x1)), r1(Math.min(y0, y1)), r1(Math.max(x0, x1)), r1(Math.min(y0, y1)), r1(Math.max(x0, x1)), r1(Math.max(y0, y1)), r1(Math.min(x0, x1)), r1(Math.max(y0, y1))]
-
 function distToSeg(px, py, ax, ay, bx, by) {
   const dx = bx - ax
   const dy = by - ay
   const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)))
   return Math.hypot(ax + dx * t - px, ay + dy * t - py)
+}
+
+/** The number on an entrance, from its tags. */
+function exitRef(tags) {
+  if (tags.ref) return tags.ref
+  const tries = [
+    [tags.name, /([0-9]+[a-z]?)\s*[番版]?\s*(出口|出入口)/i],
+    [tags['name:en'], /exit\s*([0-9]+[a-z]?)/i],
+    [tags['name:en'], /entrada\s*([0-9]+[a-z]?)/i],
+    [tags['name:es'], /(?:entrada|salida)\s*([0-9]+[a-z]?)/i],
+  ]
+  for (const [s, re] of tries) {
+    const m = s?.match(re)
+    if (m) return m[1].toLowerCase()
+  }
+  return ''
 }
 
 /**
@@ -141,7 +170,7 @@ export function buildStations({ elements, proj, ground, scale, width, height, wa
   const stationsOut = []
 
   // Stations that share a name (Roppongi's Hibiya and Ōedo stations) share
-  // one concourse depth, so their corridors meet.
+  // one B1 level, so their passages can meet.
   const byName = new Map()
   for (const n of nodes) {
     const [x, y] = proj(n.pos)
@@ -153,15 +182,25 @@ export function buildStations({ elements, proj, ground, scale, width, height, wa
     .filter((e) => e.type === 'way' && e.tags.railway === 'platform' && e.tags.level && parseFloat(e.tags.level) < 0 && e.geom?.length > 2)
     .map((e) => ({ e, pts: e.geom.map(proj) }))
   const linesAll = elements.filter((e) => e.type === 'way' && e.tags.railway === 'subway' && e.geom?.length > 1).map((e) => ({ e, pts: e.geom.map(proj) }))
-  const exitsAll = elements
-    .filter((e) => e.type === 'node' && e.tags.railway === 'subway_entrance')
-    .map((e) => ({ e, p: proj(e.pos) }))
-    .filter(({ p }) => inFrame(p))
-    .map(({ e, p }) => ({ e, p: onPavement(p) }))
+  const entrances = elements.filter((e) => e.type === 'node' && e.tags.railway === 'subway_entrance')
 
   for (const [name, group] of byName) {
-    // Exits near this station name; each goes to the closest station.
-    const exits = exitsAll.filter(({ p }) => group.some((s) => Math.hypot(p[0] - s.x, p[1] - s.y) < 450))
+    const nameEn = group[0].n.tags['name:en'] ?? ''
+    // This station's entrances: named for it (not for a neighbor like
+    // 六本木一丁目), and not far off.
+    const ours = (t) => {
+      const s = t.name ?? ''
+      return s === name || s.startsWith(name + '駅') || (nameEn && (s === nameEn || s.startsWith(nameEn + ' ')))
+    }
+    const exits = entrances
+      .filter((e) => ours(e.tags))
+      .map((e) => ({ e, raw: proj(e.pos) }))
+      .filter(({ raw }) => inFrame(raw) && group.some((s) => Math.hypot(raw[0] - s.x, raw[1] - s.y) < 450))
+      .map(({ e, raw }) => ({
+        e,
+        p: onPavement(raw),
+        ref: exitRef(e.tags),
+      }))
     const datum = Math.max(...group.map((s) => ground(s.x, s.y)), ...exits.map(({ p }) => ground(p[0], p[1])))
     const lowest = Math.min(...group.map((s) => ground(s.x, s.y)), ...exits.map(({ p }) => ground(p[0], p[1])))
     // B1 sits a floor below the lowest street it connects to.
@@ -179,15 +218,31 @@ export function buildStations({ elements, proj, ground, scale, width, height, wa
         return best
       }
       // Its platforms: underground ones within 80 m whose nearest rails are
-      // this line's, west/north first.
-      const plats = platformsAll
+      // this line's.
+      const frames = platformsAll
         .filter(({ pts }) => pts.some(([px, py]) => Math.hypot(px - x, py - y) < 80))
         .map(({ pts }) => platformFrame(pts))
         .filter((p) => !lines.length || nearest(p.cx, p.cy, lines) <= nearest(p.cx, p.cy, otherLines))
-        .sort((a, b) => a.cx + a.cy - (b.cx + b.cy))
-        .slice(0, 2)
-      const surface = ground(x, y)
+        .slice(0, info.platforms.length)
+      if (!frames.length) frames.push({ cx: x, cy: y, ux: 1, uy: 0, half: 60, halfW: 2.5 })
 
+      // The station's own frame: a along the tracks, b across.
+      const [ux, uy] = [frames[0].ux, frames[0].uy]
+      const px = -uy
+      const py = ux
+      const c = [frames.reduce((s, f) => s + f.cx, 0) / frames.length, frames.reduce((s, f) => s + f.cy, 0) / frames.length]
+      const P = (a, b) => [c[0] + ux * a + px * b, c[1] + uy * a + py * b]
+      const AB = (qx, qy) => [(qx - c[0]) * ux + (qy - c[1]) * uy, (qx - c[0]) * px + (qy - c[1]) * py]
+      const rectAB = (a0, a1, b0, b1) =>
+        [P(a0, b0), P(a1, b0), P(a1, b1), P(a0, b1)].flatMap(([qx, qy]) => [r1(qx), r1(qy)])
+      const ramp = (kind, a0, b0, a1, b1, za, zb, w = 2.4) => {
+        const [ax, ay] = P(a0, b0)
+        const [bx, by] = P(a1, b1)
+        return { kind, ax: r1(ax), ay: r1(ay), bx: r1(bx), by: r1(by), w, za: r2(za), zb: r2(zb) }
+      }
+      const angle = (da, db) => r2(Math.atan2(uy * da + py * db, ux * da + px * db))
+
+      const surface = ground(x, y)
       const floors = []
       const ramps = []
       const gates = []
@@ -195,145 +250,218 @@ export function buildStations({ elements, proj, ground, scale, width, height, wa
       const signs = []
       const platforms = []
 
-      // Concourse (B1): over the platforms, a little longer.
-      let ax0 = Infinity
-      let ay0 = Infinity
-      let ax1 = -Infinity
-      let ay1 = -Infinity
-      for (const p of plats)
-        for (const s of [-1, 1])
-          for (const t of [-1, 1]) {
-            const px = p.cx + p.ux * p.half * s - p.uy * p.halfW * t
-            const py = p.cy + p.uy * p.half * s + p.ux * p.halfW * t
-            ax0 = Math.min(ax0, px)
-            ax1 = Math.max(ax1, px)
-            ay0 = Math.min(ay0, py)
-            ay1 = Math.max(ay1, py)
-          }
-      if (!plats.length) [ax0, ay0, ax1, ay1] = [x - 15, y - 8, x + 15, y + 8]
-      const along = ax1 - ax0 > ay1 - ay0 // concourse runs along x?
-      const pad = 6
-      const conc = along ? [ax0 - pad, ay0 - 3, ax1 + pad, ay1 + 3] : [ax0 - 3, ay0 - pad, ax1 + 3, ay1 + pad]
-      floors.push({ kind: 'concourse', z: zB1, p: axisRect(...conc) })
+      // Platforms in order across the tracks, stretched to their real length.
+      const plats = frames
+        .map((f) => {
+          const [ac, bc] = AB(f.cx, f.cy)
+          return { f, ac, bc }
+        })
+        .sort((p, q) => p.bc - q.bc)
+        .map(({ f, ac, bc }, i) => {
+          const spec = info.platforms[i] ?? info.platforms[0]
+          const [e0, e1] = spec.extent ?? [-f.half, f.half]
+          return { spec, a0: ac + e0, a1: ac + e1, b: bc, halfW: f.halfW, z: r2(surface - spec.depth * scale) }
+        })
 
-      // Platforms, their tracks, and the way down to each.
       plats.forEach((p, i) => {
-        const dir = info.dirs[i] ?? info.dirs[0]
-        const z = r2(surface - info.platformDepth[i] * scale)
+        const { spec, z } = p
+        const am = (p.a0 + p.a1) / 2
+        const half = (p.a1 - p.a0) / 2
+        floors.push({ kind: 'platform', z, p: rectAB(p.a0, p.a1, p.b - p.halfW, p.b + p.halfW) })
         // Which long side faces the track: the side nearer this line's rails.
         let side = 1
         if (lines.length) {
-          const probe = (s) => nearest(p.cx - p.uy * (p.halfW + 2) * s, p.cy + p.ux * (p.halfW + 2) * s, lines)
+          const probe = (s) => nearest(...P(am, p.b + (p.halfW + 2) * s), lines)
           side = probe(1) <= probe(-1) ? 1 : -1
         }
-        floors.push({ kind: 'platform', z, p: rect(p.cx, p.cy, p.ux, p.uy, p.half, p.halfW) })
-        // Track centerline beside the platform edge.
-        const off = p.halfW + PLATFORM_EDGE_TO_TRACK
-        const tx = p.cx - p.uy * off * side
-        const ty = p.cy + p.ux * off * side
-        // Trains keep left: the platform is on the left of the way they go.
-        // In map coordinates (y down), left of (dx, dy) is (dy, -dx).
-        const toPlat = [p.cx - tx, p.cy - ty]
-        let dx = -toPlat[1]
-        let dy = toPlat[0]
-        const l = Math.hypot(dx, dy) || 1
-        dx /= l
-        dy /= l
-        // Stacked single-track levels: the sign table says which way.
-        if (info.stacked && i === 1) {
-          dx = -dx
-          dy = -dy
+        p.side = side
+        const tb = p.b + (p.halfW + PLATFORM_EDGE_TO_TRACK) * side
+        // Trains keep left: the platform is on the left of the way they go,
+        // which in this frame is a heading of −side. Stacked platforms say.
+        const heading = spec.heading ?? -side
+        const d = [ux * heading, uy * heading]
+        const [tax, tay] = P(p.a0 - 4, tb)
+        const [tbx, tby] = P(p.a1 + 4, tb)
+        tracks.push({ ax: r1(tax), ay: r1(tay), bx: r1(tbx), by: r1(tby), z, dx: r2(d[0]), dy: r2(d[1]), half: r1(half) })
+        platforms.push({ i: floors.length - 1, num: spec.num ?? '', ja: spec.ja, en: spec.en, next: spec.next, side })
+        // Station name boards along the back wall, like the real ones.
+        for (const t of [-0.55, 0.05, 0.6]) {
+          const [sx, sy] = P(am + half * t, p.b - (p.halfW - 0.4) * side)
+          signs.push({ x: r1(sx), y: r1(sy), z, r: angle(0, side), t: `${name} ${n.tags.ref}`, en: `${nameEn} · next: ${spec.next}`, c: colour, k: 'name' })
         }
-        tracks.push({ ax: r1(tx - p.ux * (p.half + 4)), ay: r1(ty - p.uy * (p.half + 4)), bx: r1(tx + p.ux * (p.half + 4)), by: r1(ty + p.uy * (p.half + 4)), z, dx: r2(dx), dy: r2(dy), half: r1(p.half) })
-        platforms.push({ i: floors.length - 1, num: dir.num ?? '', ja: dir.ja, en: dir.en, next: dir.next, side })
-
-        // Stairs (or a long escalator) from B1 down to the platform, along
-        // the platform's middle, starting a third of the way along it.
-        const drop = zB1 - z
-        const run = Math.min(p.half * 1.6, drop / STAIR_SLOPE)
-        const kind = drop > 6 ? 'escalator' : 'stairs'
-        const sx = p.cx - p.ux * p.half * 0.75
-        const sy = p.cy - p.uy * p.half * 0.75
-        // Stacked platforms: the deeper one's escalator starts further along
-        // so the two don't overlap.
-        const shift = info.stacked && i === 1 ? p.half * 0.2 : 0
-        const a = [sx + p.ux * shift, sy + p.uy * shift]
-        const b = [a[0] + p.ux * run, a[1] + p.uy * run]
-        // If the run can't cover the drop, it ends at the platform anyway.
-        ramps.push({ kind, ax: r1(a[0]), ay: r1(a[1]), bx: r1(b[0]), by: r1(b[1]), w: 2.4, za: zB1, zb: z })
-        signs.push({ x: r1(a[0] - p.ux * 1.5), y: r1(a[1] - p.uy * 1.5), z: zB1, r: r2(Math.atan2(p.uy, p.ux)), t: `${dir.num ? dir.num + '番線 ' : ''}${dir.ja}`, en: `${dir.num ? 'Track ' + dir.num + ', ' : ''}${dir.en}`, c: colour, k: 'platform' })
-        // Station name board on the platform, like the real ones.
-        signs.push({
-          x: r1(p.cx + p.ux * p.half * 0.4 + p.uy * (p.halfW - 0.4) * side),
-          y: r1(p.cy + p.uy * p.half * 0.4 - p.ux * (p.halfW - 0.4) * side),
-          z,
-          r: r2(Math.atan2(p.ux, -p.uy)),
-          t: `${name} ${n.tags.ref}`,
-          en: `${n.tags['name:en'] ?? ''} · next: ${dir.next}`,
-          c: colour,
-          k: 'name',
-        })
       })
-      return { n, info, colour, floors, ramps, gates, tracks, signs, platforms, conc, along, surface }
+
+      // Ticket-gate halls over the ends of the platforms, as wide as the
+      // platforms and the tracks between them.
+      const hb0 = Math.min(...plats.map((p) => p.b - p.halfW))
+      const hb1 = Math.max(...plats.map((p) => p.b + p.halfW))
+      const halls = info.halls.map((h) => {
+        // Where every platform still runs, so the way down lands on them.
+        const aEnd = h.end < 0 ? Math.max(...plats.map((p) => p.a0)) : Math.min(...plats.map((p) => p.a1))
+        const inward = -h.end
+        const gate = aEnd + inward * 2
+        const paid = [gate, gate + inward * PAID].sort((p, q) => p - q)
+        const unpaid = [gate, gate - inward * UNPAID].sort((p, q) => p - q)
+        floors.push({ kind: 'concourse', z: zB1, p: rectAB(Math.min(...paid, ...unpaid), Math.max(...paid, ...unpaid), hb0, hb1) })
+        // The gate line: lanes in the middle, fare fence to the walls.
+        const w = hb1 - hb0
+        const lanes = Math.min(w - 2, 7)
+        const mid = (hb0 + hb1) / 2
+        const [gx, gy] = P(gate, mid)
+        gates.push({ x: r1(gx), y: r1(gy), ax: r2(px), ay: r2(py), w: lanes, z: zB1 })
+        for (const [f0, f1] of [
+          [hb0, mid - lanes / 2],
+          [mid + lanes / 2, hb1],
+        ]) {
+          if (f1 - f0 < 0.3) continue
+          const [fx, fy] = P(gate, (f0 + f1) / 2)
+          gates.push({ x: r1(fx), y: r1(fy), ax: r2(px), ay: r2(py), w: r1(f1 - f0), z: zB1, solid: 1 })
+        }
+        const [sx, sy] = P(gate - inward * 3, mid)
+        signs.push({ x: r1(sx), y: r1(sy), z: zB1, r: angle(-inward, 0), t: h.ja, en: h.en, c: colour, k: 'gate' })
+
+        // The way down, inside the gates.
+        const down = (d0, b, za, zb) => {
+          const run = Math.max(2, (za - zb) / STAIR_SLOPE)
+          return { r: ramp(za - zb > 4 ? 'escalator' : 'stairs', gate + inward * d0, b, gate + inward * (d0 + run), b, za, zb), end: d0 + run }
+        }
+        const platformSign = (p, d0, z) => {
+          const [qx, qy] = P(gate + inward * (d0 - 1.5), p.b)
+          signs.push({ x: r1(qx), y: r1(qy), z, r: angle(-inward, 0), t: `${p.spec.num ? p.spec.num + '番線 ' : ''}${p.spec.ja}`, en: `${p.spec.num ? 'Track ' + p.spec.num + ', ' : ''}${p.spec.en}`, c: colour, k: 'platform' })
+        }
+        if (info.via) {
+          // Escalator to the passage below, then one down to each level.
+          const zVia = r2(surface - info.via.depth * scale)
+          const first = down(2, mid, zB1, zVia)
+          ramps.push(first.r)
+          const [qx, qy] = P(gate + inward * 0.6, mid)
+          signs.push({ x: r1(qx), y: r1(qy), z: zB1, r: angle(-inward, 0), t: `${info.line.ja} のりば`, en: `${info.line.en} platforms`, c: colour, k: 'platform', n: 'のりば (乗り場) means "where you board". Follow it to the platforms.' })
+          const s0 = first.end - 1
+          const s1 = first.end + 8
+          const [v0, v1] = [gate + inward * s0, gate + inward * s1].sort((p, q) => p - q)
+          floors.push({ kind: 'corridor', z: zVia, p: rectAB(v0, v1, hb0, hb1) })
+          for (const p of plats) {
+            const st = down(first.end + 3, p.b, zVia, p.z)
+            ramps.push(st.r)
+            platformSign(p, first.end + 3, zVia)
+          }
+        } else
+          for (const p of plats) {
+            ramps.push(down(2, p.b, zB1, p.z).r)
+            platformSign(p, 2, zB1)
+          }
+        return { h, inward, gate, unpaid, mid, hb0, hb1 }
+      })
+      return { n, info, colour, floors, ramps, gates, tracks, signs, platforms, halls, AB, P, rectAB, ramp, angle, surface, exits: [] }
     })
 
-    // Exits: stairs down from the street, then a corridor to the nearest
-    // concourse, with gates where it arrives.
-    for (const { e, p } of exits) {
-      const [ex, ey] = p
-      let best = null
-      for (const s of built) {
-        const [c0x, c0y, c1x, c1y] = s.conc
-        const nx = Math.max(c0x, Math.min(c1x, ex))
-        const ny = Math.max(c0y, Math.min(c1y, ey))
-        const d = Math.hypot(nx - ex, ny - ey)
-        if (!best || d < best.d) best = { s, d, nx, ny }
-      }
-      if (!best || best.d > 500) continue
-      const { s, nx, ny } = best
-      const top = ground(ex, ey)
-      const drop = Math.max(1, top - zB1)
-      const run = drop / STAIR_SLOPE
-      // Stairs run along the main direction toward the concourse.
-      const horiz = Math.abs(nx - ex) >= Math.abs(ny - ey)
-      const ux = horiz ? Math.sign(nx - ex) || 1 : 0
-      const uy = horiz ? 0 : Math.sign(ny - ey) || 1
-      const bx = ex + ux * run
-      const by = ey + uy * run
-      const ref = e.tags.ref ?? (e.tags.name?.match(/([0-9]+[a-z]?)\s*(番)?(出口|出入口)/)?.[1] ?? '')
-      s.ramps.push({ kind: 'stairs', exit: 1, ax: r1(ex), ay: r1(ey), bx: r1(bx), by: r1(by), w: 2.6, za: r2(top), zb: zB1 })
-      // Corridor: from the stair bottom to the concourse edge, an L if needed.
-      const hw = CORRIDOR_W / 2
-      const cx = Math.max(s.conc[0], Math.min(s.conc[2], bx))
-      const cy = Math.max(s.conc[1], Math.min(s.conc[3], by))
+    // Corridors between a point and a hall's outer part (or an earlier
+    // corridor), along the station's axes, keeping clear of the paid part.
+    const hw = CORRIDOR_W / 2
+    const route = (s, hall, a, b, extra) => {
       const legs = []
-      if (Math.abs(cx - bx) > 0.5 || Math.abs(cy - by) > 0.5) {
-        if (horiz) {
-          legs.push([bx - ux * 1, by - hw, cx + (cx > bx ? hw : -hw), by + hw])
-          if (Math.abs(cy - by) > 0.5) legs.push([cx - hw, by, cx + hw, cy])
-        } else {
-          legs.push([bx - hw, by - uy * 1, bx + hw, cy + (cy > by ? hw : -hw)])
-          if (Math.abs(cx - bx) > 0.5) legs.push([bx, cy - hw, cx, cy + hw])
-        }
-      } else legs.push([bx - hw, by - hw, bx + hw, by + hw])
-      for (const l of legs) s.floors.push({ kind: 'corridor', z: zB1, p: axisRect(...l) })
-      // Ticket gates across the corridor where it enters the concourse,
-      // just inside it.
-      if (legs.length && (Math.abs(cx - bx) > 0.5 || Math.abs(cy - by) > 0.5)) {
-        const last = legs.at(-1)
-        const lastHoriz = Math.abs(last[2] - last[0]) > Math.abs(last[3] - last[1])
-        const from = lastHoriz ? [Math.sign(cx - bx) || 1, 0] : [0, Math.sign(cy - by) || 1]
-        const gx = cx + from[0] * 1.5
-        const gy = cy + from[1] * 1.5
-        if (!s.gates.some((g) => Math.hypot(g.x - gx, g.y - gy) < 6)) {
-          // ax, ay: the direction the row of gates runs (across the corridor).
-          s.gates.push({ x: r1(gx), y: r1(gy), ax: Math.abs(from[1]), ay: Math.abs(from[0]), w: CORRIDOR_W, z: zB1 })
-          s.signs.push({ x: r1(gx - from[0] * 3), y: r1(gy - from[1] * 3), z: zB1, r: r2(Math.atan2(from[1], from[0])), t: '改札口', en: 'Ticket gates', c: s.colour, k: 'gate' })
+      // Each leg runs from (a0, b0) to (a1, b1). The first starts at the
+      // stair bottom and only needs to reach back under the stairs' width.
+      const leg = (a0, b0, a1, b1) => {
+        const back = legs.length ? hw : 1.3
+        const sa = Math.sign(a1 - a0)
+        const sb = Math.sign(b1 - b0)
+        const ea = [a0 - (sa || 0) * back - (sa ? 0 : hw), a1 + (sa || 0) * hw + (sa ? 0 : hw)]
+        const eb = [b0 - (sb || 0) * back - (sb ? 0 : hw), b1 + (sb || 0) * hw + (sb ? 0 : hw)]
+        legs.push([Math.min(...ea), Math.max(...ea), Math.min(...eb), Math.max(...eb)])
+      }
+      // Target: the hall's outer part, or the nearest corridor already there.
+      const targets = [{ t: [hall.unpaid[0], hall.unpaid[1], hall.hb0, hall.hb1], isHall: true }, ...extra.map((t) => ({ t, isHall: false }))]
+      const dist = ([a0, a1, b0, b1]) => Math.hypot(Math.max(a0 - a, 0, a - a1), Math.max(b0 - b, 0, b - b1))
+      const { t, isHall } = targets.sort((p, q) => dist(p.t) - dist(q.t))[0]
+      const [ta0, ta1, tb0, tb1] = t
+      const inA = (v) => v >= ta0 + hw && v <= ta1 - hw
+      const inB = (v) => v >= tb0 + hw && v <= tb1 - hw
+      const clampA = (v) => (ta1 - ta0 < 2 * hw ? (ta0 + ta1) / 2 : Math.max(ta0 + hw, Math.min(ta1 - hw, v)))
+      const intoB = (v) => (v < tb0 ? tb0 + 1 : v > tb1 ? tb1 - 1 : v)
+      if (dist(t) < 0.01) return legs
+      if (isHall && !inA(a) && b > hall.hb0 - hw - 0.3 && b < hall.hb1 + hw + 0.3) {
+        // Right beside the gates: step out of the way first.
+        const out = b - hall.hb0 < hall.hb1 - b ? hall.hb0 - hw - 0.5 : hall.hb1 + hw + 0.5
+        leg(a, b, a, out)
+        b = out
+      }
+      if (inA(a)) leg(a, b, a, intoB(b))
+      else if (!isHall && inB(b)) leg(a, b, a < ta0 ? ta0 + 1 : ta1 - 1, b)
+      else {
+        const at = clampA(a)
+        leg(a, b, at, b)
+        leg(at, b, at, intoB(b))
+      }
+      return legs
+    }
+
+    const allHalls = built.flatMap((s) => s.halls.map((hall) => ({ s, hall })))
+    const corridors = new Map(allHalls.map(({ hall }) => [hall, []]))
+    const addCorridors = (s, hall, legs) => {
+      for (const l of legs) {
+        s.floors.push({ kind: 'corridor', z: zB1, p: s.rectAB(...l) })
+        corridors.get(hall).push(l)
+      }
+    }
+
+    // Exits: each to the hall that serves its number (else the nearest),
+    // farthest first, so nearer ones can join their corridor.
+    const placed = exits.map((x) => {
+      let home = allHalls.find(({ hall }) => x.ref && hall.h.exits.includes(x.ref))
+      if (!home) {
+        let best = Infinity
+        for (const o of allHalls) {
+          const [qx, qy] = o.s.P((o.hall.unpaid[0] + o.hall.unpaid[1]) / 2, o.hall.mid)
+          const d = Math.hypot(qx - x.p[0], qy - x.p[1])
+          if (d < best) {
+            best = d
+            home = o
+          }
         }
       }
-      // Exit sign at the stair bottom.
-      s.signs.push({ x: r1(bx + ux * 1.5), y: r1(by + uy * 1.5), z: zB1, r: r2(Math.atan2(uy, ux)), t: `出口 ${ref}`.trim(), en: `Exit ${ref}`.trim(), c: '#f2c230', k: 'exit' })
-      s.exits = [...(s.exits ?? []), { ref, name: e.tags.name ?? '', x: r1(ex), y: r1(ey), ux, uy, ramp: s.ramps.length - 1 }]
+      const [a, b] = home.s.AB(...x.p)
+      const ua = Math.max(home.hall.unpaid[0], Math.min(home.hall.unpaid[1], a))
+      return { ...x, home, d: Math.hypot(ua - a, Math.max(home.hall.hb0 - b, 0, b - home.hall.hb1)) }
+    })
+    placed.sort((p, q) => q.d - p.d)
+    for (const { e, p, ref, home } of placed) {
+      const { s, hall } = home
+      const [ex, ey] = p
+      const [a, b] = s.AB(ex, ey)
+      const top = ground(ex, ey)
+      const run = Math.max(1, top - zB1) / STAIR_SLOPE
+      // Stairs head toward the hall along whichever axis is farther off.
+      const ta = Math.max(hall.unpaid[0] + hw, Math.min(hall.unpaid[1] - hw, a))
+      const tb = Math.max(hall.hb0, Math.min(hall.hb1, b))
+      const alongA = Math.abs(ta - a) >= Math.abs(tb - b)
+      const sa = alongA ? Math.sign(ta - a) || 1 : 0
+      const sb = alongA ? 0 : Math.sign(tb - b) || 1
+      const ba = a + sa * run
+      const bb = b + sb * run
+      s.ramps.push({ ...s.ramp('stairs', a, b, ba, bb, top, zB1, 2.6), exit: 1 })
+      addCorridors(s, hall, route(s, hall, ba, bb, corridors.get(hall)))
+      const [bx, by] = s.P(ba, bb)
+      const ux = r2((bx - ex) / run)
+      const uy = r2((by - ey) / run)
+      const [sx, sy] = s.P(ba + sa * 1.5, bb + sb * 1.5)
+      s.signs.push({ x: r1(sx), y: r1(sy), z: zB1, r: s.angle(sa, sb), t: `出口 ${ref}`.trim(), en: `Exit ${ref}`.trim(), c: '#f2c230', k: 'exit' })
+      s.exits.push({ ref, name: e.tags.name ?? '', x: r1(ex), y: r1(ey), ux, uy, ramp: s.ramps.length - 1 })
+    }
+
+    // Passages between gate halls outside the gates (for changing lines).
+    for (const { s, hall } of allHalls) {
+      const link = hall.h.link
+      const other = link && built.find((o) => o.n.tags.ref === link.station)
+      if (!other) continue
+      const oh = other.halls[link.hall]
+      const [ox, oy] = other.P((oh.unpaid[0] + oh.unpaid[1]) / 2, oh.mid)
+      const [a, b] = s.AB(ox, oy)
+      addCorridors(s, hall, route(s, hall, a, b, []))
+      const note = '乗り換え (のりかえ) means changing trains. Follow it to the other line.'
+      const [qx, qy] = s.P((hall.unpaid[0] + hall.unpaid[1]) / 2 - hall.inward * 2, hall.hb1 - 1)
+      s.signs.push({ x: r1(qx), y: r1(qy), z: zB1, r: s.angle(0, 1), t: `のりかえ ${other.info.line.ja}`, en: `Transfer: ${other.info.line.en}`, c: other.colour, k: 'gate', n: note })
+      s.signs.push({ x: r1(ox), y: r1(oy), z: zB1, r: s.angle(0, -1), t: `のりかえ ${s.info.line.ja}`, en: `Transfer: ${s.info.line.en}`, c: s.colour, k: 'gate', n: note })
     }
 
     for (const s of built) {
@@ -343,8 +471,8 @@ export function buildStations({ elements, proj, ground, scale, width, height, wa
         nameEn: s.n.tags['name:en'] ?? '',
         wikidata: s.n.tags.wikidata,
         line: { ...s.info.line, ref: s.n.tags.ref, colour: s.colour },
-        x: r1(s.n.pos ? proj(s.n.pos)[0] : 0),
-        y: r1(s.n.pos ? proj(s.n.pos)[1] : 0),
+        x: r1(proj(s.n.pos)[0]),
+        y: r1(proj(s.n.pos)[1]),
         datum: r2(datum),
         floors: s.floors,
         ramps: s.ramps,
@@ -352,7 +480,7 @@ export function buildStations({ elements, proj, ground, scale, width, height, wa
         tracks: s.tracks,
         platforms: s.platforms,
         signs: s.signs,
-        exits: s.exits ?? [],
+        exits: s.exits,
       })
     }
   }
