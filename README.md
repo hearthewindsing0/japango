@@ -94,21 +94,30 @@ Sounds from Freesound, credited per recording in `public/sounds/credits.json`.
 
 You can walk down any subway entrance in Roppongi into 六本木駅: the
 Hibiya Line (H04) and the Ōedo Line (E23). `scripts/stations.mjs` builds
-each station at map-build time from OpenStreetMap: entrances
-(`railway=subway_entrance`, with their exit numbers), underground platforms
-and the subway tracks. Depths and directions come from a small table in
-that script (`STATION_INFO`), since OSM doesn't record them.
+them at map-build time. Positions come from OpenStreetMap: the entrances
+and their exit numbers, the platforms and the tracks. The layout comes
+from `STATION_INFO` in that script, written from Tokyo Metro's and Toei's
+station guides and the station's Wikipedia articles:
 
-The exit stairs, corridors, ticket gates and concourse are laid out by the
-script, not surveyed, so they're plausible rather than exact. Each station
-is a set of flat floors joined by stairs and escalators
-(`src/game/station.ts`), drawn as a cutaway that hides everything above
-you (`src/game/Stations.tsx`). Signs (出口, 改札口, 番線, the station name
-board) explain their Japanese when you stand near them. Trains arrive
-every two and a half minutes on a made-up schedule; real timetables would
-need an ODPT key.
+- Hibiya: two side platforms on B2 under Roppongi-dōri, staggered, about
+  130 m long. Two separate gates on B1: 西麻布方面改札 (exits 1a–2) at
+  the west end and 六本木交差点方面改札 (exits 3–4b) at the east end.
+- Ōedo: one platform per level under Gaien-Higashi-dōri, stacked: 2番線
+  for Daimon on B5 (32.8 m) and 1番線 for Tochōmae on B7 (42.3 m, the
+  deepest in Japan). Escalators go from the gates on B1 to a B4 passage,
+  which splits to the two levels. Gates at the Tokyo Midtown end (exits
+  7, 8) and the crossing end (exits 5, 6), which links to the Hibiya
+  gates outside the fare line, for changing lines.
 
-Start underground with `?at=x,y,z`, e.g. `?at=604,403.6,6.14`.
+The corridors from each exit are generated along the station's axes, so
+their routes are approximate. The gates have lanes in the middle and fare
+fence to the walls; the only way to the platforms is through them. Signs
+(出口, 改札, 番線, のりば, のりかえ, the station name boards) explain their
+Japanese when you stand near them. Trains arrive every two and a half
+minutes on a made-up schedule; real timetables would need an ODPT key.
+
+Start underground with `?at=x,y,z`, e.g. `?at=495,408.8,6.14` (Hibiya
+west gates) or `?at=662,350,-12.08` (Ōedo B7).
 
 ## Hosting on Cloudflare
 

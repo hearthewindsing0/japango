@@ -31,6 +31,8 @@ export interface StationSign {
   en: string
   c: string
   k: 'platform' | 'name' | 'gate' | 'exit'
+  /** A learning note for this sign, instead of the one for its kind. */
+  n?: string
 }
 export interface Station {
   id: string
@@ -43,8 +45,9 @@ export interface Station {
   datum: number
   floors: StationFloor[]
   ramps: StationRamp[]
-  /** Rows of ticket gates: center, the direction the row runs, width. */
-  gates: { x: number; y: number; ax: number; ay: number; w: number; z: number }[]
+  /** Rows of ticket gates: center, the direction the row runs, width.
+   *  `solid`: a stretch of fare fence instead of gates. */
+  gates: { x: number; y: number; ax: number; ay: number; w: number; z: number; solid?: 1 }[]
   /** Track centerlines; dx, dy: the way trains leave. */
   tracks: { ax: number; ay: number; bx: number; by: number; z: number; dx: number; dy: number; half: number }[]
   platforms: { i: number; num: string; ja: string; en: string; next: string; side: number }[]
@@ -57,6 +60,24 @@ const STEP = 0.6
 /** Ramps and floors this far apart in height don't touch: it's a drop or
  *  the underside of the stairs. */
 const GAP = 0.8
+/** Stairs higher than this over a floor leave room to walk under them. */
+const HEADROOM = 2.1
+
+/** Gate cabinets and fence: boxes along a row (ax, ay), with half lengths
+ *  along the row and across it. */
+export function gateBoxes(g: Station['gates'][number]) {
+  const out: { x: number; y: number; ax: number; ay: number; hl: number; hd: number; z: number }[] = []
+  if (g.solid) out.push({ x: g.x, y: g.y, ax: g.ax, ay: g.ay, hl: g.w / 2, hd: 0.13, z: g.z })
+  else {
+    // 0.2 m cabinets, 1.2 m deep, with lanes between, about 1.1 m apart.
+    const n = Math.max(1, Math.round(g.w / 1.1))
+    for (let i = 0; i <= n; i++) {
+      const o = -g.w / 2 + (i * g.w) / n
+      out.push({ x: g.x + g.ax * o, y: g.y + g.ay * o, ax: g.ax, ay: g.ay, hl: 0.1, hd: 0.6, z: g.z })
+    }
+  }
+  return out
+}
 
 function inPoly(p: Flat, x: number, y: number) {
   let hit = false
@@ -86,25 +107,14 @@ export class Underground {
   street: (x: number, y: number) => number | null = () => null
   floors: StationFloor[] = []
   ramps: StationRamp[] = []
-  cabinets: { x0: number; y0: number; x1: number; y1: number; z: number }[] = []
+  cabinets: ReturnType<typeof gateBoxes> = []
   readonly stations: Station[]
   constructor(stations: Station[]) {
     this.stations = stations
     for (const s of stations) {
       this.floors.push(...s.floors)
       this.ramps.push(...s.ramps)
-      // Gate cabinets: 0.25 m wide, 1.2 m deep, with 0.75 m lanes between.
-      for (const g of s.gates) {
-        const n = Math.floor(g.w / 1.0)
-        for (let i = 0; i <= n; i++) {
-          const o = -g.w / 2 + (i * g.w) / n
-          const cx = g.x + g.ax * o
-          const cy = g.y + g.ay * o
-          const hx = g.ax ? 0.13 : 0.6
-          const hy = g.ay ? 0.13 : 0.6
-          this.cabinets.push({ x0: cx - hx, y0: cy - hy, x1: cx + hx, y1: cy + hy, z: g.z })
-        }
-      }
+      for (const g of s.gates) this.cabinets.push(...gateBoxes(g))
     }
   }
 
@@ -137,10 +147,19 @@ export class Underground {
     }
     if (!best) return null
     // A floor (or the street) with a stairwell cut through it: blocked
-    // where the stairs are well above or below it.
+    // where the stairs go down through it, or pass too low overhead.
     if (!best[1] || best[1] === 'street')
-      for (const s of all) if (s[1] && s[1] !== 'street' && Math.abs(s[0] - best[0]) > GAP) return null
-    for (const c of this.cabinets) if (Math.abs(c.z - best[0]) < 1.5 && x >= c.x0 && x <= c.x1 && y >= c.y0 && y <= c.y1) return null
+      for (const s of all) {
+        if (!s[1] || s[1] === 'street') continue
+        const dz = s[0] - best[0]
+        if (dz < -GAP || (dz > GAP && dz < HEADROOM)) return null
+      }
+    for (const c of this.cabinets) {
+      if (Math.abs(c.z - best[0]) > 1.5) continue
+      const dx = x - c.x
+      const dy = y - c.y
+      if (Math.abs(dx * c.ax + dy * c.ay) <= c.hl && Math.abs(-dx * c.ay + dy * c.ax) <= c.hd) return null
+    }
     return { z: best[0], street: best[1] === 'street' }
   }
 
