@@ -451,3 +451,14 @@ rt {
     right: 12px;
   }
 }
+
+/* Subway line badge, e.g. H04 in the line's color. */
+.hud-line {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}

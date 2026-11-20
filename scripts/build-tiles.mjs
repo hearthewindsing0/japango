@@ -167,6 +167,7 @@ const manifest = {
   streets: map.streets,
   slopes: map.slopes ?? [],
   discoveries: map.discoveries ?? [],
+  stations: map.stations ?? [],
 }
 await writeFile(`${outDir}/manifest.json`, JSON.stringify(manifest))
 console.log(`Cut ${map.width}×${map.height} m into ${tiles.length} tiles of ${TILE} m (${(bytes / 1e6).toFixed(1)} MB) → ${outDir}`)

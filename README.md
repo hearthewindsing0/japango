@@ -90,6 +90,26 @@ Place text from Wikipedia (CC BY-SA 4.0) and Wikidata (CC0).
 Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
 Sounds from Freesound, credited per recording in `public/sounds/credits.json`.
 
+## Stations
+
+You can walk down any subway entrance in Roppongi into 六本木駅: the
+Hibiya Line (H04) and the Ōedo Line (E23). `scripts/stations.mjs` builds
+each station at map-build time from OpenStreetMap: entrances
+(`railway=subway_entrance`, with their exit numbers), underground platforms
+and the subway tracks. Depths and directions come from a small table in
+that script (`STATION_INFO`), since OSM doesn't record them.
+
+The exit stairs, corridors, ticket gates and concourse are laid out by the
+script, not surveyed, so they're plausible rather than exact. Each station
+is a set of flat floors joined by stairs and escalators
+(`src/game/station.ts`), drawn as a cutaway that hides everything above
+you (`src/game/Stations.tsx`). Signs (出口, 改札口, 番線, the station name
+board) explain their Japanese when you stand near them. Trains arrive
+every two and a half minutes on a made-up schedule; real timetables would
+need an ODPT key.
+
+Start underground with `?at=x,y,z`, e.g. `?at=604,403.6,6.14`.
+
 ## Hosting on Cloudflare
 
 The game runs as one Cloudflare Worker (`wrangler.toml`, `worker/index.ts`):
@@ -124,6 +144,7 @@ and R2.
 - `src/game/Props.tsx`: street lights, utility poles, signs and other street furniture.
 - `src/game/patterns.ts`: procedural paving, asphalt and grass textures.
 - `src/game/Player.tsx`: free movement with collisions, the walking character and the follow camera.
+- `src/game/station.ts`, `src/game/Stations.tsx`: walking and drawing the subway stations.
 - `src/game/Labels.tsx`: Japanese/English name tags for nearby places.
 - `src/game/Minimap.tsx`, `src/game/DPad.tsx`: overview map and touch controls.
 - `src/game/map.ts`, `src/game/tiles.ts`: map loading, ground types, colors and lookups.

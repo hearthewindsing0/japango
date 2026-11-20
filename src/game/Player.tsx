@@ -2,7 +2,8 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useRef } from 'react'
 import * as THREE from 'three'
 import { input, view } from './input'
-import { circleBlocked, groundAt, type GameMap } from './map'
+import { circleBlocked, groundAt, isBlocked, type GameMap } from './map'
+import type { Underground } from './station'
 import type { Focus } from './World'
 
 const WALK_SPEED = 4.5 // m/s
@@ -12,27 +13,61 @@ const CAMERA_PITCH = (63 * Math.PI) / 180
 
 interface Props {
   map: GameMap
+  /** The map's stations, for walking down into them. */
+  ug: Underground | null
   focus: React.RefObject<Focus>
   /** Camera distance from the player, in meters. */
   distance: number
   /** Called when the player has moved at least a meter since the last call. */
-  onMove: (x: number, y: number) => void
+  onMove: (x: number, y: number, under: boolean) => void
 }
 
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt))
 
 /** Free movement with sliding collisions, a small 3D walker, and a camera
  *  that follows from behind and above. */
-export function Player({ map, focus, distance, onMove }: Props) {
+export function Player({ map, ug, focus, distance, onMove }: Props) {
   const root = useRef<THREE.Group>(null)
   const body = useRef<THREE.Group>(null)
   const legL = useRef<THREE.Group>(null)
   const legR = useRef<THREE.Group>(null)
   const armL = useRef<THREE.Group>(null)
   const armR = useRef<THREE.Group>(null)
-  const s = useRef({ heading: 0, phase: 0, speed: 0, ground: 0, lastX: focus.current.x, lastY: focus.current.y })
+  const s = useRef({ heading: 0, phase: 0, speed: 0, ground: 0, lastX: focus.current.x, lastY: focus.current.y, lastUnder: false })
   const camera = useThree((st) => st.camera)
   const placed = useRef(false)
+
+  /** One step: on the street, or underground once you've gone down an
+   *  exit's stairs. */
+  const tryMove = (nx: number, ny: number) => {
+    const f = focus.current
+    if (ug) ug.street = (x, y) => (isBlocked(map, x, y) ? null : groundAt(map, x, y))
+    if (f.under && ug) {
+      const at = ug.standCircle(nx, ny, f.z ?? 0, RADIUS)
+      if (!at) return
+      f.x = nx
+      f.y = ny
+      f.z = at.z
+      if (at.street) f.under = false
+      return
+    }
+    if (circleBlocked(map, nx, ny, RADIUS)) return
+    const g = groundAt(map, nx, ny)
+    if (ug) {
+      const z = ug.exitStairsAt(nx, ny, g)
+      if (z != null && ug.standCircle(nx, ny, z, RADIUS)) {
+        f.x = nx
+        f.y = ny
+        f.z = z
+        f.under = true
+        return
+      }
+      if (ug.overStairwell(nx, ny, g)) return
+    }
+    f.x = nx
+    f.y = ny
+    f.z = g
+  }
 
   useFrame((_, dtRaw) => {
     const dt = Math.min(dtRaw, 0.05)
@@ -50,10 +85,8 @@ export function Player({ map, focus, distance, onMove }: Props) {
       st.heading += diff * (1 - Math.exp(-18 * dt))
       const step = st.speed * dt
       // Move each axis on its own so the player slides along walls.
-      const nx = f.x + ix * step
-      if (!circleBlocked(map, nx, f.y, RADIUS)) f.x = nx
-      const ny = f.y + iy * step
-      if (!circleBlocked(map, f.x, ny, RADIUS)) f.y = ny
+      tryMove(f.x + ix * step, f.y)
+      tryMove(f.x, f.y + iy * step)
     }
 
     // Walk cycle.
@@ -67,7 +100,7 @@ export function Player({ map, focus, distance, onMove }: Props) {
     if (body.current) body.current.position.y = moving ? Math.abs(Math.cos(st.phase)) * 0.05 : 0
 
     // Follow the ground smoothly up and down slopes.
-    const gh = groundAt(map, f.x, f.y)
+    const gh = f.under ? (f.z ?? 0) : groundAt(map, f.x, f.y)
     st.ground = placed.current ? damp(st.ground, gh, 20, dt) : gh
     if (root.current) {
       root.current.position.set(f.x, st.ground, f.y)
@@ -94,10 +127,11 @@ export function Player({ map, focus, distance, onMove }: Props) {
       camera.position.z - Math.cos(view.yaw) * back,
     )
 
-    if (Math.hypot(f.x - st.lastX, f.y - st.lastY) > 1) {
+    if (Math.hypot(f.x - st.lastX, f.y - st.lastY) > 1 || st.lastUnder !== !!f.under) {
       st.lastX = f.x
       st.lastY = f.y
-      onMove(f.x, f.y)
+      st.lastUnder = !!f.under
+      onMove(f.x, f.y, !!f.under)
     }
   })
 

@@ -1,4 +1,5 @@
 import { BLOCKED, T } from './tiles'
+import type { Station } from './station'
 
 export type PoiKind =
   | 'station'
@@ -183,6 +184,8 @@ export interface Manifest {
   streets: Street[]
   slopes: Slope[]
   discoveries: Discovery[]
+  /** Stations you can walk into (see station.ts). */
+  stations?: Station[]
 }
 
 /** The map as the game sees it: the manifest plus whichever tiles are
