@@ -6,6 +6,7 @@ import { LabelLayerSync, Labels } from './game/Labels'
 import { discoveryNear, loadMap, nearestPoi, slopeNear, streetNear, type GameMap } from './game/map'
 import { Discoveries } from './game/Discoveries'
 import { Crowd } from './game/Crowd'
+import { useAmbience, useSoundCredits } from './game/ambience'
 import { loadDict, type Dict } from './game/dict'
 import { JaText, WordPopup, type WordPick } from './game/JaText'
 import { Minimap } from './game/Minimap'
@@ -37,6 +38,22 @@ export default function App() {
   useEffect(() => {
     loadDict('roppongi').then(setDict)
   }, [])
+  // Background sound, on unless the player turned it off.
+  const [muted, setMuted] = useState(() => {
+    try {
+      return localStorage.getItem('japango.muted') === '1'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem('japango.muted', muted ? '1' : '0')
+    } catch {
+      // Not saved; fine for this visit.
+    }
+  }, [muted])
+  const soundCredits = useSoundCredits()
 
   // Tokyo time and weather, live. ?time=21:30 and ?weather=rain (or a WMO
   // code) override them for testing.
@@ -85,6 +102,7 @@ export default function App() {
       if (e.key === 'm' || e.key === 'M') setBigMap((b) => !b)
       if (e.key === 'b' || e.key === 'B') setBook((b) => !b)
       if (e.key === 'f' || e.key === 'F') setFurigana((f) => !f)
+      if (e.key === 'n' || e.key === 'N') setMuted((m) => !m)
       if (e.key === 'Escape') setWord(null)
     }
     window.addEventListener('keydown', onKey)
@@ -112,6 +130,9 @@ export default function App() {
   }, [toast])
 
   const sky = useMemo(() => skyState(now, weather, map?.rotationDeg ?? 0), [now, weather, map])
+  const clock = tokyoClock(now)
+  const hour = clock.h + clock.m / 60
+  useAmbience({ map, focus, hour, month: tokyoMonth(now), night: sky.night, rain: sky.rain, muted, credits: soundCredits })
 
   if (error)
     return (
@@ -155,7 +176,7 @@ export default function App() {
         <fog attach="fog" args={[sky.background, distance * 2.5 * sky.fogScale, distance * 6 * sky.fogScale]} />
         <World map={map} focus={focus} sky={sky} />
         <Discoveries map={map} found={found} stamps={stamps} />
-        <Crowd map={map} hour={tokyoClock(now).h + tokyoClock(now).m / 60} rain={sky.rain} />
+        <Crowd map={map} hour={hour} rain={sky.rain} />
         <Player map={map} focus={focus} distance={distance} onMove={(x, y) => setPos({ x, y })} />
         <LabelLayerSync layer={labelLayer} />
       </Canvas>
@@ -189,6 +210,11 @@ export default function App() {
       {rally.length > 0 && (
         <button className="hud-stamps" onClick={() => setBook((b) => !b)}>
           🎴 スタンプ {rally.filter((d) => stamps.has(d.id)).length}/{rally.length}
+        </button>
+      )}
+      {Object.keys(soundCredits).length > 0 && (
+        <button className="hud-sound" onClick={() => setMuted((m) => !m)} aria-label={muted ? 'Sound on' : 'Sound off'}>
+          {muted ? '🔇' : '🔊'}
         </button>
       )}
       {toast && <div className="toast">{toast}</div>}
@@ -267,7 +293,7 @@ export default function App() {
       {word && dict && <WordPopup pick={word} dict={dict} onClose={() => setWord(null)} />}
 
       <div className="hud-help">
-        Move: arrows / WASD · Run: Shift · Zoom: scroll or +/− · Turn: Q/E or right-drag · Map: M · Stamps: B · Furigana: F · Tap a word for its meaning
+        Move: arrows / WASD · Run: Shift · Zoom: scroll or +/− · Turn: Q/E or right-drag · Map: M · Stamps: B · Furigana: F · Sound: N · Tap a word for its meaning
       </div>
       <DPad />
       <div className="attribution">
@@ -311,6 +337,24 @@ export default function App() {
             </a>
           </>
         )}
+        {Object.keys(soundCredits).length > 0 && (
+          <>
+            {' · '}Sounds from Freesound:{' '}
+            {Object.values(soundCredits).map((c, i) => (
+              <span key={c.url}>
+                {i > 0 && ', '}
+                <a href={c.url} target="_blank" rel="noreferrer">
+                  {c.name}
+                </a>{' '}
+                by {c.author} (
+                <a href={c.licenseUrl} target="_blank" rel="noreferrer">
+                  {c.license}
+                </a>
+                )
+              </span>
+            ))}
+          </>
+        )}
         {map.credits?.some((c) => c.includes('PLATEAU')) && (
           <>
             {' · '}Buildings and terrain:{' '}
@@ -322,6 +366,10 @@ export default function App() {
       </div>
     </div>
   )
+}
+
+function tokyoMonth(date: Date) {
+  return Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tokyo', month: 'numeric' }).format(date))
 }
 
 function loadSet(key: string) {

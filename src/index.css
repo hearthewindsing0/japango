@@ -430,3 +430,24 @@ rt {
   font-size: 10px;
   color: #999;
 }
+
+/* Sound on/off. */
+.hud-sound {
+  position: absolute;
+  top: 146px;
+  right: 150px;
+  width: 34px;
+  height: 31px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(17, 17, 20, 0.78);
+  font-size: 15px;
+  cursor: pointer;
+}
+@media (max-width: 640px) {
+  .hud-sound {
+    top: auto;
+    bottom: 200px;
+    right: 12px;
+  }
+}
