@@ -46,15 +46,32 @@ export interface MapFile {
   height: number
   spawn: { x: number; y: number }
   grid: { cell: number; width: number; height: number; rle: string }
-  buildings: { p: Flat; h: number; v: number; ho?: Flat[] }[]
+  /** c: wall color measured from street photos (sRGB 0-255), if any. */
+  buildings: { p: Flat; h: number; v: number; ho?: Flat[]; c?: [number, number, number] }[]
   roads: { t: string; w: number; s: number; p: Flat; b: number }[]
   paths: { t: string; w: number; p: Flat }[]
   areas: { t: number; p: Flat; h: Flat[] }[]
   /** [x, y, scale] triples. */
   trees: number[]
+  /** Street objects seen in street-level photos. r: facing, in radians. */
+  props?: { k: PropKind; x: number; y: number; r: number }[]
+  /** Data sources to credit on screen. */
+  credits?: string[]
   pois: Poi[]
   streets: Street[]
 }
+
+export type PropKind =
+  | 'streetlight'
+  | 'pole'
+  | 'trafficlight'
+  | 'sign'
+  | 'bench'
+  | 'bin'
+  | 'hydrant'
+  | 'postbox'
+  | 'bikerack'
+  | 'phonebooth'
 
 export interface GameMap extends Omit<MapFile, 'grid'> {
   cell: number

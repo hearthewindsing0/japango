@@ -102,6 +102,18 @@ export default function App() {
         <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
           OpenStreetMap contributors
         </a>
+        {map.credits?.some((c) => c.includes('Mapillary')) && (
+          <>
+            {' · '}Street-level data ©{' '}
+            <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">
+              Mapillary
+            </a>{' '}
+            contributors,{' '}
+            <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">
+              CC BY-SA
+            </a>
+          </>
+        )}
       </div>
     </div>
   )

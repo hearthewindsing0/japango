@@ -150,7 +150,9 @@ const WALL = [0xe8e2d8, 0xd8cbbd, 0xc9d1dc, 0xf0ece4, 0xd5dccf, 0xe6d3c8, 0xcfcf
 /** Extruded buildings: flat roofs plus walls, with per-building colors.
  *  Extra attributes for the window shader: aWall (1 on walls), aU (distance
  *  along the wall) and aTop (the building's height). */
-export function buildingsGeometry(buildings: { p: Flat; h: number; v: number; ho?: Flat[] }[]) {
+export function buildingsGeometry(
+  buildings: { p: Flat; h: number; v: number; ho?: Flat[]; c?: [number, number, number] }[],
+) {
   const pos: number[] = []
   const col: number[] = []
   const wall: number[] = []
@@ -169,7 +171,16 @@ export function buildingsGeometry(buildings: { p: Flat; h: number; v: number; ho
     const holes = (b.ho ?? []).map(toPts).filter((h) => h.length >= 3)
     const h = b.h
     const roof = ROOF[b.v % ROOF.length]
-    const wallC = WALL[b.v % WALL.length]
+    // Use the color measured from street photos when there is one. Photos
+    // are darker than sunlit paint, so lift them a little.
+    const wallC = b.c
+      ? new THREE.Color().setRGB(
+          Math.min(1, (b.c[0] / 255) * 1.15),
+          Math.min(1, (b.c[1] / 255) * 1.15),
+          Math.min(1, (b.c[2] / 255) * 1.15),
+          THREE.SRGBColorSpace,
+        )
+      : WALL[b.v % WALL.length]
 
     // Roof.
     const contour = outer.map(([x, z]) => new THREE.Vector2(x, z))

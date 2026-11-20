@@ -10,6 +10,7 @@ on:
       - scripts/area.mjs
       - scripts/fetch-osm.mjs
       - scripts/build-map.mjs
+      - scripts/fetch-mapillary.mjs
       - .github/workflows/map-data.yml
 
 permissions:
@@ -22,6 +23,8 @@ concurrency:
 jobs:
   build-map:
     runs-on: ubuntu-latest
+    env:
+      MAPILLARY_TOKEN: ${{ secrets.MAPILLARY_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,7 +32,13 @@ jobs:
           node-version: 22
       - name: Fetch OpenStreetMap data
         run: node scripts/fetch-osm.mjs
-      - name: Build tile map
+      - name: Install script dependencies
+        run: npm ci
+      - name: Fetch Mapillary street-level data
+        # Skipped until the MAPILLARY_TOKEN repository secret is set.
+        if: ${{ env.MAPILLARY_TOKEN != '' }}
+        run: node scripts/fetch-mapillary.mjs
+      - name: Build map
         run: node scripts/build-map.mjs
       - name: Commit map data
         run: |
@@ -39,6 +48,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "Map data unchanged."
           else
-            git commit -m "Update map data from OpenStreetMap"
+            git commit -m "Update map data from OpenStreetMap and Mapillary"
             git push
           fi

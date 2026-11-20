@@ -8,6 +8,7 @@
 //   paths, crossings, parks, water and trees.
 // - A coarse grid (AREA.cell meters per cell) of ground types, used for
 //   collisions and the minimap.
+import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { AREA } from './area.mjs'
 
@@ -400,6 +401,115 @@ for (let i = 0; i < trees.length; i += 3) {
   setCell(x, y, T.TREE)
 }
 
+// --- Street-level data from Mapillary (optional) --------------------------
+// Props where Mapillary's detectors saw street objects, and building wall
+// colors measured from photos. See scripts/fetch-mapillary.mjs.
+const mlyFile = `data/${AREA.id}.mapillary.json`
+const mly = existsSync(mlyFile) ? JSON.parse(await readFile(mlyFile, 'utf8')) : null
+
+// Mapillary class → prop kind the game knows how to draw.
+function propKind(v, sign) {
+  if (sign) return 'sign'
+  if (v.includes('street-light')) return 'streetlight'
+  if (v.includes('utility-pole')) return 'pole'
+  if (v.includes('traffic-light')) return 'trafficlight'
+  if (v.includes('bench')) return 'bench'
+  if (v.includes('trash-can')) return 'bin'
+  if (v.includes('fire-hydrant')) return 'hydrant'
+  if (v.includes('mailbox')) return 'postbox'
+  if (v.includes('bike-rack')) return 'bikerack'
+  if (v.includes('phone-booth')) return 'phonebooth'
+  if (v.includes('cctv')) return null
+  if (v.includes('sign--')) return 'sign'
+  return null
+}
+const props = []
+if (mly) {
+  for (const f of mly.features) {
+    const kind = propKind(f.v, f.sign)
+    if (!kind) continue
+    const [x, y] = proj([f.lat, f.lon])
+    if (x < 1 || y < 1 || x > FW - 1 || y > FH - 1) continue
+    // Detected positions are a few meters off at times; never put a prop
+    // inside a building or in the middle of the road.
+    const c = cellAt(x, y)
+    if (c === T.BUILDING || c === T.WATER || (c === T.ROAD && kind !== 'trafficlight')) continue
+    // Face the nearest road, so lamp arms and signs point the right way.
+    let rot = 0
+    let bestD = Infinity
+    for (let dy = -10; dy <= 10; dy++)
+      for (let dx = -10; dx <= 10; dx++) {
+        const d = dx * dx + dy * dy
+        if (d < bestD && d > 0 && cellAt(x + dx * cell, y + dy * cell) === T.ROAD) {
+          bestD = d
+          rot = Math.atan2(dy, dx)
+        }
+      }
+    props.push({ k: kind, x: r1(x), y: r1(y), r: Math.round(rot * 100) / 100 })
+  }
+}
+
+// Wall colors: cast each photo sample's ray and credit the first building
+// wall it hits within 40 m.
+const wallSamples = buildings.map(() => [])
+if (mly) {
+  const boxes = buildings.map((b) => {
+    let x0 = Infinity
+    let y0 = Infinity
+    let x1 = -Infinity
+    let y1 = -Infinity
+    for (let i = 0; i < b.p.length; i += 2) {
+      x0 = Math.min(x0, b.p[i])
+      x1 = Math.max(x1, b.p[i])
+      y0 = Math.min(y0, b.p[i + 1])
+      y1 = Math.max(y1, b.p[i + 1])
+    }
+    return [x0, y0, x1, y1]
+  })
+  const RANGE = 40
+  for (const smp of mly.samples) {
+    const [ox, oy] = proj([smp.lat, smp.lon])
+    // Compass bearing (clockwise from north) → direction in the map frame.
+    const b = (smp.b * Math.PI) / 180
+    const e = Math.sin(b)
+    const n = Math.cos(b)
+    const dx = e * cos + n * sin
+    const dy = -(-e * sin + n * cos)
+    let best = null
+    for (let i = 0; i < buildings.length; i++) {
+      const [x0, y0, x1, y1] = boxes[i]
+      if (x1 < ox - RANGE || x0 > ox + RANGE || y1 < oy - RANGE || y0 > oy + RANGE) continue
+      const p = buildings[i].p
+      for (let k = 0; k + 3 < p.length; k += 2) {
+        // Ray vs. segment intersection.
+        const ax = p[k]
+        const ay = p[k + 1]
+        const ex = p[k + 2] - ax
+        const ey = p[k + 3] - ay
+        const den = dx * ey - dy * ex
+        if (Math.abs(den) < 1e-9) continue
+        const t = ((ax - ox) * ey - (ay - oy) * ex) / den
+        const u = ((ax - ox) * dy - (ay - oy) * dx) / den
+        if (t > 1 && t < RANGE && u >= 0 && u <= 1 && (!best || t < best.t)) best = { t, i }
+      }
+    }
+    if (best) wallSamples[best.i].push(smp.c)
+  }
+}
+let colored = 0
+wallSamples.forEach((list, i) => {
+  if (!list.length) return
+  // Median per channel resists cars, people and shadows in the patch.
+  const med = [0, 1, 2].map((ch) => {
+    const vals = list.map((c) => c[ch]).sort((a, b) => a - b)
+    return vals[Math.floor(vals.length / 2)]
+  })
+  buildings[i].c = med
+  buildings[i].n = list.length
+  colored++
+})
+if (mly) console.log(`Mapillary: ${props.length} props placed, ${colored} buildings colored from photos`)
+
 // --- Places and streets ---------------------------------------------------
 function kindOf(tags) {
   if (tags.railway === 'station' || tags.public_transport === 'station') return 'station'
@@ -483,6 +593,7 @@ await writeFile(
     name: AREA.name,
     nameEn: AREA.nameEn,
     attribution: osm.attribution,
+    credits: [osm.attribution, mly?.attribution].filter(Boolean),
     fetchedAt: osm.fetchedAt,
     rotationDeg: AREA.rotationDeg,
     width: FW,
@@ -494,6 +605,7 @@ await writeFile(
     paths,
     areas,
     trees,
+    props,
     pois,
     streets,
   }),

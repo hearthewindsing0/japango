@@ -22,16 +22,26 @@ crossings, paths, parks, low buildings with windows, and trees.
 - `npm run map:build` converts it into `public/maps/<area>.json`: vector shapes
   for drawing, plus a 1 m grid for collisions and the minimap.
 
-The **Map data** GitHub Action runs both steps and commits the result whenever
+Street-level detail comes from [Mapillary](https://www.mapillary.com):
+`npm run map:mapillary` (needs a Mapillary client token in `MAPILLARY_TOKEN`)
+downloads the street objects its detectors found in photos (street lights,
+utility poles, signs, benches, post boxes, ...) and measures building-front
+colors from photos. `map:build` then places those props and colors the walls.
+
+The **Map data** GitHub Action runs these steps (Mapillary only when the
+`MAPILLARY_TOKEN` repository secret is set) and commits the result whenever
 the map scripts change, and can be run by hand from the Actions tab.
 
 Map data © OpenStreetMap contributors, available under the
 [Open Database License](https://www.openstreetmap.org/copyright).
+Street-level data © Mapillary contributors, under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 
 ## Code layout
 
 - `src/game/World.tsx`: ground, roads, buildings, trees, sun and shadows.
 - `src/game/geometry.ts`: turns the map's shapes into Three.js geometry.
+- `src/game/Props.tsx`: street lights, utility poles, signs and other street furniture.
 - `src/game/patterns.ts`: procedural paving, asphalt and grass textures.
 - `src/game/Player.tsx`: free movement with collisions, the walking character and the follow camera.
 - `src/game/Labels.tsx`: Japanese/English name tags for nearby places.

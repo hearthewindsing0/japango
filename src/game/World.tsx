@@ -1,6 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { Props } from './Props'
 import { patternedMaterial, type Pattern } from './patterns'
 import { buildingsGeometry, dashesGeometry, polygonsGeometry, ribbonsGeometry } from './geometry'
 import type { GameMap } from './map'
@@ -343,6 +344,7 @@ export function World({ map, focus }: { map: GameMap; focus: React.RefObject<Foc
       <Ground map={map} clip={clip} />
       <Buildings map={map} clip={clip} focus={focus} />
       <Trees map={map} clip={clip} />
+      <Props map={map} clip={clip} />
     </>
   )
 }
