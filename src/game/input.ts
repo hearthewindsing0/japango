@@ -13,6 +13,15 @@ const KEYS: Record<string, Dir> = {
 }
 
 const held = new Set<Dir>()
+
+/** Which way the camera looks. yaw turns smoothly toward target (radians;
+ *  0 = looking along the map's "up"). Q/E turn a quarter, R resets, and a
+ *  right-drag on the view turns freely. */
+export const view = { yaw: 0, target: 0 }
+export const turnView = (quarters: number) => {
+  view.target = Math.round(view.target / (Math.PI / 2) + quarters) * (Math.PI / 2)
+}
+
 let running = false
 
 const press = (d: Dir) => held.add(d)
@@ -27,6 +36,9 @@ if (typeof window !== 'undefined') {
       e.preventDefault()
       press(d)
     }
+    if (!e.repeat && e.code === 'KeyQ') turnView(-1)
+    if (!e.repeat && e.code === 'KeyE') turnView(1)
+    if (!e.repeat && e.code === 'KeyR') view.target = Math.round(view.yaw / (Math.PI * 2)) * Math.PI * 2
   })
   window.addEventListener('keyup', (e) => {
     if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') running = false
@@ -40,12 +52,16 @@ if (typeof window !== 'undefined') {
 }
 
 export const input = {
-  /** Unit vector in screen terms: x right, y down. Zero when idle. */
+  /** Unit vector in map terms (x right, y down on the unturned map), after
+   *  turning screen directions by the camera's yaw. Zero when idle. */
   vector(): [number, number] {
     const x = (held.has('right') ? 1 : 0) - (held.has('left') ? 1 : 0)
     const y = (held.has('down') ? 1 : 0) - (held.has('up') ? 1 : 0)
     const len = Math.hypot(x, y)
-    return len ? [x / len, y / len] : [0, 0]
+    if (!len) return [0, 0]
+    const c = Math.cos(view.yaw)
+    const s = Math.sin(view.yaw)
+    return [(x * c + y * s) / len, (-x * s + y * c) / len]
   },
   running: () => running,
   press,

@@ -83,12 +83,12 @@ export function tokyoClock(date: Date) {
   return { h: get('hour'), m: get('minute') }
 }
 
-/** "午前10:25" / "午後9:05", the way clocks read in Japan. */
+/** "午前10:25" / "午後0:05", the way clocks read in Japan. */
 export function japaneseTime(date: Date) {
   const { h, m } = tokyoClock(date)
   const half = h < 12 ? '午前' : '午後'
-  const h12 = h % 12 === 0 && h >= 12 ? 12 : h % 12
-  return `${half}${h12}:${String(m).padStart(2, '0')}`
+  // Japanese clocks run 午前0時–11時 and 午後0時–11時.
+  return `${half}${h % 12}:${String(m).padStart(2, '0')}`
 }
 
 /** A Date at the given Tokyo time today, for ?time=21:30. */

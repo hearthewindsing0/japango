@@ -1,10 +1,24 @@
 import { useEffect, useRef } from 'react'
+import { view } from './input'
 import type { GameMap } from './map'
 import { MINIMAP_COLORS } from './tiles'
 
 /** Whole-map overview drawn once to a canvas, one pixel per grid cell. */
 export function Minimap({ map, x, y, big }: { map: GameMap; x: number; y: number; big: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null)
+  const compass = useRef<SVGSVGElement>(null)
+
+  // The compass follows the camera as it turns.
+  useEffect(() => {
+    let raf = 0
+    const tick = () => {
+      if (compass.current)
+        compass.current.style.transform = `rotate(${map.rotationDeg + (view.yaw * 180) / Math.PI}deg)`
+      raf = requestAnimationFrame(tick)
+    }
+    tick()
+    return () => cancelAnimationFrame(raf)
+  }, [map])
 
   useEffect(() => {
     const ctx = canvas.current?.getContext('2d')
@@ -22,7 +36,7 @@ export function Minimap({ map, x, y, big }: { map: GameMap; x: number; y: number
       <canvas ref={canvas} width={map.gridW} height={map.gridH} />
       <div className="minimap-dot" style={{ left: `${(x / map.width) * 100}%`, top: `${(y / map.height) * 100}%` }} />
       {/* The map is turned so the main street runs across; this points north. */}
-      <svg className="compass" viewBox="-12 -12 24 24" style={{ transform: `rotate(${map.rotationDeg}deg)` }}>
+      <svg ref={compass} className="compass" viewBox="-12 -12 24 24">
         <title>North</title>
         <circle r="11" />
         <path d="M0 -8 L4 2 L0 0 L-4 2 Z" className="compass-n" />

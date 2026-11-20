@@ -755,6 +755,58 @@ for (const e of motorways) {
 console.log(`Shuto Expressway: ${viaducts.length} viaduct segments`)
 if (bridgeData) console.log(`Bridges: ${bridges.length} surfaces from ${bridgeData.bridges.length} PLATEAU bridges`)
 
+// --- Discoveries (Wikipedia) ----------------------------------------------
+// Places with a Wikipedia article become discoveries; the best known become
+// stamps in a stamp rally (スタンプラリー). Each sits on the nearest spot the
+// player can reach, so walking up to it works.
+const wikiFile = `data/${AREA.id}.wiki.json`
+const wiki = existsSync(wikiFile) ? JSON.parse(await readFile(wikiFile, 'utf8')) : null
+const discoveries = []
+const WALKABLE = new Set([T.GROUND, T.ROAD, T.FOOTWAY, T.GRASS, T.CROSSING, T.PARKING, T.PITCH, T.SHRINE, T.SIDEWALK])
+const reachable = (x, y) => {
+  const cx = Math.floor(x / cell)
+  const cy = Math.floor(y / cell)
+  for (let r = 0; r < 45; r++)
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue
+        const gx = cx + dx
+        const gy = cy + dy
+        if (gx < 0 || gy < 0 || gx >= GW || gy >= GH) continue
+        if (WALKABLE.has(grid[gy * GW + gx])) return [(gx + 0.5) * cell, (gy + 0.5) * cell]
+      }
+  return null
+}
+for (const p of wiki?.places ?? []) {
+  const [x0, y0] = proj([p.lat, p.lon])
+  if (x0 < 5 || y0 < 5 || x0 > FW - 5 || y0 > FH - 5) continue
+  // Skip whole districts and the like: they're everywhere, not a spot.
+  if (p.types.some((t) => /district|neighborhood|town|ward|city|chōme|human settlement|area/i.test(t))) continue
+  const at = reachable(x0, y0)
+  if (!at) continue
+  const d = { id: p.id, x: r1(at[0]), y: r1(at[1]), ja: p.ja, links: p.links }
+  if (p.en) d.en = p.en
+  if (p.types[0]) d.kind = p.types[0]
+  if (p.jaText) d.jt = p.jaText
+  if (p.enText) d.et = p.enText
+  d.jw = p.jaTitle
+  if (p.enTitle) d.ew = p.enTitle
+  // Several items can share a spot (a building and its museum): keep the first.
+  if (discoveries.some((o) => Math.hypot(o.x - d.x, o.y - d.y) < 6)) continue
+  discoveries.push(d)
+}
+discoveries.sort((a, b) => b.links - a.links)
+let stamps = 0
+for (const d of discoveries) {
+  if (stamps >= 10) break
+  if (!d.en || !d.jt) continue
+  if (discoveries.some((o) => o.stamp && Math.hypot(o.x - d.x, o.y - d.y) < 40)) continue
+  d.stamp = 1
+  stamps++
+}
+for (const d of discoveries) delete d.links
+if (wiki) console.log(`Discoveries: ${discoveries.length}, stamps: ${discoveries.filter((d) => d.stamp).map((d) => d.ja).join('、')}`)
+
 // --- Named slopes (坂) ----------------------------------------------------
 // Tokyo names its slopes, and Minato-ku puts a small sign at each end with
 // the name and a line of history. Readings and meanings for the ones around
@@ -874,7 +926,7 @@ await writeFile(
     name: AREA.name,
     nameEn: AREA.nameEn,
     attribution: osm.attribution,
-    credits: [osm.attribution, plateau?.buildings?.length || terrain ? '3D都市モデル（Project PLATEAU）国土交通省' : null, mly?.attribution].filter(Boolean),
+    credits: [osm.attribution, plateau?.buildings?.length || terrain ? '3D都市モデル（Project PLATEAU）国土交通省' : null, mly?.attribution, wiki ? wiki.attribution : null].filter(Boolean),
     fetchedAt: osm.fetchedAt,
     rotationDeg: AREA.rotationDeg,
     width: FW,
@@ -890,6 +942,7 @@ await writeFile(
     pois,
     streets,
     slopes,
+    discoveries,
     bridges,
     viaducts,
     terrain,

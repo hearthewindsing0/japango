@@ -1,4 +1,4 @@
-import { input, type Dir } from './input'
+import { input, turnView, type Dir } from './input'
 
 /** On-screen arrows for touch screens. */
 export function DPad() {
@@ -22,6 +22,12 @@ export function DPad() {
       {btn('left', '◀')}
       {btn('right', '▶')}
       {btn('down', '▼')}
+      <button className="dpad-turn-l" aria-label="Turn view left" onClick={() => turnView(-1)}>
+        ⟲
+      </button>
+      <button className="dpad-turn-r" aria-label="Turn view right" onClick={() => turnView(1)}>
+        ⟳
+      </button>
     </div>
   )
 }
