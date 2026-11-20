@@ -82,6 +82,8 @@ function footprint(block) {
 
 const r7 = (n) => Math.round(n * 1e7) / 1e7
 const buildings = []
+// Buildings near a ward boundary show up in both wards' files.
+const seen = new Set()
 for (const f of files) {
   console.log(`Downloading ${f.code} (${f.city}, LOD${f.maxLod})`)
   const res = await fetch(f.url)
@@ -102,6 +104,9 @@ for (const f of files) {
     const storeys = Number(tagText(block, 'bldg:storeysAboveGround'))
     const name = tagText(block, 'gml:name')
     const b = { ring: ring.map(([lat, lon]) => [r7(lat), r7(lon)]) }
+    const key = JSON.stringify(b.ring)
+    if (seen.has(key)) continue
+    seen.add(key)
     if (h > 0) b.h = Math.round(h * 10) / 10
     if (storeys > 0) b.st = storeys
     if (name) b.name = name

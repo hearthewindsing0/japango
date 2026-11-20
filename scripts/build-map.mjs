@@ -335,12 +335,17 @@ const plateauFile = `data/${AREA.id}.plateau.json`
 const plateau = existsSync(plateauFile) ? JSON.parse(await readFile(plateauFile, 'utf8')) : null
 
 // Real heights would put 200 m towers on screen, so squash tall buildings:
-// full height up to 3 floors, then gently rising, capped at 22 m.
-const gameHeight = (real) => (real <= 10 ? real : Math.min(22, 10 + Math.sqrt(real - 10) * 1.8))
+// full height up to about 3 floors, then gently rising, capped at 18 m, so
+// buildings south of the player don't wall off the view.
+const gameHeight = (real) => (real <= 9 ? real : Math.min(18, 9 + Math.sqrt(real - 9) * 1.5))
 
 const buildings = []
 if (plateau?.buildings?.length) {
+  const seenRings = new Set()
   plateau.buildings.forEach((b, i) => {
+    const key = JSON.stringify(b.ring)
+    if (seenRings.has(key)) return
+    seenRings.add(key)
     const ring = b.ring.map(proj)
     if (ring.length < 4 || !nearFrame(ring)) return
     // Close the ring if the source didn't.
