@@ -1,10 +1,3 @@
-# JapanGo
-
-A top-down game for learning Japanese by exploring real Tokyo neighborhoods
-and joining conversations with AI-powered locals. First area: Roppongi (六本木).
-
-Built with React, React Three Fiber and drei, on Vite.
-
 ## Run it
 
 ```sh
