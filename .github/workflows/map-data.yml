@@ -12,6 +12,7 @@ on:
       - scripts/build-map.mjs
       - scripts/fetch-mapillary.mjs
       - scripts/fetch-plateau.mjs
+      - scripts/fetch-terrain.mjs
       - .github/workflows/map-data.yml
 
 permissions:
@@ -35,6 +36,8 @@ jobs:
         run: node scripts/fetch-osm.mjs
       - name: Fetch PLATEAU 3D building data
         run: node scripts/fetch-plateau.mjs
+      - name: Fetch PLATEAU terrain
+        run: node scripts/fetch-terrain.mjs
       - name: Install script dependencies
         run: npm ci
       - name: Fetch Mapillary street-level data
