@@ -59,9 +59,25 @@ export interface MapFile {
   credits?: string[]
   pois: Poi[]
   streets: Street[]
+  /** Named slopes (坂), with a sign at the bottom (top: 0) and top (1). rise
+   *  is the real height difference in meters. */
+  slopes?: Slope[]
+  /** Ground heights: a grid every `cell` meters, Int16 decimeters above
+   *  `base` (meters above sea level), base64. */
+  terrain?: { cell: number; width: number; height: number; base: number; data: string }
+}
+
+export interface Slope {
+  name: string
+  kana?: string
+  en?: string
+  gloss?: string
+  rise: number
+  signs: { x: number; y: number; r: number; top: 0 | 1 }[]
 }
 
 export type PropKind =
+  | 'slopesign'
   | 'streetlight'
   | 'pole'
   | 'trafficlight'
@@ -74,11 +90,16 @@ export type PropKind =
   | 'phonebooth'
   | 'manhole'
 
-export interface GameMap extends Omit<MapFile, 'grid'> {
+/** Real slopes are shrunk by this much, to match the shortened buildings. */
+export const TERRAIN_SCALE = 0.5
+
+export interface GameMap extends Omit<MapFile, 'grid' | 'terrain'> {
   cell: number
   gridW: number
   gridH: number
   grid: Uint8Array
+  /** Ground height in game meters at each terrain grid point, or null if flat. */
+  ground: { cell: number; width: number; height: number; h: Float32Array } | null
 }
 
 function decodeRle(b64: string, size: number) {
@@ -97,14 +118,45 @@ export async function loadMap(id: string): Promise<GameMap> {
   if (!res.ok) throw new Error(`Map "${id}" not found (${res.status})`)
   const file = (await res.json()) as MapFile
   if (file.version !== 2) throw new Error(`Map "${id}" is an old format. Run npm run map:build.`)
-  const { grid, ...rest } = file
+  const { grid, terrain, ...rest } = file
+  let ground: GameMap['ground'] = null
+  if (terrain) {
+    const bytes = Uint8Array.from(atob(terrain.data), (c) => c.charCodeAt(0))
+    const dm = new Int16Array(bytes.buffer)
+    ground = {
+      cell: terrain.cell,
+      width: terrain.width,
+      height: terrain.height,
+      h: Float32Array.from(dm, (v) => v * 0.1 * TERRAIN_SCALE),
+    }
+  }
   return {
+    ground,
     ...rest,
     cell: grid.cell,
     gridW: grid.width,
     gridH: grid.height,
     grid: decodeRle(grid.rle, grid.width * grid.height),
   }
+}
+
+/** Height of the ground at a point, in meters. The ground is flat inside
+ *  each triangle of the terrain grid, whose cells are cut from corner
+ *  (x0, y1) to (x1, y0), so this matches the drawn ground exactly. */
+export function groundAt(map: GameMap, x: number, y: number) {
+  const g = map.ground
+  if (!g) return 0
+  const fx = Math.min(Math.max(x / g.cell, 0), g.width - 1.0001)
+  const fy = Math.min(Math.max(y / g.cell, 0), g.height - 1.0001)
+  const x0 = Math.floor(fx)
+  const y0 = Math.floor(fy)
+  const tx = fx - x0
+  const ty = fy - y0
+  const i = y0 * g.width + x0
+  const h = g.h
+  if (tx + ty <= 1) return h[i] + (h[i + 1] - h[i]) * tx + (h[i + g.width] - h[i]) * ty
+  const j = i + g.width + 1
+  return h[j] + (h[j - 1] - h[j]) * (1 - tx) + (h[i + 1] - h[j]) * (1 - ty)
 }
 
 /** Ground type at a point in meters. */
@@ -172,6 +224,21 @@ export function poisNear(map: GameMap, x: number, y: number, radius: number, lim
     .filter((p) => Math.abs(p.x - x) <= radius && Math.abs(p.y - y) <= radius * 0.8)
     .sort((a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind])
     .slice(0, limit)
+}
+
+/** The slope sign within `maxDist` meters, if any. */
+export function slopeNear(map: GameMap, x: number, y: number, maxDist = 14) {
+  let best: { slope: Slope; top: boolean } | null = null
+  let bestD = maxDist
+  for (const slope of map.slopes ?? [])
+    for (const s of slope.signs) {
+      const d = Math.hypot(s.x - x, s.y - y)
+      if (d < bestD) {
+        bestD = d
+        best = { slope, top: s.top === 1 }
+      }
+    }
+  return best
 }
 
 /** The closest place within `maxDist` meters. */

@@ -628,6 +628,154 @@ for (let r = 0; !spawn && r < 200; r++) {
         spawn = { x: (x + 0.5) * cell, y: (y + 0.5) * cell }
 }
 
+// --- Terrain ---------------------------------------------------------------
+// PLATEAU's ground heights (from fetch-terrain.mjs), smoothed a little so
+// retaining walls become short ramps. The game scales them down to match the
+// shortened buildings (see TERRAIN_SCALE in src/game/map.ts).
+const terrainFile = `data/${AREA.id}.terrain.json`
+let terrain = null
+/** Real height above sea level at a frame point, in meters. */
+let terrainAt = () => 0
+if (existsSync(terrainFile)) {
+  const t = JSON.parse(await readFile(terrainFile, 'utf8'))
+  const src = new Int16Array(new Uint8Array(Buffer.from(t.data, 'base64')).buffer)
+  const { width: TW, height: TH } = t
+  let cur = Float32Array.from(src)
+  for (let pass = 0; pass < 2; pass++) {
+    const next = new Float32Array(cur.length)
+    for (let y = 0; y < TH; y++)
+      for (let x = 0; x < TW; x++) {
+        let sum = 0
+        let n = 0
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx
+            const yy = y + dy
+            if (xx < 0 || yy < 0 || xx >= TW || yy >= TH) continue
+            sum += cur[yy * TW + xx]
+            n++
+          }
+        next[y * TW + x] = sum / n
+      }
+    cur = next
+  }
+  terrainAt = (x, y) => {
+    const fx = Math.min(Math.max(x / t.cell, 0), TW - 1.001)
+    const fy = Math.min(Math.max(y / t.cell, 0), TH - 1.001)
+    const x0 = Math.floor(fx)
+    const y0 = Math.floor(fy)
+    const i = y0 * TW + x0
+    const a = cur[i] + (cur[i + 1] - cur[i]) * (fx - x0)
+    const b = cur[i + TW] + (cur[i + TW + 1] - cur[i + TW]) * (fx - x0)
+    return t.base + (a + (b - a) * (fy - y0)) / 10
+  }
+  const dm = Int16Array.from(cur, (v) => Math.round(v))
+  terrain = {
+    cell: t.cell,
+    width: TW,
+    height: TH,
+    base: t.base,
+    data: Buffer.from(dm.buffer).toString('base64'),
+  }
+  console.log(`Terrain ${TW}×${TH} at ${t.cell} m, ${t.base} m above sea level and up`)
+}
+
+// --- Named slopes (坂) ----------------------------------------------------
+// Tokyo names its slopes, and Minato-ku puts a small sign at each end with
+// the name and a line of history. Readings and meanings for the ones around
+// here; OSM rarely has them.
+const SLOPE_INFO = {
+  けやき坂: ['けやきざか', 'Keyaki-zaka', 'zelkova tree slope'],
+  霞坂: ['かすみざか', 'Kasumi-zaka', 'mist slope'],
+  寄席坂: ['よせざか', 'Yose-zaka', 'variety theater slope'],
+  鳥居坂: ['とりいざか', 'Torii-zaka', 'shrine gate slope'],
+  檜坂: ['ひのきざか', 'Hinoki-zaka', 'cypress slope'],
+  宮村坂: ['みやむらざか', 'Miyamura-zaka', 'Miyamura slope'],
+  本氷川坂: ['もとひかわざか', 'Motohikawa-zaka', 'original Hikawa (shrine) slope'],
+  饂飩坂: ['うどんざか', 'Udon-zaka', 'udon noodle slope'],
+  芋洗坂: ['いもあらいざか', 'Imoarai-zaka', 'potato washing slope'],
+  永坂: ['ながさか', 'Naga-saka', 'long slope'],
+  暗闇坂: ['くらやみざか', 'Kurayami-zaka', 'darkness slope'],
+  乃木坂: ['のぎざか', 'Nogi-zaka', 'General Nogi slope'],
+  なだれ坂: ['なだれざか', 'Nadare-zaka', 'sliding slope'],
+  桜坂: ['さくらざか', 'Sakura-zaka', 'cherry blossom slope'],
+  フランス坂: ['ふらんすざか', 'Furansu-zaka', 'France slope'],
+  すべり坂: ['すべりざか', 'Suberi-zaka', 'slippery slope'],
+  閻魔坂: ['えんまざか', 'Enma-zaka', 'King Enma (judge of the dead) slope'],
+  牛坂: ['うしざか', 'Ushi-zaka', 'cow slope'],
+  潮見坂: ['しおみざか', 'Shiomi-zaka', 'tide watching slope'],
+  氷川坂: ['ひかわざか', 'Hikawa-zaka', 'Hikawa (shrine) slope'],
+  於多福坂: ['おたふくざか', 'Otafuku-zaka', 'Otafuku (round-faced lucky woman) slope'],
+  南部坂: ['なんぶざか', 'Nanbu-zaka', 'Nanbu (clan) slope'],
+  丹波谷坂: ['たんばだにざか', 'Tanbadani-zaka', 'Tanba valley slope'],
+  不動坂: ['ふどうざか', 'Fudō-zaka', 'Fudō (guardian deity) slope'],
+  あひる坂: ['あひるざか', 'Ahiru-zaka', 'duck slope'],
+}
+// Way names that end in 坂, minus places named after one (赤坂, 乃木坂 the
+// neighborhood) when they are a street's name rather than its slope name.
+const slopeNames = (tags) =>
+  [tags['incline:name'], ...(tags.name ?? '').split(/[／;/]/)]
+    .map((n) => n?.trim())
+    .filter((n) => n && n.endsWith('坂') && n.length <= 6 && n !== '赤坂')
+const slopeWays = new Map()
+for (const e of highways) {
+  for (const n of new Set(slopeNames(e.tags))) {
+    if (!slopeWays.has(n)) slopeWays.set(n, [])
+    slopeWays.get(n).push(e)
+  }
+}
+const slopes = []
+const inFrame = ([x, y]) => x >= 2 && y >= 2 && x < FW - 2 && y < FH - 2
+const freeSpot = (x, y, nx, ny, from) => {
+  // Step out sideways from the middle of the road until off the roadway.
+  for (let d = from; d < from + 8; d += 0.5) {
+    for (const s of [1, -1]) {
+      const px = x + nx * d * s
+      const py = y + ny * d * s
+      const gx = Math.floor(px / cell)
+      const gy = Math.floor(py / cell)
+      if (gx < 0 || gy < 0 || gx >= GW || gy >= GH) continue
+      const c = grid[gy * GW + gx]
+      if (c === T.SIDEWALK || c === T.GROUND || c === T.FOOTWAY || c === T.GRASS || c === T.PARKING)
+        return [px, py, Math.atan2(-ny * s, -nx * s)]
+    }
+  }
+  return null
+}
+for (const [name, list] of slopeWays) {
+  // All points of the slope inside the frame, with the next point along.
+  const pts = []
+  for (const e of list) {
+    const p = e.geom.map(proj)
+    for (let i = 0; i < p.length; i++) {
+      if (!inFrame(p[i])) continue
+      const q = p[i + 1] ?? p[i - 1]
+      pts.push({ x: p[i][0], y: p[i][1], h: terrainAt(p[i][0], p[i][1]), q, w: widthOf(e.tags) })
+    }
+  }
+  if (pts.length < 2) continue
+  const lo = pts.reduce((a, b) => (b.h < a.h ? b : a))
+  const hi = pts.reduce((a, b) => (b.h > a.h ? b : a))
+  const signs = []
+  for (const [end, top] of [
+    [lo, 0],
+    [hi, 1],
+  ]) {
+    const dx = end.q[0] - end.x
+    const dy = end.q[1] - end.y
+    const len = Math.hypot(dx, dy) || 1
+    const spot = freeSpot(end.x, end.y, -dy / len, dx / len, end.w / 2 + 0.5)
+    if (spot) signs.push({ x: r1(spot[0]), y: r1(spot[1]), r: Math.round(spot[2] * 100) / 100, top })
+  }
+  if (Math.hypot(lo.x - hi.x, lo.y - hi.y) < 30 && signs.length > 1) signs.pop()
+  if (!signs.length) continue
+  const info = SLOPE_INFO[name]
+  const slope = { name, rise: r1(hi.h - lo.h), signs }
+  if (info) Object.assign(slope, { kana: info[0], en: info[1], gloss: info[2] })
+  slopes.push(slope)
+}
+console.log(`${slopes.length} named slopes:`, slopes.map((s) => `${s.name} ${s.rise} m`).join(', '))
+
 // --- Output ---------------------------------------------------------------
 // Run-length encode the grid as (value, count ≤ 255) byte pairs.
 const rle = []
@@ -651,7 +799,7 @@ await writeFile(
     name: AREA.name,
     nameEn: AREA.nameEn,
     attribution: osm.attribution,
-    credits: [osm.attribution, plateau?.buildings?.length ? plateau.attribution : null, mly?.attribution].filter(Boolean),
+    credits: [osm.attribution, plateau?.buildings?.length || terrain ? '3D都市モデル（Project PLATEAU）国土交通省' : null, mly?.attribution].filter(Boolean),
     fetchedAt: osm.fetchedAt,
     rotationDeg: AREA.rotationDeg,
     width: FW,
@@ -666,6 +814,8 @@ await writeFile(
     props,
     pois,
     streets,
+    slopes,
+    terrain,
   }),
 )
 console.log(`Built ${FW}×${FH} m map → ${output}`)

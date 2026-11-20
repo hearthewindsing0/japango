@@ -3,8 +3,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { Props } from './Props'
 import { patternedMaterial, type Pattern } from './patterns'
-import { buildingsGeometry, dashesGeometry, polygonsGeometry, ribbonsGeometry } from './geometry'
-import type { GameMap } from './map'
+import { buildingsGeometry, dashesGeometry, drape, polygonsGeometry, ribbonsGeometry, type HeightFn } from './geometry'
+import { groundAt, type GameMap } from './map'
 import { COLORS, T } from './tiles'
 
 /** Shared state the world reads every frame: where the player is. */
@@ -47,6 +47,43 @@ function useClipPlanes(map: GameMap) {
   )
 }
 
+const heightFn = (map: GameMap): HeightFn => (x, z) => groundAt(map, x, z)
+const cellOf = (map: GameMap) => map.ground?.cell ?? 4
+
+/** The base ground: the terrain grid itself, each cell cut into two
+ *  triangles the same way groundAt() reads it. */
+function groundGeometry(map: GameMap) {
+  const g = map.ground
+  if (!g) {
+    const rect = [0, 0, map.width, 0, map.width, map.height, 0, map.height]
+    return polygonsGeometry([{ p: rect }], 0)
+  }
+  const pos = new Float32Array(g.width * g.height * 3)
+  for (let y = 0; y < g.height; y++)
+    for (let x = 0; x < g.width; x++) {
+      const i = (y * g.width + x) * 3
+      pos[i] = x * g.cell
+      pos[i + 1] = g.h[y * g.width + x]
+      pos[i + 2] = y * g.cell
+    }
+  const index: number[] = []
+  for (let y = 0; y + 1 < g.height; y++)
+    for (let x = 0; x + 1 < g.width; x++) {
+      const a = y * g.width + x
+      const b = a + 1
+      const c = a + g.width
+      const d = c + 1
+      // Wound to face +Y; the diagonal runs from b to c.
+      index.push(a, c, b, b, c, d)
+    }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+  geo.setIndex(index)
+  geo.computeVertexNormals()
+  geo.computeBoundingSphere()
+  return geo
+}
+
 function useDisposable<T extends { dispose(): void }>(make: () => T, deps: unknown[]) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const value = useMemo(make, deps)
@@ -61,7 +98,7 @@ function Ground({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
     // Footway plazas sit with the paths, above the other areas.
     return [...byType.entries()].map(([t, list]) => ({
       t,
-      geo: polygonsGeometry(list, t === T.FOOTWAY ? Y.path : Y.area + (t === T.WATER ? 0.005 : 0)),
+      geo: drape(polygonsGeometry(list, t === T.FOOTWAY ? Y.path : Y.area + (t === T.WATER ? 0.005 : 0)), heightFn(map), cellOf(map)),
     }))
   }, [map])
   useEffect(() => () => areaLayers.forEach((l) => l.geo.dispose()), [areaLayers])
@@ -72,12 +109,15 @@ function Ground({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
     const centerLines = roads.filter((r) => r.w >= 9).map((r) => r.p)
     const footways = map.paths.filter((p) => p.t !== 'crossing')
     const crossings = map.paths.filter((p) => p.t === 'crossing')
+    const h = heightFn(map)
+    const c = cellOf(map)
     return {
-      sidewalk: ribbonsGeometry(sidewalks, Y.sidewalk),
-      road: ribbonsGeometry(roads, Y.road),
-      line: dashesGeometry(centerLines, Y.line),
-      footway: ribbonsGeometry(footways, Y.path),
-      crossing: ribbonsGeometry(crossings, Y.crossing, false),
+      base: groundGeometry(map),
+      sidewalk: drape(ribbonsGeometry(sidewalks, Y.sidewalk), h, c),
+      road: drape(ribbonsGeometry(roads, Y.road), h, c),
+      line: drape(dashesGeometry(centerLines, Y.line), h, c),
+      footway: drape(ribbonsGeometry(footways, Y.path), h, c),
+      crossing: drape(ribbonsGeometry(crossings, Y.crossing, false), h, c),
     }
   }, [map])
   useEffect(() => () => Object.values(geos).forEach((g) => g.dispose()), [geos])
@@ -144,14 +184,7 @@ function Ground({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
 
   return (
     <group>
-      <mesh
-        rotation-x={-Math.PI / 2}
-        position={[map.width / 2, Y.ground, map.height / 2]}
-        material={mats.ground}
-        receiveShadow
-      >
-        <planeGeometry args={[map.width, map.height]} />
-      </mesh>
+      <mesh geometry={geos.base} material={mats.ground} receiveShadow />
       {areaLayers.map((l) => (
         <mesh key={l.t} geometry={l.geo} material={mats.areas[l.t]} receiveShadow />
       ))}
@@ -167,7 +200,7 @@ function Ground({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
 }
 
 function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; focus: React.RefObject<Focus> }) {
-  const geo = useDisposable(() => buildingsGeometry(map.buildings), [map])
+  const geo = useDisposable(() => buildingsGeometry(map.buildings, heightFn(map)), [map])
   const camera = useThree((s) => s.camera)
   const uniforms = useMemo(
     () => ({ uPlayer: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() } }),
@@ -182,13 +215,13 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
         .replace(
           '#include <common>',
           `#include <common>
-          attribute float aWall; attribute float aU; attribute float aTop;
-          varying float vWall; varying float vU; varying float vTop; varying vec3 vWorld;`,
+          attribute float aWall; attribute float aU; attribute float aTop; attribute float aBase;
+          varying float vWall; varying float vU; varying float vTop; varying float vBase; varying vec3 vWorld;`,
         )
         .replace(
           '#include <begin_vertex>',
           `#include <begin_vertex>
-          vWall = aWall; vU = aU; vTop = aTop;
+          vWall = aWall; vU = aU; vTop = aTop; vBase = aBase;
           vWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
         )
       shader.fragmentShader = shader.fragmentShader
@@ -196,7 +229,7 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
           '#include <common>',
           `#include <common>
           uniform vec3 uPlayer; uniform vec3 uCam;
-          varying float vWall; varying float vU; varying float vTop; varying vec3 vWorld;`,
+          varying float vWall; varying float vU; varying float vTop; varying float vBase; varying vec3 vWorld;`,
         )
         .replace(
           '#include <clipping_planes_fragment>',
@@ -213,14 +246,14 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
             float r = 3.2 * (1.0 - t);
             float edge = smoothstep(r * 0.7, r, d);
             float dither = fract(dot(floor(gl_FragCoord.xy), vec2(0.5, 0.25)) + 0.125);
-            if (t > 0.03 && vWorld.y > 0.4 && edge < dither) discard;
+            if (t > 0.03 && vWorld.y - vBase > 0.7 && edge < dither) discard;
           }`,
         )
         .replace(
           '#include <color_fragment>',
           `#include <color_fragment>
           if (vWall > 0.5) {
-            float y = vWorld.y;
+            float y = vWorld.y - vBase;
             // Ground floor: shop fronts. Above: rows of windows every 3.2 m.
             float shop = step(0.5, y) * step(y, 2.6) * step(0.15, fract(vU / 4.0)) * step(fract(vU / 4.0), 0.92);
             float fy = fract((y - 3.0) / 3.2);
@@ -231,7 +264,7 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
             // Darker base and a band under the roof line.
             if (y < 0.4) diffuseColor.rgb *= 0.7;
             if (y > vTop - 0.35) diffuseColor.rgb *= 0.85;
-          } else if (vWorld.y < vTop + 0.05) {
+          } else if (vWorld.y - vBase < vTop + 0.05) {
             // Roofs: weathered concrete panels.
             vec2 q = vWorld.xz / 3.0;
             vec2 g = abs(fract(q) - 0.5);
@@ -247,7 +280,8 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
   }, [material, clip])
 
   useFrame(() => {
-    uniforms.uPlayer.value.set(focus.current.x, 1.0, focus.current.y)
+    const { x, y } = focus.current
+    uniforms.uPlayer.value.set(x, groundAt(map, x, y) + 1.0, y)
     uniforms.uCam.value.copy(camera.position)
   })
 
@@ -272,7 +306,7 @@ function Trees({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
       const z = map.trees[i * 3 + 1]
       const k = map.trees[i * 3 + 2]
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.39996) % (Math.PI * 2))
-      p.set(x, 0, z)
+      p.set(x, groundAt(map, x, z), z)
       s.set(k, k, k)
       m.compose(p, q, s)
       trunks.current?.setMatrixAt(i, m)
@@ -301,16 +335,17 @@ function Trees({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
 }
 
 /** Sun with a shadow box that follows the player. */
-function Sun({ focus }: { focus: React.RefObject<Focus> }) {
+function Sun({ map, focus }: { map: GameMap; focus: React.RefObject<Focus> }) {
   const light = useRef<THREE.DirectionalLight>(null)
   const target = useMemo(() => new THREE.Object3D(), [])
   useFrame(() => {
     const l = light.current
     if (!l) return
     const { x, y } = focus.current
-    target.position.set(x, 0, y)
+    const h = groundAt(map, x, y)
+    target.position.set(x, h, y)
     target.updateMatrixWorld()
-    l.position.set(x - 40, 70, y + 30)
+    l.position.set(x - 40, h + 70, y + 30)
   })
   return (
     <>
@@ -340,7 +375,7 @@ export function World({ map, focus }: { map: GameMap; focus: React.RefObject<Foc
   const clip = useClipPlanes(map)
   return (
     <>
-      <Sun focus={focus} />
+      <Sun map={map} focus={focus} />
       <Ground map={map} clip={clip} />
       <Buildings map={map} clip={clip} focus={focus} />
       <Trees map={map} clip={clip} />

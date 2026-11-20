@@ -4,6 +4,9 @@ import * as THREE from 'three'
 
 type Flat = number[]
 
+/** Ground height at a map point, in meters. */
+export type HeightFn = (x: number, z: number) => number
+
 const toPts = (p: Flat) => {
   const pts: [number, number][] = []
   for (let i = 0; i < p.length; i += 2) pts.push([p[i], p[i + 1]])
@@ -31,6 +34,98 @@ function finish(pos: number[], extra: Record<string, { data: number[]; size: num
   g.computeVertexNormals()
   g.computeBoundingSphere()
   return g
+}
+
+/** Lays flat, non-indexed ground geometry over the terrain. The terrain is
+ *  flat inside each triangle of its grid (cells of `cell` meters cut along
+ *  the x + z diagonal), so every triangle here is cut along those grid lines
+ *  first: each piece then lies exactly on the ground, and layers a few
+ *  centimeters apart never poke through each other. Normals follow the
+ *  smooth slope. */
+export function drape(g: THREE.BufferGeometry, height: HeightFn, cell: number) {
+  const src = g.getAttribute('position')
+  const uvAttr = g.getAttribute('uv')
+  const pos: number[] = []
+  const uv: number[] = []
+  // A vertex: x, y, z, u, v.
+  type V = number[]
+  const lerp = (a: V, b: V, t: number) => a.map((v, i) => v + (b[i] - v) * t)
+  // Cut a convex polygon by the lines f(p) = k·cell for every integer k.
+  const cutAll = (poly: V[], f: (p: V) => number): V[][] => {
+    let lo = Infinity
+    let hi = -Infinity
+    for (const p of poly) {
+      lo = Math.min(lo, f(p))
+      hi = Math.max(hi, f(p))
+    }
+    let pieces = [poly]
+    for (let k = Math.floor(lo / cell) + 1; k * cell < hi; k++) {
+      const c = k * cell
+      const next: V[][] = []
+      for (const pc of pieces) {
+        const below: V[] = []
+        const above: V[] = []
+        for (let i = 0; i < pc.length; i++) {
+          const A = pc[i]
+          const B = pc[(i + 1) % pc.length]
+          const fa = f(A) - c
+          const fb = f(B) - c
+          if (fa <= 0) below.push(A)
+          if (fa >= 0) above.push(A)
+          if ((fa < 0 && fb > 0) || (fa > 0 && fb < 0)) {
+            const m = lerp(A, B, fa / (fa - fb))
+            below.push(m)
+            above.push(m)
+          }
+        }
+        if (below.length >= 3) next.push(below)
+        if (above.length >= 3) next.push(above)
+      }
+      pieces = next
+    }
+    return pieces
+  }
+  const fx = (p: V) => p[0]
+  const fz = (p: V) => p[2]
+  const fd = (p: V) => p[0] + p[2]
+  for (let i = 0; i + 2 < src.count; i += 3) {
+    const tri: V[] = [0, 1, 2].map((k) => [
+      src.getX(i + k),
+      src.getY(i + k),
+      src.getZ(i + k),
+      uvAttr ? uvAttr.getX(i + k) : 0,
+      uvAttr ? uvAttr.getY(i + k) : 0,
+    ])
+    for (const a of cutAll(tri, fx))
+      for (const b of cutAll(a, fz))
+        for (const c of cutAll(b, fd))
+          for (let k = 1; k + 1 < c.length; k++)
+            for (const v of [c[0], c[k], c[k + 1]]) {
+              pos.push(v[0], v[1], v[2])
+              uv.push(v[3], v[4])
+            }
+  }
+
+  const normals = new Float32Array(pos.length)
+  const e = cell / 2
+  for (let i = 0; i < pos.length; i += 3) {
+    const x = pos[i]
+    const z = pos[i + 2]
+    pos[i + 1] += height(x, z)
+    const dx = (height(x + e, z) - height(x - e, z)) / (2 * e)
+    const dz = (height(x, z + e) - height(x, z - e)) / (2 * e)
+    const l = Math.hypot(dx, 1, dz)
+    normals[i] = -dx / l
+    normals[i + 1] = 1 / l
+    normals[i + 2] = -dz / l
+  }
+  g.dispose()
+  const out = new THREE.BufferGeometry()
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  out.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
+  if (uvAttr) out.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  out.computeBoundingSphere()
+  return out
 }
 
 /** Flat polygons (with holes) at height y, facing up. */
@@ -149,25 +244,49 @@ const WALL = [0xe8e2d8, 0xd8cbbd, 0xc9d1dc, 0xf0ece4, 0xd5dccf, 0xe6d3c8, 0xcfcf
 
 /** Extruded buildings: flat roofs plus walls, with per-building colors.
  *  Extra attributes for the window shader: aWall (1 on walls), aU (distance
- *  along the wall) and aTop (the building's height). */
+ *  along the wall), aTop (the building's height) and aBase (the ground
+ *  height it stands on). */
 export function buildingsGeometry(
   buildings: { p: Flat; h: number; v: number; ho?: Flat[]; c?: [number, number, number] }[],
+  height: HeightFn = () => 0,
 ) {
   const pos: number[] = []
   const col: number[] = []
   const wall: number[] = []
   const us: number[] = []
   const tops: number[] = []
+  const bases: number[] = []
+  // Each building stands on the lowest ground under its outline; walls run
+  // from there, so on a slope the uphill side is partly buried, as in life.
+  let base = 0
   const vert = (x: number, y: number, z: number, c: THREE.Color, w: number, u: number, top: number) => {
-    pos.push(x, y, z)
+    pos.push(x, y + base, z)
     col.push(c.r, c.g, c.b)
     wall.push(w)
     us.push(u)
     tops.push(top)
+    bases.push(base)
   }
-  for (const b of buildings) {
+  const baseOf = (ring: [number, number][]) => {
+    let m = Infinity
+    let cx = 0
+    let cz = 0
+    for (const [x, z] of ring) {
+      m = Math.min(m, height(x, z))
+      cx += x / ring.length
+      cz += z / ring.length
+    }
+    // A little lower, so no gap shows where the ground dips between corners.
+    return Math.min(m, height(cx, cz)) - 0.3
+  }
+  const baseByBuilding = buildings.map((b) => {
+    const ring = toPts(b.p)
+    return ring.length < 3 ? 0 : baseOf(ring)
+  })
+  for (const [bi, b] of buildings.entries()) {
     const outer = toPts(b.p)
     if (outer.length < 3) continue
+    base = baseByBuilding[bi]
     const holes = (b.ho ?? []).map(toPts).filter((h) => h.length >= 3)
     const h = b.h
     const roof = ROOF[b.v % ROOF.length]
@@ -223,9 +342,10 @@ export function buildingsGeometry(
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
     return seed / 4294967296
   }
-  for (const b of buildings) {
+  for (const [bi, b] of buildings.entries()) {
     const ring = toPts(b.p)
     if (ring.length < 3) continue
+    base = baseByBuilding[bi]
     const area = Math.abs(signedArea(ring))
     if (area < 120) continue
     let minX = Infinity
@@ -266,6 +386,7 @@ export function buildingsGeometry(
     aWall: { data: wall, size: 1 },
     aU: { data: us, size: 1 },
     aTop: { data: tops, size: 1 },
+    aBase: { data: bases, size: 1 },
   })
   return g
 }

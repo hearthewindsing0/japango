@@ -201,3 +201,36 @@ code {
 .compass-s {
   fill: #e4e4e7;
 }
+
+/* Slope sign card, shown when standing by a 坂 sign. */
+.hud-slope {
+  position: absolute;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.88);
+  border: 1px solid rgba(241, 237, 226, 0.35);
+  text-align: center;
+  line-height: 1.5;
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+}
+.hud-slope-name {
+  font-size: 22px;
+  font-weight: 700;
+}
+.hud-slope-kana {
+  font-size: 14px;
+  font-weight: 400;
+  color: #cbd5e1;
+  margin-left: 8px;
+}
+.hud-slope-en {
+  font-size: 14px;
+}
+.hud-slope-note {
+  font-size: 12px;
+  color: #cbd5e1;
+}

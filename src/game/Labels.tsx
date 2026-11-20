@@ -1,7 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useMemo, type RefObject } from 'react'
 import * as THREE from 'three'
-import { poisNear, type GameMap, type PoiKind } from './map'
+import { groundAt, poisNear, type GameMap, type PoiKind } from './map'
 
 const ICON: Record<PoiKind, string> = {
   station: '🚇',
@@ -44,6 +44,7 @@ export function Labels({ map, x, y, distance, layer }: Props) {
           className={`label label-${p.kind}`}
           data-x={p.x}
           data-y={p.y}
+          data-h={groundAt(map, p.x, p.y)}
           style={{ visibility: 'hidden' }}
         >
           <span className="label-ja">
@@ -66,7 +67,7 @@ export function LabelLayerSync({ layer }: { layer: RefObject<HTMLDivElement | nu
     const el = layer.current
     if (!el) return
     for (const child of el.children as HTMLCollectionOf<HTMLElement>) {
-      v.set(Number(child.dataset.x), 2.2, Number(child.dataset.y)).project(camera)
+      v.set(Number(child.dataset.x), Number(child.dataset.h ?? 0) + 2.2, Number(child.dataset.y)).project(camera)
       const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1
       child.style.visibility = visible ? 'visible' : 'hidden'
       if (!visible) continue
