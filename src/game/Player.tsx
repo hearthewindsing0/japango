@@ -1,7 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useRef } from 'react'
 import * as THREE from 'three'
-import { input } from './input'
+import { input, view } from './input'
 import { circleBlocked, groundAt, type GameMap } from './map'
 import type { Focus } from './World'
 
@@ -74,10 +74,12 @@ export function Player({ map, focus, distance, onMove }: Props) {
       root.current.rotation.y = st.heading
     }
 
-    // Camera: behind (south of) and above the player, looking at them.
-    const cx = f.x
+    // Camera: behind and above the player, turned by the view's yaw.
+    view.yaw = placed.current ? damp(view.yaw, view.target, 7, dt) : view.target
+    const back = Math.cos(CAMERA_PITCH) * distance
+    const cx = f.x + Math.sin(view.yaw) * back
     const cy = st.ground + Math.sin(CAMERA_PITCH) * distance
-    const cz = f.y + Math.cos(CAMERA_PITCH) * distance
+    const cz = f.y + Math.cos(view.yaw) * back
     if (!placed.current) {
       camera.position.set(cx, cy, cz)
       placed.current = true
@@ -86,7 +88,11 @@ export function Player({ map, focus, distance, onMove }: Props) {
       camera.position.y = damp(camera.position.y, cy, 8, dt)
       camera.position.z = damp(camera.position.z, cz, 8, dt)
     }
-    camera.lookAt(camera.position.x, camera.position.y - Math.sin(CAMERA_PITCH) * distance + 0.8, camera.position.z - Math.cos(CAMERA_PITCH) * distance)
+    camera.lookAt(
+      camera.position.x - Math.sin(view.yaw) * back,
+      camera.position.y - Math.sin(CAMERA_PITCH) * distance + 0.8,
+      camera.position.z - Math.cos(view.yaw) * back,
+    )
 
     if (Math.hypot(f.x - st.lastX, f.y - st.lastY) > 1) {
       st.lastX = f.x

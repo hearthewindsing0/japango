@@ -1,8 +1,10 @@
 import { Canvas } from '@react-three/fiber'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DPad } from './game/DPad'
+import { view } from './game/input'
 import { LabelLayerSync, Labels } from './game/Labels'
-import { loadMap, nearestPoi, slopeNear, streetNear, type GameMap } from './game/map'
+import { discoveryNear, loadMap, nearestPoi, slopeNear, streetNear, type GameMap } from './game/map'
+import { Discoveries } from './game/Discoveries'
 import { Minimap } from './game/Minimap'
 import { Player } from './game/Player'
 import { World, type Focus } from './game/World'
@@ -19,6 +21,12 @@ export default function App() {
   const focus = useRef<Focus>({ x: 0, y: 0 })
   const [bigMap, setBigMap] = useState(false)
   const labelLayer = useRef<HTMLDivElement>(null)
+
+  // Places found and stamps collected, kept in this browser.
+  const [found, setFound] = useState(() => loadSet('japango.found'))
+  const [stamps, setStamps] = useState(() => loadSet('japango.stamps'))
+  const [book, setBook] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   // Tokyo time and weather, live. ?time=21:30 and ?weather=rain (or a WMO
   // code) override them for testing.
@@ -65,6 +73,7 @@ export default function App() {
       if (e.key === '+' || e.key === '=') setDistance((d) => Math.max(MIN_DIST, d / 1.25))
       if (e.key === '-' || e.key === '_') setDistance((d) => Math.min(MAX_DIST, d * 1.25))
       if (e.key === 'm' || e.key === 'M') setBigMap((b) => !b)
+      if (e.key === 'b' || e.key === 'B') setBook((b) => !b)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -73,6 +82,22 @@ export default function App() {
   const onWheel = useCallback((e: React.WheelEvent) => {
     setDistance((d) => Math.min(MAX_DIST, Math.max(MIN_DIST, d * Math.exp(e.deltaY * 0.0015))))
   }, [])
+
+  // Walking up to a discovery finds it; a stamp gets stamped.
+  const here = map && pos ? discoveryNear(map, pos.x, pos.y) : null
+  useEffect(() => {
+    if (!here) return
+    if (!found.has(here.id)) setFound((f) => saveSet('japango.found', new Set(f).add(here.id)))
+    if (here.stamp && !stamps.has(here.id)) {
+      setStamps((st) => saveSet('japango.stamps', new Set(st).add(here.id)))
+      setToast(`スタンプゲット！ ${here.ja}`)
+    }
+  }, [here, found, stamps])
+  useEffect(() => {
+    if (!toast) return
+    const id = setTimeout(() => setToast(null), 3500)
+    return () => clearTimeout(id)
+  }, [toast])
 
   const sky = useMemo(() => skyState(now, weather, map?.rotationDeg ?? 0), [now, weather, map])
 
@@ -89,12 +114,24 @@ export default function App() {
   if (!map || !pos) return <div className="center-msg">読み込み中… Loading Roppongi</div>
 
   const words = WEATHER_WORDS[weather.kind]
+  const rally = (map.discoveries ?? []).filter((d) => d.stamp)
   const street = streetNear(map, pos.x, pos.y)
   const place = nearestPoi(map, pos.x, pos.y)
   const slope = slopeNear(map, pos.x, pos.y)
 
   return (
-    <div className="game" onWheel={onWheel}>
+    <div
+      className="game"
+      onWheel={onWheel}
+      onContextMenu={(e) => e.preventDefault()}
+      onPointerMove={(e) => {
+        // Right-drag (or Ctrl-drag) turns the view freely.
+        if (e.buttons === 2 || (e.buttons === 1 && e.ctrlKey)) {
+          view.target += e.movementX * 0.006
+          view.yaw = view.target
+        }
+      }}
+    >
       <Canvas
         shadows
         camera={{ fov: 38, near: 0.5, far: 2000 }}
@@ -104,6 +141,7 @@ export default function App() {
         <color attach="background" args={[sky.background]} />
         <fog attach="fog" args={[sky.background, distance * 2.5 * sky.fogScale, distance * 6 * sky.fogScale]} />
         <World map={map} focus={focus} sky={sky} />
+        <Discoveries map={map} found={found} stamps={stamps} />
         <Player map={map} focus={focus} distance={distance} onMove={(x, y) => setPos({ x, y })} />
         <LabelLayerSync layer={labelLayer} />
       </Canvas>
@@ -134,7 +172,62 @@ export default function App() {
 
       <Minimap map={map} x={pos.x} y={pos.y} big={bigMap} />
 
-      {slope && (
+      {rally.length > 0 && (
+        <button className="hud-stamps" onClick={() => setBook((b) => !b)}>
+          🎴 スタンプ {rally.filter((d) => stamps.has(d.id)).length}/{rally.length}
+        </button>
+      )}
+      {toast && <div className="toast">{toast}</div>}
+      {book && (
+        <div className="stamp-book" onClick={() => setBook(false)}>
+          <div className="stamp-book-inner" onClick={(e) => e.stopPropagation()}>
+            <h2>
+              スタンプラリー <span>Stamp rally</span>
+            </h2>
+            <p>Find each place and walk up to its red marker. Press B to close.</p>
+            <div className="stamp-grid">
+              {rally.map((d) => (
+                <div key={d.id} className={`stamp ${stamps.has(d.id) ? 'got' : ''}`}>
+                  <div className="stamp-seal">{stamps.has(d.id) ? '済' : '？'}</div>
+                  <div className="stamp-name">{d.ja}</div>
+                  {d.en && <div className="stamp-en">{d.en}</div>}
+                </div>
+              ))}
+            </div>
+            <p className="stamp-found">
+              Places discovered: {found.size} of {map.discoveries?.length ?? 0}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {here && !book && (
+        <div className="hud-discovery">
+          <div className="hud-discovery-name">
+            {here.stamp ? '🎴' : '✦'} {here.ja}
+            {here.en && <span>{here.en}</span>}
+          </div>
+          {here.jt && <p className="hud-discovery-ja">{here.jt}</p>}
+          {here.et && <p className="hud-discovery-en">{here.et}</p>}
+          <div className="hud-discovery-links">
+            Wikipedia:{' '}
+            <a href={`https://ja.wikipedia.org/wiki/${encodeURIComponent(here.jw)}`} target="_blank" rel="noreferrer">
+              日本語
+            </a>
+            {here.ew && (
+              <>
+                {' · '}
+                <a href={`https://en.wikipedia.org/wiki/${encodeURIComponent(here.ew)}`} target="_blank" rel="noreferrer">
+                  English
+                </a>
+              </>
+            )}{' '}
+            (CC BY-SA)
+          </div>
+        </div>
+      )}
+
+      {slope && !here && (
         <div className="hud-slope">
           <div className="hud-slope-name">
             {slope.slope.name}
@@ -154,7 +247,7 @@ export default function App() {
       )}
 
       <div className="hud-help">
-        Move: arrows / WASD · Run: Shift · Zoom: scroll or +/− · Map: M
+        Move: arrows / WASD · Run: Shift · Zoom: scroll or +/− · Turn: Q/E or right-drag · Map: M · Stamps: B
       </div>
       <DPad />
       <div className="attribution">
@@ -193,4 +286,21 @@ export default function App() {
       </div>
     </div>
   )
+}
+
+function loadSet(key: string) {
+  try {
+    return new Set<string>(JSON.parse(localStorage.getItem(key) ?? '[]'))
+  } catch {
+    return new Set<string>()
+  }
+}
+
+function saveSet(key: string, set: Set<string>) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...set]))
+  } catch {
+    // Private mode or storage full: keep it for this visit only.
+  }
+  return set
 }

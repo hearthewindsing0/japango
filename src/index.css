@@ -164,6 +164,12 @@ code {
 .dpad-down {
   grid-area: 3 / 2;
 }
+.dpad-turn-l {
+  grid-area: 1 / 1;
+}
+.dpad-turn-r {
+  grid-area: 1 / 3;
+}
 @media (pointer: coarse) {
   .dpad {
     display: grid;
@@ -234,4 +240,147 @@ code {
 .hud-slope-note {
   font-size: 12px;
   color: #cbd5e1;
+}
+
+/* Discovery card: a place with a Wikipedia article, next to the player. */
+.hud-discovery {
+  position: absolute;
+  left: 50%;
+  bottom: 56px;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 32px));
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(24, 24, 32, 0.9);
+  border: 1px solid rgba(255, 201, 77, 0.45);
+  line-height: 1.5;
+}
+.hud-discovery-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+.hud-discovery-name span {
+  font-size: 13px;
+  font-weight: 400;
+  color: #a1a1aa;
+  margin-left: 8px;
+}
+.hud-discovery p {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+.hud-discovery-en {
+  color: #c4c4cc;
+}
+.hud-discovery-links {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #a1a1aa;
+}
+.hud-discovery-links a {
+  color: #ffc94d;
+}
+
+.hud-stamps {
+  position: absolute;
+  top: 146px;
+  right: 12px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(17, 17, 20, 0.78);
+  color: #f4f4f5;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.toast {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 14px 22px;
+  border-radius: 12px;
+  background: #e0393e;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  animation: pop 0.35s ease-out;
+}
+@keyframes pop {
+  from {
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0;
+  }
+}
+
+.stamp-book {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 16px;
+}
+.stamp-book-inner {
+  width: min(640px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: #f6f1e4;
+  color: #2b2620;
+}
+.stamp-book h2 {
+  margin: 0;
+}
+.stamp-book h2 span {
+  font-size: 14px;
+  font-weight: 400;
+  color: #7a6f60;
+  margin-left: 6px;
+}
+.stamp-book p {
+  font-size: 13px;
+  color: #6b6155;
+}
+.stamp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 12px;
+}
+.stamp {
+  text-align: center;
+  font-size: 12px;
+}
+.stamp-seal {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 6px;
+  border-radius: 50%;
+  border: 3px dashed #c9bfae;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  color: #c9bfae;
+}
+.stamp.got .stamp-seal {
+  border: 3px solid #d22f35;
+  color: #d22f35;
+  transform: rotate(-12deg);
+}
+.stamp-name {
+  font-weight: 700;
+}
+.stamp-en {
+  color: #7a6f60;
+}
+@media (max-width: 640px) {
+  .hud-stamps {
+    top: auto;
+    bottom: 160px;
+  }
 }

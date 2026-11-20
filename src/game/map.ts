@@ -62,6 +62,11 @@ export interface MapFile {
   /** Named slopes (坂), with a sign at the bottom (top: 0) and top (1). rise
    *  is the real height difference in meters. */
   slopes?: Slope[]
+  /** Shop signs on walls: t = text, k = shop kind, r = facing, w = max
+   *  width, b = index of the building it hangs on. */
+  signs?: { x: number; y: number; r: number; w: number; b: number; t: string; k: PoiKind }[]
+  /** Places with a Wikipedia article; stamp = part of the stamp rally. */
+  discoveries?: Discovery[]
   /** Bridge surfaces: rings of [x, y, height] in game meters. */
   bridges?: Flat[]
   /** Elevated expressway: polylines of [x, y, deck height], w = width. */
@@ -69,6 +74,23 @@ export interface MapFile {
   /** Ground heights: a grid every `cell` meters, Int16 decimeters above
    *  `base` (meters above sea level), base64. */
   terrain?: { cell: number; width: number; height: number; base: number; data: string }
+}
+
+export interface Discovery {
+  /** Wikidata id, e.g. Q1191163. */
+  id: string
+  x: number
+  y: number
+  ja: string
+  en?: string
+  kind?: string
+  /** Opening lines of the Japanese and English Wikipedia articles. */
+  jt?: string
+  et?: string
+  /** Article titles on ja.wikipedia.org and en.wikipedia.org. */
+  jw: string
+  ew?: string
+  stamp?: 1
 }
 
 export interface Slope {
@@ -228,6 +250,20 @@ export function poisNear(map: GameMap, x: number, y: number, radius: number, lim
     .filter((p) => Math.abs(p.x - x) <= radius && Math.abs(p.y - y) <= radius * 0.8)
     .sort((a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind])
     .slice(0, limit)
+}
+
+/** The discovery within `maxDist` meters, if any. */
+export function discoveryNear(map: GameMap, x: number, y: number, maxDist = 9) {
+  let best: Discovery | null = null
+  let bestD = maxDist
+  for (const d of map.discoveries ?? []) {
+    const dist = Math.hypot(d.x - x, d.y - y)
+    if (dist < bestD) {
+      bestD = dist
+      best = d
+    }
+  }
+  return best
 }
 
 /** The slope sign within `maxDist` meters, if any. */

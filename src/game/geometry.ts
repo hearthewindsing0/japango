@@ -242,6 +242,22 @@ function inside(ring: [number, number][], x: number, z: number) {
 const ROOF = [0x7d7187, 0x9a7b6a, 0x6c7f96, 0xa29c8c, 0x768a7a, 0xa8786a, 0x7c7d86, 0x8c96ab].map((c) => new THREE.Color(c))
 const WALL = [0xe8e2d8, 0xd8cbbd, 0xc9d1dc, 0xf0ece4, 0xd5dccf, 0xe6d3c8, 0xcfcfd4, 0xdcdfe6].map((c) => new THREE.Color(c))
 
+/** The height a building stands at: the lowest ground under its outline,
+ *  a little lower so no gap shows where the ground dips between corners. */
+export function buildingBase(p: Flat, height: HeightFn) {
+  const ring = toPts(p)
+  if (ring.length < 3) return 0
+  let m = Infinity
+  let cx = 0
+  let cz = 0
+  for (const [x, z] of ring) {
+    m = Math.min(m, height(x, z))
+    cx += x / ring.length
+    cz += z / ring.length
+  }
+  return Math.min(m, height(cx, cz)) - 0.3
+}
+
 /** Extruded buildings: flat roofs plus walls, with per-building colors.
  *  Extra attributes for the window shader: aWall (1 on walls), aU (distance
  *  along the wall), aTop (the building's height) and aBase (the ground
@@ -267,22 +283,7 @@ export function buildingsGeometry(
     tops.push(top)
     bases.push(base)
   }
-  const baseOf = (ring: [number, number][]) => {
-    let m = Infinity
-    let cx = 0
-    let cz = 0
-    for (const [x, z] of ring) {
-      m = Math.min(m, height(x, z))
-      cx += x / ring.length
-      cz += z / ring.length
-    }
-    // A little lower, so no gap shows where the ground dips between corners.
-    return Math.min(m, height(cx, cz)) - 0.3
-  }
-  const baseByBuilding = buildings.map((b) => {
-    const ring = toPts(b.p)
-    return ring.length < 3 ? 0 : baseOf(ring)
-  })
+  const baseByBuilding = buildings.map((b) => buildingBase(b.p, height))
   for (const [bi, b] of buildings.entries()) {
     const outer = toPts(b.p)
     if (outer.length < 3) continue

@@ -617,6 +617,76 @@ for (const e of roadWays) {
   streets.push(s)
 }
 
+// --- Shop signs -------------------------------------------------------------
+// Mapillary's detectors found where store signs are, but not what they say;
+// OSM knows which shops are nearby. Put a sign on the closest wall to each
+// detection, named after the nearest shop, café, bar or restaurant that
+// doesn't have one yet.
+const SIGN_KINDS = new Set(['konbini', 'food', 'cafe', 'bar', 'shop'])
+const signPois = pois.filter((p) => SIGN_KINDS.has(p.kind))
+const signs = []
+if (mly) {
+  const usedPoi = new Set()
+  const segs = []
+  buildings.forEach((b, bi) => {
+    if (b.h < 4) return
+    for (let k = 0; k + 3 < b.p.length; k += 2) {
+      const len = Math.hypot(b.p[k + 2] - b.p[k], b.p[k + 3] - b.p[k + 1])
+      if (len >= 3) segs.push({ bi, ax: b.p[k], ay: b.p[k + 1], bx: b.p[k + 2], by: b.p[k + 3], len })
+    }
+  })
+  for (const f of mly.features) {
+    if (f.v !== 'object--sign--store') continue
+    const [x, y] = proj([f.lat, f.lon])
+    if (x < 1 || y < 1 || x > FW - 1 || y > FH - 1) continue
+    // Nearest wall within 12 m.
+    let best = null
+    for (const sg of segs) {
+      if (Math.abs(sg.ax - x) > 40 || Math.abs(sg.ay - y) > 40) continue
+      const dx = sg.bx - sg.ax
+      const dy = sg.by - sg.ay
+      const t = Math.max(0.15, Math.min(0.85, ((x - sg.ax) * dx + (y - sg.ay) * dy) / (sg.len * sg.len)))
+      const px = sg.ax + dx * t
+      const py = sg.ay + dy * t
+      const d = Math.hypot(px - x, py - y)
+      if (d < 12 && (!best || d < best.d)) best = { sg, px, py, d }
+    }
+    if (!best) continue
+    // The wall's outward side is the one the detection is on.
+    const { sg } = best
+    let nx = -(sg.by - sg.ay) / sg.len
+    let ny = (sg.bx - sg.ax) / sg.len
+    if ((x - best.px) * nx + (y - best.py) * ny < 0) {
+      nx = -nx
+      ny = -ny
+    }
+    if (cellAt(best.px + nx * 1.5, best.py + ny * 1.5) === T.BUILDING) continue
+    if (signs.some((o) => Math.hypot(o.x - best.px, o.y - best.py) < 4)) continue
+    let poi = null
+    let pd = 22
+    for (const p of signPois) {
+      if (usedPoi.has(p)) continue
+      const d = Math.hypot(p.x - best.px, p.y - best.py)
+      if (d < pd) {
+        pd = d
+        poi = p
+      }
+    }
+    if (!poi) continue
+    usedPoi.add(poi)
+    signs.push({
+      x: r1(best.px),
+      y: r1(best.py),
+      r: Math.round(Math.atan2(ny, nx) * 100) / 100,
+      w: r1(Math.min(sg.len * 0.7, 7)),
+      b: sg.bi,
+      t: poi.name,
+      k: poi.kind,
+    })
+  }
+  console.log(`Shop signs: ${signs.length} (${signs.slice(0, 8).map((s) => s.t).join('、')}…)`)
+}
+
 // --- Spawn ----------------------------------------------------------------
 const BLOCKED = new Set([T.BUILDING, T.WATER, T.TREE, T.VOID])
 const [sx0, sy0] = proj([AREA.spawn.lat, AREA.spawn.lon]).map((v) => Math.floor(v / cell))
@@ -755,6 +825,64 @@ for (const e of motorways) {
 console.log(`Shuto Expressway: ${viaducts.length} viaduct segments`)
 if (bridgeData) console.log(`Bridges: ${bridges.length} surfaces from ${bridgeData.bridges.length} PLATEAU bridges`)
 
+// --- Discoveries (Wikipedia) ----------------------------------------------
+// Places with a Wikipedia article become discoveries; the best known become
+// stamps in a stamp rally (スタンプラリー). Each sits on the nearest spot the
+// player can reach, so walking up to it works.
+const wikiFile = `data/${AREA.id}.wiki.json`
+const wiki = existsSync(wikiFile) ? JSON.parse(await readFile(wikiFile, 'utf8')) : null
+const discoveries = []
+const VISITABLE =
+  /museum|gallery|shrine|temple|church|park|garden|station|skyscraper|tower|building|sculpture|hotel|theat|live house|historic|steep road|slope|restaurant|kappō|bathhouse/i
+// Stamp rally spots: landmarks, not restaurants or hotels.
+const STAMPABLE = /museum|gallery|shrine|temple|park|garden|station|skyscraper|tower|building complex|sculpture|historic/i
+const WALKABLE = new Set([T.GROUND, T.ROAD, T.FOOTWAY, T.GRASS, T.CROSSING, T.PARKING, T.PITCH, T.SHRINE, T.SIDEWALK])
+const reachable = (x, y) => {
+  const cx = Math.floor(x / cell)
+  const cy = Math.floor(y / cell)
+  for (let r = 0; r < 45; r++)
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue
+        const gx = cx + dx
+        const gy = cy + dy
+        if (gx < 0 || gy < 0 || gx >= GW || gy >= GH) continue
+        if (WALKABLE.has(grid[gy * GW + gx])) return [(gx + 0.5) * cell, (gy + 0.5) * cell]
+      }
+  return null
+}
+for (const p of wiki?.places ?? []) {
+  const [x0, y0] = proj([p.lat, p.lon])
+  if (x0 < 5 || y0 < 5 || x0 > FW - 5 || y0 > FH - 5) continue
+  // Only places you can visit: no districts, companies, events or groups.
+  if (!p.types.some((t) => VISITABLE.test(t))) continue
+  const at = reachable(x0, y0)
+  if (!at) continue
+  // Drop Wikipedia's disambiguation, e.g. 桜田神社 (東京都港区).
+  const d = { id: p.id, x: r1(at[0]), y: r1(at[1]), ja: p.ja.replace(/\s*[（(][^)）]*[)）]$/, ''), links: p.links }
+  if (p.en) d.en = p.en
+  const kind = p.types.find((t) => STAMPABLE.test(t)) ?? p.types.find((t) => VISITABLE.test(t))
+  if (kind) d.kind = kind
+  if (p.jaText) d.jt = p.jaText
+  if (p.enText) d.et = p.enText
+  d.jw = p.jaTitle
+  if (p.enTitle) d.ew = p.enTitle
+  // Several items can share a spot (a building and its museum): keep the first.
+  if (discoveries.some((o) => Math.hypot(o.x - d.x, o.y - d.y) < 6)) continue
+  discoveries.push(d)
+}
+discoveries.sort((a, b) => b.links - a.links)
+let stamps = 0
+for (const d of discoveries) {
+  if (stamps >= 10) break
+  if (!d.en || !d.jt || !STAMPABLE.test(d.kind ?? '')) continue
+  if (discoveries.some((o) => o.stamp && Math.hypot(o.x - d.x, o.y - d.y) < 40)) continue
+  d.stamp = 1
+  stamps++
+}
+for (const d of discoveries) delete d.links
+if (wiki) console.log(`Discoveries: ${discoveries.length}, stamps: ${discoveries.filter((d) => d.stamp).map((d) => d.ja).join('、')}`)
+
 // --- Named slopes (坂) ----------------------------------------------------
 // Tokyo names its slopes, and Minato-ku puts a small sign at each end with
 // the name and a line of history. Readings and meanings for the ones around
@@ -874,7 +1002,7 @@ await writeFile(
     name: AREA.name,
     nameEn: AREA.nameEn,
     attribution: osm.attribution,
-    credits: [osm.attribution, plateau?.buildings?.length || terrain ? '3D都市モデル（Project PLATEAU）国土交通省' : null, mly?.attribution].filter(Boolean),
+    credits: [osm.attribution, plateau?.buildings?.length || terrain ? '3D都市モデル（Project PLATEAU）国土交通省' : null, mly?.attribution, wiki ? wiki.attribution : null].filter(Boolean),
     fetchedAt: osm.fetchedAt,
     rotationDeg: AREA.rotationDeg,
     width: FW,
@@ -890,6 +1018,8 @@ await writeFile(
     pois,
     streets,
     slopes,
+    signs,
+    discoveries,
     bridges,
     viaducts,
     terrain,
