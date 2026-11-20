@@ -18,7 +18,8 @@
     "map:aerial": "node scripts/fetch-aerial.mjs",
     "map:dict": "node scripts/build-dict.mjs",
     "map:sounds": "node scripts/fetch-sounds.mjs",
-    "map:tiles": "node scripts/build-tiles.mjs"
+    "map:tiles": "node scripts/build-tiles.mjs",
+    "cf:dev": "vite build && wrangler d1 migrations apply japango --local && wrangler dev"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
@@ -28,6 +29,7 @@
     "three": "^0.187.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261120.1",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -37,6 +39,7 @@
     "oxlint": "^1.90.0",
     "sharp": "^0.35.5",
     "typescript": "~7.0.2",
-    "vite": "^8.3.6"
+    "vite": "^8.3.6",
+    "wrangler": "^4.166.0"
   }
 }

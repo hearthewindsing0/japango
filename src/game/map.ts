@@ -169,6 +169,8 @@ export interface Manifest {
   nameEn: string
   attribution: string
   credits?: string[]
+  /** When the tiles were cut; tiles are fetched with it so caches can keep them. */
+  builtAt?: string
   rotationDeg: number
   width: number
   height: number
@@ -221,7 +223,8 @@ export async function loadMap(id: string): Promise<GameMap> {
 export const tileKey = (col: number, row: number) => `${col}_${row}`
 
 export async function loadTile(map: GameMap, col: number, row: number): Promise<MapTile> {
-  const res = await fetch(`${map.base}${tileKey(col, row)}.json`)
+  const v = map.builtAt ? `?v=${encodeURIComponent(map.builtAt)}` : ''
+  const res = await fetch(`${map.base}${tileKey(col, row)}.json${v}`)
   if (!res.ok) throw new Error(`Tile ${tileKey(col, row)}: ${res.status}`)
   const file = (await res.json()) as TileFile
   const { grid, terrain, ...rest } = file
