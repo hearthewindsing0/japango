@@ -1,5 +1,4 @@
-// Keyboard + on-screen d-pad input. Holds the most recently pressed direction
-// so that pressing a second arrow key while holding the first turns the player.
+// Keyboard + on-screen d-pad input, read as a movement vector.
 export type Dir = 'up' | 'down' | 'left' | 'right'
 
 const KEYS: Record<string, Dir> = {
@@ -13,18 +12,11 @@ const KEYS: Record<string, Dir> = {
   KeyD: 'right',
 }
 
-const held: Dir[] = []
+const held = new Set<Dir>()
 let running = false
 
-const press = (d: Dir) => {
-  const i = held.indexOf(d)
-  if (i >= 0) held.splice(i, 1)
-  held.push(d)
-}
-const release = (d: Dir) => {
-  const i = held.indexOf(d)
-  if (i >= 0) held.splice(i, 1)
-}
+const press = (d: Dir) => held.add(d)
+const release = (d: Dir) => held.delete(d)
 
 if (typeof window !== 'undefined') {
   window.addEventListener('keydown', (e) => {
@@ -42,24 +34,20 @@ if (typeof window !== 'undefined') {
     if (d) release(d)
   })
   window.addEventListener('blur', () => {
-    held.length = 0
+    held.clear()
     running = false
   })
 }
 
 export const input = {
-  dir: (): Dir | null => held.at(-1) ?? null,
+  /** Unit vector in screen terms: x right, y down. Zero when idle. */
+  vector(): [number, number] {
+    const x = (held.has('right') ? 1 : 0) - (held.has('left') ? 1 : 0)
+    const y = (held.has('down') ? 1 : 0) - (held.has('up') ? 1 : 0)
+    const len = Math.hypot(x, y)
+    return len ? [x / len, y / len] : [0, 0]
+  },
   running: () => running,
   press,
   release,
-  setRunning: (v: boolean) => {
-    running = v
-  },
-}
-
-export const DELTA: Record<Dir, [number, number]> = {
-  up: [0, -1],
-  down: [0, 1],
-  left: [-1, 0],
-  right: [1, 0],
 }

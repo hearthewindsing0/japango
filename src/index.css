@@ -174,12 +174,30 @@ code {
 
 .label-layer {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
+  overflow: hidden;
   pointer-events: none;
-  will-change: transform;
 }
 .label-layer .label {
   position: absolute;
-  transform: translate(-50%, -50%);
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+
+.compass {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  width: 24px;
+  height: 24px;
+}
+.compass circle {
+  fill: rgba(17, 17, 20, 0.75);
+}
+.compass-n {
+  fill: #e5484d;
+}
+.compass-s {
+  fill: #e4e4e7;
 }

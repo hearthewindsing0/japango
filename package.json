@@ -9,7 +9,10 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "map:fetch": "node scripts/fetch-osm.mjs",
-    "map:build": "node scripts/build-map.mjs"
+    "map:build": "node scripts/build-map.mjs",
+    "map:mapillary": "node scripts/fetch-mapillary.mjs",
+    "map:plateau": "node scripts/fetch-plateau.mjs",
+    "map:terrain": "node scripts/fetch-terrain.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
@@ -25,6 +28,7 @@
     "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.90.0",
+    "sharp": "^0.35.5",
     "typescript": "~7.0.2",
     "vite": "^8.3.6"
   }
