@@ -1,1 +1,48 @@
-{"source":"Freesound (freesound.org)","sounds":{}}
+{
+ "source": "Freesound (freesound.org)",
+ "fetchedAt": "2026-11-20T20:11:27.409Z",
+ "sounds": {
+  "city": {
+   "name": "Japan_Tokyo_Uchibori-Dori_Crossing_Traffic_Cars_Trucks.wav",
+   "author": "RutgerMuller",
+   "url": "https://freesound.org/people/RutgerMuller/sounds/364831/",
+   "license": "CC0",
+   "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  "night": {
+   "name": "Japan_Tokyo_Roppongi_Traffic.wav",
+   "author": "RutgerMuller",
+   "url": "https://freesound.org/people/RutgerMuller/sounds/364899/",
+   "license": "CC0",
+   "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  "crossing": {
+   "name": "TRAIN CROSSING - JAPAN 3.aif",
+   "author": "muse88",
+   "url": "https://freesound.org/people/muse88/sounds/490524/",
+   "license": "CC0",
+   "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  "rain": {
+   "name": "City Rain Dark.wav",
+   "author": "szegvari",
+   "url": "https://freesound.org/people/szegvari/sounds/581148/",
+   "license": "CC0",
+   "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  "birds": {
+   "name": "tokyo_park_at_dusk.wav",
+   "author": "markystar",
+   "url": "https://freesound.org/people/markystar/sounds/75273/",
+   "license": "CC0",
+   "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  "cicadas": {
+   "name": "Cicadas",
+   "author": "harrietniamh",
+   "url": "https://freesound.org/people/harrietniamh/sounds/400096/",
+   "license": "CC BY",
+   "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
+  }
+ }
+}
