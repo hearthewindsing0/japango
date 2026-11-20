@@ -31,7 +31,10 @@ colors from photos. `map:build` then places those props and colors the walls.
 Building heights and the shape of the ground come from
 [PLATEAU](https://www.mlit.go.jp/plateau/), Japan's open 3D city models:
 `npm run map:plateau` downloads buildings with measured heights and
-`npm run map:terrain` a height grid of the bare ground. Slopes are drawn at
+`npm run map:terrain` a height grid of the bare ground, and
+`npm run map:bridges` footbridges and walkways as 3D surfaces. The elevated
+Shuto Expressway is built from OpenStreetMap's motorway ways, at a deck
+height from their layer. Slopes are drawn at
 half their real steepness, to match the shortened buildings. Tokyo's named
 slopes (坂, like 芋洗坂) get a sign at each end; stand next to one to see its
 reading and meaning.

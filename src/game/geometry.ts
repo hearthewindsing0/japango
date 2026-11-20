@@ -390,3 +390,172 @@ export function buildingsGeometry(
   })
   return g
 }
+
+/** 3D surfaces (bridges) from rings of [x, y, height] map points, in the
+ *  attribute layout of buildingsGeometry so they share its material. Each
+ *  ring is flattened onto its own plane, triangulated, and wound the way the
+ *  ring runs (CityGML rings run counter-clockwise seen from outside). */
+export function surfacesGeometry(rings: Flat[], color: THREE.ColorRepresentation) {
+  const pos: number[] = []
+  const c = new THREE.Color(color)
+  const n = new THREE.Vector3()
+  const u = new THREE.Vector3()
+  const v = new THREE.Vector3()
+  for (const ring of rings) {
+    const pts: THREE.Vector3[] = []
+    for (let i = 0; i + 2 < ring.length; i += 3) pts.push(new THREE.Vector3(ring[i], ring[i + 2], ring[i + 1]))
+    const a = pts[0]
+    const b = pts[pts.length - 1]
+    if (pts.length > 3 && a.distanceToSquared(b) < 1e-6) pts.pop()
+    if (pts.length < 3) continue
+    // Newell's method: the ring's normal, robust for any planar polygon.
+    n.set(0, 0, 0)
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i]
+      const q = pts[(i + 1) % pts.length]
+      n.x += (p.y - q.y) * (p.z + q.z)
+      n.y += (p.z - q.z) * (p.x + q.x)
+      n.z += (p.x - q.x) * (p.y + q.y)
+    }
+    if (n.lengthSq() < 1e-8) continue
+    n.normalize()
+    u.set(Math.abs(n.x) < 0.9 ? 1 : 0, Math.abs(n.x) < 0.9 ? 0 : 1, 0).cross(n).normalize()
+    v.crossVectors(n, u)
+    const flat = pts.map((p) => new THREE.Vector2(p.dot(u), p.dot(v)))
+    // (u, v, n) is right-handed, so a counter-clockwise ring in (u, v)
+    // faces +n; ShapeUtils may reorder, so wind each triangle explicitly.
+    for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(flat, [])) {
+      const A = flat[i]
+      const B = flat[j]
+      const C = flat[k]
+      const ccw = (B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x) > 0
+      for (const idx of ccw ? [i, j, k] : [i, k, j]) pos.push(pts[idx].x, pts[idx].y, pts[idx].z)
+    }
+  }
+  const count = pos.length / 3
+  const fill = (x: number) => new Array(count).fill(x)
+  return finish(pos, {
+    color: { data: Array.from({ length: count }, () => [c.r, c.g, c.b]).flat(), size: 3 },
+    aWall: { data: fill(0), size: 1 },
+    aU: { data: fill(0), size: 1 },
+    aTop: { data: fill(-1000), size: 1 },
+    aBase: { data: fill(0), size: 1 },
+  })
+}
+
+/** Elevated expressway decks along polylines of [x, y, deck height] points:
+ *  road surface, underside, side walls with parapets, and a pier every
+ *  ~30 m. Same attribute layout as buildingsGeometry. */
+export function viaductsGeometry(
+  viaducts: { p: Flat; w: number }[],
+  height: HeightFn,
+  colors: { deck: THREE.ColorRepresentation; side: THREE.ColorRepresentation; road: THREE.ColorRepresentation },
+) {
+  const pos: number[] = []
+  const col: number[] = []
+  const deck = new THREE.Color(colors.deck)
+  const side = new THREE.Color(colors.side)
+  const road = new THREE.Color(colors.road)
+  const THICK = 1.3
+  const PARAPET = 0.9
+  const quad = (a: number[], b: number[], c: number[], d: number[], color: THREE.Color) => {
+    // a-b-c-d run clockwise seen from the side the quad faces.
+    for (const v of [a, c, b, a, d, c]) {
+      pos.push(v[0], v[1], v[2])
+      col.push(color.r, color.g, color.b)
+    }
+  }
+  const box = (cx: number, cz: number, y0: number, y1: number, sx: number, sz: number, ang: number, color: THREE.Color) => {
+    const ca = Math.cos(ang)
+    const sa = Math.sin(ang)
+    const corner = (i: number, j: number, y: number) => [cx + ca * sx * i - sa * sz * j, y, cz + sa * sx * i + ca * sz * j]
+    const ring = [
+      [1, 1],
+      [-1, 1],
+      [-1, -1],
+      [1, -1],
+    ]
+    for (let k = 0; k < 4; k++) {
+      const [i0, j0] = ring[k]
+      const [i1, j1] = ring[(k + 1) % 4]
+      quad(corner(i0, j0, y0), corner(i1, j1, y0), corner(i1, j1, y1), corner(i0, j0, y1), color)
+    }
+  }
+  for (const vd of viaducts) {
+    const pts: [number, number, number][] = []
+    for (let i = 0; i + 2 < vd.p.length; i += 3) pts.push([vd.p[i], vd.p[i + 1], vd.p[i + 2]])
+    if (pts.length < 2) continue
+    const r = vd.w / 2
+    // Mitered side offsets at every point.
+    const offs = pts.map((_, i) => {
+      const seg = (k: number) => {
+        const [ax, az] = pts[k]
+        const [bx, bz] = pts[k + 1]
+        const l = Math.hypot(bx - ax, bz - az) || 1
+        return [-(bz - az) / l, (bx - ax) / l]
+      }
+      const n0 = seg(Math.max(0, i - 1))
+      const n1 = seg(Math.min(pts.length - 2, i))
+      let nx = n0[0] + n1[0]
+      let nz = n0[1] + n1[1]
+      const l = Math.hypot(nx, nz) || 1
+      nx /= l
+      nz /= l
+      const cos = Math.max(0.5, nx * n1[0] + nz * n1[1])
+      return [(nx * r) / cos, (nz * r) / cos]
+    })
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [ax, az, ah] = pts[i]
+      const [bx, bz, bh] = pts[i + 1]
+      const [anx, anz] = offs[i]
+      const [bnx, bnz] = offs[i + 1]
+      // Left (+n) and right (-n) edges.
+      const aL = [ax + anx, az + anz]
+      const aR = [ax - anx, az - anz]
+      const bL = [bx + bnx, bz + bnz]
+      const bR = [bx - bnx, bz - bnz]
+      const P = (p: number[], y: number) => [p[0], y, p[1]]
+      // Road surface (facing up) and underside (facing down).
+      quad(P(aR, ah), P(bR, bh), P(bL, bh), P(aL, ah), road)
+      quad(P(aL, ah - THICK), P(bL, bh - THICK), P(bR, bh - THICK), P(aR, ah - THICK), deck)
+      // Outer side walls, up to the parapet top.
+      quad(P(aL, ah - THICK), P(aL, ah + PARAPET), P(bL, bh + PARAPET), P(bL, bh - THICK), side)
+      quad(P(bR, bh - THICK), P(bR, bh + PARAPET), P(aR, ah + PARAPET), P(aR, ah - THICK), side)
+      // Inner faces of the parapets, seen from the road.
+      quad(P(bL, bh), P(bL, bh + PARAPET), P(aL, ah + PARAPET), P(aL, ah), side)
+      quad(P(aR, ah), P(aR, ah + PARAPET), P(bR, bh + PARAPET), P(bR, bh), side)
+    }
+    // Piers: one every ~30 m where the deck is well off the ground.
+    let next = 15
+    let dist = 0
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [ax, az, ah] = pts[i]
+      const [bx, bz, bh] = pts[i + 1]
+      const len = Math.hypot(bx - ax, bz - az)
+      const ang = Math.atan2(bz - az, bx - ax)
+      while (next <= dist + len) {
+        const t = (next - dist) / (len || 1)
+        const x = ax + (bx - ax) * t
+        const z = az + (bz - az) * t
+        const top = ah + (bh - ah) * t - THICK
+        const g = height(x, z)
+        if (top - g > 2.5) {
+          box(x, z, g - 0.3, top, 0.8, Math.min(1.6, r * 0.35), ang, deck)
+          // A crossbeam under the deck.
+          box(x, z, top - 0.9, top, 0.7, r * 0.85, ang, deck)
+        }
+        next += 30
+      }
+      dist += len
+    }
+  }
+  const count = pos.length / 3
+  const fill = (x: number) => new Array(count).fill(x)
+  return finish(pos, {
+    color: { data: col, size: 3 },
+    aWall: { data: fill(0), size: 1 },
+    aU: { data: fill(0), size: 1 },
+    aTop: { data: fill(-1000), size: 1 },
+    aBase: { data: fill(0), size: 1 },
+  })
+}

@@ -3,7 +3,16 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { Props } from './Props'
 import { patternedMaterial, type Pattern } from './patterns'
-import { buildingsGeometry, dashesGeometry, drape, polygonsGeometry, ribbonsGeometry, type HeightFn } from './geometry'
+import {
+  buildingsGeometry,
+  dashesGeometry,
+  drape,
+  polygonsGeometry,
+  ribbonsGeometry,
+  surfacesGeometry,
+  viaductsGeometry,
+  type HeightFn,
+} from './geometry'
 import { groundAt, type GameMap } from './map'
 import { COLORS, T } from './tiles'
 
@@ -201,6 +210,12 @@ function Ground({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
 
 function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; focus: React.RefObject<Focus> }) {
   const geo = useDisposable(() => buildingsGeometry(map.buildings, heightFn(map)), [map])
+  // Bridges and the Shuto Expressway viaducts: weathered concrete.
+  const bridgeGeo = useDisposable(() => surfacesGeometry(map.bridges ?? [], '#a9aaa5'), [map])
+  const viaductGeo = useDisposable(
+    () => viaductsGeometry(map.viaducts ?? [], heightFn(map), { deck: '#a3a49f', side: '#d6d7d2', road: '#62646a' }),
+    [map],
+  )
   const camera = useThree((s) => s.camera)
   const uniforms = useMemo(
     () => ({ uPlayer: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() } }),
@@ -285,7 +300,13 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
     uniforms.uCam.value.copy(camera.position)
   })
 
-  return <mesh geometry={geo} material={material} castShadow receiveShadow />
+  return (
+    <>
+      <mesh geometry={geo} material={material} castShadow receiveShadow />
+      <mesh geometry={bridgeGeo} material={material} castShadow receiveShadow />
+      <mesh geometry={viaductGeo} material={material} castShadow receiveShadow />
+    </>
+  )
 }
 
 function Trees({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {

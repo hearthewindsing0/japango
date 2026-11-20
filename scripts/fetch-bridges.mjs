@@ -1,5 +1,6 @@
 // Downloads 3D bridge models for the area from Project PLATEAU (橋梁モデル):
-// the Shuto Expressway viaducts, footbridges (歩道橋) and the like. Saves
+// footbridges, deck walkways and the like. (The Shuto Expressway viaducts
+// aren't in it around Roppongi; build-map.mjs builds those from OSM.) Saves
 // each bridge's surfaces as 3D polygons to data/<area>.bridges.json.
 //
 // Coordinates stay as lat, lon, height (m above sea level); build-map.mjs

@@ -62,6 +62,10 @@ export interface MapFile {
   /** Named slopes (坂), with a sign at the bottom (top: 0) and top (1). rise
    *  is the real height difference in meters. */
   slopes?: Slope[]
+  /** Bridge surfaces: rings of [x, y, height] in game meters. */
+  bridges?: Flat[]
+  /** Elevated expressway: polylines of [x, y, deck height], w = width. */
+  viaducts?: { p: Flat; w: number }[]
   /** Ground heights: a grid every `cell` meters, Int16 decimeters above
    *  `base` (meters above sea level), base64. */
   terrain?: { cell: number; width: number; height: number; base: number; data: string }

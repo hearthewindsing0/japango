@@ -680,6 +680,81 @@ if (existsSync(terrainFile)) {
   console.log(`Terrain ${TW}×${TH} at ${t.cell} m, ${t.base} m above sea level and up`)
 }
 
+// --- Bridges (PLATEAU) -----------------------------------------------------
+// Viaducts and footbridges as 3D surfaces. Each corner's height above the
+// ground is shrunk the same way as buildings, and set on the game's ground.
+const TERRAIN_SCALE = 0.5 // keep in sync with src/game/map.ts
+const bridgesFile = `data/${AREA.id}.bridges.json`
+const bridgeData = existsSync(bridgesFile) ? JSON.parse(await readFile(bridgesFile, 'utf8')) : null
+const bridges = []
+const groundBase = terrain?.base ?? 0
+for (const b of bridgeData?.bridges ?? []) {
+  for (const ring of b.rings) {
+    const out = []
+    let inside = false
+    for (let i = 0; i < ring.length; i += 3) {
+      const [x, y] = proj([ring[i], ring[i + 1]])
+      if (x > -20 && y > -20 && x < FW + 20 && y < FH + 20) inside = true
+      const g = terrain ? terrainAt(x, y) : ring[i + 2]
+      const above = ring[i + 2] - g
+      const h = (g - groundBase) * TERRAIN_SCALE + (above > 0 ? gameHeight(above) : above * TERRAIN_SCALE)
+      out.push(r1(x), r1(y), Math.round(h * 100) / 100)
+    }
+    if (inside && out.length >= 9) bridges.push(out)
+  }
+}
+
+// The Shuto Expressway (首都高) isn't in PLATEAU's bridge models here, so its
+// viaducts are built from OSM: a deck along each elevated motorway way, at a
+// height from its layer, ramping down where it meets a ground-level road.
+const motorways = ways.filter((e) => e.tags.highway?.startsWith('motorway') && !below(e.tags) && e.geom?.length > 1)
+const key = (pos) => `${pos[0]},${pos[1]}`
+const deckAt = new Map() // node → deck heights above ground (real m) of ways that end there
+const groundEnds = new Set()
+const deckOf = (e) => 8 + 5 * Math.max(1, Number(e.tags.layer ?? 1))
+for (const e of motorways) {
+  for (const pos of [e.geom[0], e.geom[e.geom.length - 1]]) {
+    if (e.tags.bridge === 'yes') deckAt.set(key(pos), [...(deckAt.get(key(pos)) ?? []), deckOf(e)])
+    else groundEnds.add(key(pos))
+  }
+}
+const viaducts = []
+for (const e of motorways) {
+  if (e.tags.bridge !== 'yes') continue
+  const pts = e.geom.map(proj)
+  if (!nearFrame(pts)) continue
+  // Height at each end: 0 if it lands on a ground-level road, else the
+  // average of the decks that meet there.
+  const endH = (pos) => {
+    if (groundEnds.has(key(pos)) && (deckAt.get(key(pos))?.length ?? 0) < 2) return 0
+    const list = deckAt.get(key(pos)) ?? [deckOf(e)]
+    return list.reduce((a, b) => a + b, 0) / list.length
+  }
+  const h0 = endH(e.geom[0])
+  const h1 = endH(e.geom[e.geom.length - 1])
+  const mid = deckOf(e)
+  const lens = [0]
+  for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]))
+  const total = lens[lens.length - 1] || 1
+  const RAMP = 120 // meters to climb from the ground to a deck
+  const out = []
+  for (let i = 0; i < pts.length; i++) {
+    const d = lens[i]
+    // Blend from each end's height to the way's own deck height.
+    const t0 = Math.min(1, d / Math.min(RAMP, total / 2))
+    const t1 = Math.min(1, (total - d) / Math.min(RAMP, total / 2))
+    let real = mid
+    if (h0 !== mid) real = h0 + (real - h0) * t0
+    if (h1 !== mid) real = h1 + (real - h1) * Math.min(t1, 1)
+    const [x, y] = pts[i]
+    const g = terrain ? (terrainAt(x, y) - groundBase) * TERRAIN_SCALE : 0
+    out.push(r1(x), r1(y), Math.round((g + gameHeight(real)) * 100) / 100)
+  }
+  viaducts.push({ p: out, w: r1(Math.max(widthOf(e.tags), (Number(e.tags.lanes) || 2) * 3.5 + 1.5)) })
+}
+console.log(`Shuto Expressway: ${viaducts.length} viaduct segments`)
+if (bridgeData) console.log(`Bridges: ${bridges.length} surfaces from ${bridgeData.bridges.length} PLATEAU bridges`)
+
 // --- Named slopes (坂) ----------------------------------------------------
 // Tokyo names its slopes, and Minato-ku puts a small sign at each end with
 // the name and a line of history. Readings and meanings for the ones around
@@ -815,6 +890,8 @@ await writeFile(
     pois,
     streets,
     slopes,
+    bridges,
+    viaducts,
     terrain,
   }),
 )
