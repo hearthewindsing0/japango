@@ -90,6 +90,33 @@ Place text from Wikipedia (CC BY-SA 4.0) and Wikidata (CC0).
 Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
 Sounds from Freesound, credited per recording in `public/sounds/credits.json`.
 
+## Hosting on Cloudflare
+
+The game runs as one Cloudflare Worker (`wrangler.toml`, `worker/index.ts`):
+
+- The site itself is the Worker's static assets (`dist/`).
+- `/tiles/<area>/…` serves the map tiles from the R2 bucket `japango-tiles`.
+  Tiles are fetched with the build time in `?v=`, so the CDN can cache
+  each version for good. Before the first upload, the copy built into the
+  site is served instead.
+- `/api/progress` keeps each player's found places and stamps in the D1
+  database `japango` (`migrations/`). Players are anonymous, identified by a
+  random id their browser keeps. The browser keeps its own copy too, so the
+  game works the same without the API.
+
+The **Deploy** Action runs on every push to `main` and after each Map data
+run. It creates the database and bucket if needed (`scripts/cf-setup.mjs`),
+uploads the tiles and a snapshot of the raw source data to R2
+(`scripts/upload-r2.mjs`), applies database migrations, and deploys. It
+needs the `CLOUDFLARE_API_TOKEN` (Workers, R2 and D1 edit rights) and
+`CLOUDFLARE_ACCOUNT_ID` repository secrets.
+
+The Map data Action also runs nightly at 3 AM Tokyo time. With Cloudflare
+set up, it uploads the fresh tiles to R2 instead of committing them.
+
+Run it all locally with `npm run cf:dev`, which uses wrangler's local D1
+and R2.
+
 ## Code layout
 
 - `src/game/World.tsx`: ground, roads, buildings, trees, sun and shadows.

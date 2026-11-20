@@ -5,6 +5,10 @@ name: Map data
 
 on:
   workflow_dispatch:
+  # Nightly refresh at 3 AM in Tokyo. With Cloudflare set up, the fresh
+  # tiles go straight to R2 instead of into the repo.
+  schedule:
+    - cron: '0 18 * * *'
   push:
     paths:
       - scripts/area.mjs
@@ -34,6 +38,9 @@ jobs:
     env:
       MAPILLARY_TOKEN: ${{ secrets.MAPILLARY_TOKEN }}
       FREESOUND_TOKEN: ${{ secrets.FREESOUND_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -69,10 +76,16 @@ jobs:
           mkdir -p /tmp/jmdict && curl -fsSL "$url" | tar xz -C /tmp/jmdict
           node --max-old-space-size=6144 scripts/build-dict.mjs /tmp/jmdict/*.json
       - name: City sounds from Freesound
-        # Skipped until the FREESOUND_TOKEN repository secret is set.
-        if: ${{ env.FREESOUND_TOKEN != '' }}
+        # Skipped until the FREESOUND_TOKEN repository secret is set, and on
+        # nightly runs (the recordings don't need refreshing).
+        if: ${{ env.FREESOUND_TOKEN != '' && github.event_name != 'schedule' }}
         run: node scripts/fetch-sounds.mjs
+      - name: Upload the nightly refresh to R2
+        if: ${{ github.event_name == 'schedule' && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
+        run: node scripts/upload-r2.mjs
       - name: Commit map data
+        # Nightly runs only commit while there's no Cloudflare to upload to.
+        if: ${{ github.event_name != 'schedule' || env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == '' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

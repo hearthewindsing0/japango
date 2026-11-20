@@ -12,6 +12,7 @@ import { Minimap } from './game/Minimap'
 import { Player } from './game/Player'
 import { World, type Focus } from './game/World'
 import { loadAround, useTileStream } from './game/stream'
+import { useProgressSync } from './game/progress'
 import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoClock, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
 
 const MIN_DIST = 10
@@ -29,6 +30,10 @@ export default function App() {
   // Places found and stamps collected, kept in this browser.
   const [found, setFound] = useState(() => loadSet('japango.found'))
   const [stamps, setStamps] = useState(() => loadSet('japango.stamps'))
+  useProgressSync(found, stamps, (saved) => {
+    setFound((f) => saveSet('japango.found', new Set([...f, ...saved.found])))
+    setStamps((st) => saveSet('japango.stamps', new Set([...st, ...saved.stamps])))
+  })
   const [book, setBook] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   // Dictionary for furigana and tap-for-meaning.
