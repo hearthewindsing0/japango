@@ -26,6 +26,11 @@ for (const p of map.pois ?? []) add(p.name)
 for (const s of map.streets ?? []) add(s.name)
 for (const s of map.signs ?? []) add(s.t)
 for (const s of map.slopes ?? []) add(s.name)
+for (const st of map.stations ?? []) {
+  add(st.name)
+  add(st.line?.ja)
+  for (const s of st.signs ?? []) add(s.t)
+}
 for (const d of map.discoveries ?? []) {
   add(d.ja)
   add(d.jt)

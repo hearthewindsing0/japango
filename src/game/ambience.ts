@@ -32,6 +32,8 @@ export function useSoundCredits() {
 interface Inputs {
   map: GameMap | null
   focus: { current: { x: number; y: number } }
+  /** Down in a station: the street goes quiet and muffled. */
+  under: boolean
   hour: number
   month: number // 1-12, Tokyo
   night: number
@@ -114,7 +116,7 @@ export function useAmbience(inputs: Inputs) {
 
     const update = () => {
       if (!ctx || !master) return
-      const { focus, hour, month, night, rain, muted } = live.current
+      const { focus, hour, month, night, rain, muted, under } = live.current
       const { x, y } = focus.current
       const day = 1 - night
       const crowd = crowdLevel(hour)
@@ -134,6 +136,15 @@ export function useAmbience(inputs: Inputs) {
         rain: wet * 0.7,
         birds: Math.min(1, green * 2) * 0.55 * day * (1 - 0.7 * wet) * (month >= 11 || month <= 2 ? 0.6 : 1),
         cicadas: month >= 7 && month <= 9 ? Math.min(1, green * 2 + 0.15) * 0.5 * day * (1 - wet) : 0,
+      }
+      if (under) {
+        // Underground: a distant hum of the street, no weather or birds.
+        target.city *= 0.25
+        target.night *= 0.25
+        target.rain = 0
+        target.birds = 0
+        target.cicadas = 0
+        target.crossing = 0
       }
       const t = ctx.currentTime
       for (const k of KINDS) gains[k]?.gain.setTargetAtTime(target[k], t, 0.6)

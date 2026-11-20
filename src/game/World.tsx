@@ -24,6 +24,10 @@ import { Weather as WeatherFx } from './Weather'
 export interface Focus {
   x: number
   y: number
+  /** Height you're standing at; underground, set by the stations. */
+  z?: number
+  /** True once you've gone down into a station. */
+  under?: boolean
 }
 
 // Ground layers are stacked a few centimeters apart so they never z-fight.
@@ -449,6 +453,7 @@ export function World({
   focus,
   sky,
   hour,
+  surface = true,
 }: {
   map: GameMap
   /** The loaded tiles; a new array whenever one loads or unloads. */
@@ -456,13 +461,17 @@ export function World({
   focus: React.RefObject<Focus>
   sky: SkyState
   hour: number
+  /** False while the player is down in a station: the street is hidden. */
+  surface?: boolean
 }) {
   return (
     <>
       <Sun map={map} focus={focus} sky={sky} />
-      {tiles.map((t) => (
-        <TileView key={t.key} map={map} tile={t} focus={focus} sky={sky} hour={hour} />
-      ))}
+      <group visible={surface}>
+        {tiles.map((t) => (
+          <TileView key={t.key} map={map} tile={t} focus={focus} sky={sky} hour={hour} />
+        ))}
+      </group>
       <WeatherFx focus={focus} rain={sky.rain} snow={sky.snow} />
     </>
   )

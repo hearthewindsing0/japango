@@ -11,6 +11,7 @@
 import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { AREA } from './area.mjs'
+import { buildStations } from './stations.mjs'
 
 // Grid cell types. Must match src/game/tiles.ts
 export const T = {
@@ -1008,6 +1009,22 @@ console.log(`${slopes.length} named slopes:`, slopes.map((s) => `${s.name} ${s.r
 
 // --- Output ---------------------------------------------------------------
 // Run-length encode the grid as (value, count ≤ 255) byte pairs.
+// Stations you can walk into.
+const stations = buildStations({
+  elements,
+  proj,
+  ground: (x, y) => (terrain ? (terrainAt(x, y) - groundBase) * TERRAIN_SCALE : 0),
+  scale: TERRAIN_SCALE,
+  width: FW,
+  height: FH,
+  walkable: (x, y) => {
+    const gx = Math.floor(x / cell)
+    const gy = Math.floor(y / cell)
+    return gx >= 0 && gy >= 0 && gx < GW && gy < GH && !BLOCKED.has(grid[gy * GW + gx])
+  },
+})
+console.log(`Stations: ${stations.map((s) => `${s.name} ${s.id} (${s.exits.length} exits, ${s.tracks.length} tracks)`).join(', ') || 'none'}`)
+
 const rle = []
 for (let i = 0; i < grid.length; ) {
   const v = grid[i]
@@ -1047,6 +1064,7 @@ await writeFile(
     slopes,
     signs,
     discoveries,
+    stations,
     bridges,
     viaducts,
     terrain,

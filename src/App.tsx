@@ -1,4 +1,5 @@
 import { Canvas } from '@react-three/fiber'
+import * as THREE from 'three'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DPad } from './game/DPad'
 import { view } from './game/input'
@@ -13,6 +14,8 @@ import { Player } from './game/Player'
 import { World, type Focus } from './game/World'
 import { loadAround, useTileStream } from './game/stream'
 import { useProgressSync } from './game/progress'
+import { Underground } from './game/station'
+import { Stations } from './game/Stations'
 import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoClock, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
 
 const MIN_DIST = 10
@@ -22,8 +25,12 @@ export default function App() {
   const [map, setMap] = useState<GameMap | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  // Down in a station (off the street).
+  const [under, setUnder] = useState(false)
   const [distance, setDistance] = useState(32)
   const focus = useRef<Focus>({ x: 0, y: 0 })
+  // For poking at the player from the console while developing.
+  if (import.meta.env.DEV) (window as unknown as { japango: unknown }).japango = { focus }
   const [bigMap, setBigMap] = useState(false)
   const labelLayer = useRef<HTMLDivElement>(null)
 
@@ -92,8 +99,10 @@ export default function App() {
       .then((m) => {
         // ?at=x,y starts somewhere else (map meters), handy for testing.
         const at = new URLSearchParams(location.search).get('at')?.split(',').map(Number)
-        const start = at?.length === 2 && at.every(Number.isFinite) ? { x: at[0], y: at[1] } : m.spawn
+        const start = at && at.length >= 2 && at.every(Number.isFinite) ? { x: at[0], y: at[1] } : m.spawn
         focus.current = { ...start }
+        // ?at=x,y,z starts underground at height z (in a station).
+        if (at?.length === 3 && Number.isFinite(at[2])) focus.current = { ...start, z: at[2], under: true }
         // The tiles around the start, before the player appears.
         return loadAround(m, start.x, start.y, 32).then(() => {
           setMap(m)
@@ -141,7 +150,8 @@ export default function App() {
   const tiles = useTileStream(map, focus, distance)
   const clock = tokyoClock(now)
   const hour = clock.h + clock.m / 60
-  useAmbience({ map, focus, hour, month: tokyoMonth(now), night: sky.night, rain: sky.rain, muted, credits: soundCredits })
+  const ug = useMemo(() => (map?.stations?.length ? new Underground(map.stations) : null), [map])
+  useAmbience({ map, focus, under, hour, month: tokyoMonth(now), night: sky.night, rain: sky.rain, muted, credits: soundCredits })
 
   if (error)
     return (
@@ -157,9 +167,13 @@ export default function App() {
 
   const words = WEATHER_WORDS[weather.kind]
   const rally = (map.discoveries ?? []).filter((d) => d.stamp)
-  const street = streetNear(map, pos.x, pos.y)
-  const place = nearestPoi(map, pos.x, pos.y)
-  const slope = slopeNear(map, pos.x, pos.y)
+  const street = under ? null : streetNear(map, pos.x, pos.y)
+  const place = under ? null : nearestPoi(map, pos.x, pos.y)
+  const slope = under ? null : slopeNear(map, pos.x, pos.y)
+  const z = focus.current.z ?? 0
+  const station = under && ug ? ug.stationAt(pos.x, pos.y, z) : null
+  const sign = under && ug ? ug.signNear(pos.x, pos.y, z) : null
+  const bg = under ? UNDERGROUND_BG : sky.background
 
   return (
     <div
@@ -181,15 +195,25 @@ export default function App() {
         gl={{ antialias: true, localClippingEnabled: true }}
         dpr={[1, 2]}
       >
-        <color attach="background" args={[sky.background]} />
-        <fog attach="fog" args={[sky.background, distance * 2.5 * sky.fogScale, distance * 6 * sky.fogScale]} />
-        <World map={map} tiles={tiles} focus={focus} sky={sky} hour={hour} />
-        <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />
-        <Player map={map} focus={focus} distance={distance} onMove={(x, y) => setPos({ x, y })} />
+        <color attach="background" args={[bg]} />
+        <fog attach="fog" args={[bg, under ? distance * 2 : distance * 2.5 * sky.fogScale, under ? distance * 4 : distance * 6 * sky.fogScale]} />
+        <World map={map} tiles={tiles} focus={focus} sky={sky} hour={hour} surface={!under} />
+        {!under && <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />}
+        {ug && <Stations ug={ug} focus={focus} under={under} />}
+        <Player
+          map={map}
+          ug={ug}
+          focus={focus}
+          distance={distance}
+          onMove={(x, y, u) => {
+            setPos({ x, y })
+            setUnder(u)
+          }}
+        />
         <LabelLayerSync layer={labelLayer} />
       </Canvas>
 
-      <Labels map={map} tiles={tiles} x={pos.x} y={pos.y} distance={distance} layer={labelLayer} />
+      {!under && <Labels map={map} tiles={tiles} x={pos.x} y={pos.y} distance={distance} layer={labelLayer} />}
 
       <div className="hud-location">
         <div className="hud-area">
@@ -204,6 +228,17 @@ export default function App() {
         {street && (
           <div className="hud-street">
             <JaText text={street.name} dict={dict} furigana={furigana} onWord={setWord} /> {street.nameEn && <span>{street.nameEn}</span>}
+          </div>
+        )}
+        {station && (
+          <div className="hud-street">
+            <span className="hud-line" style={{ background: station.line.colour }}>
+              {station.line.ref}
+            </span>{' '}
+            <JaText text={`${station.name}駅`} dict={dict} furigana={furigana} onWord={setWord} /> <JaText text={station.line.ja} dict={dict} furigana={furigana} onWord={setWord} />{' '}
+            <span>
+              {station.nameEn} Station, {station.line.en}
+            </span>
           </div>
         )}
         {place && (
@@ -276,6 +311,16 @@ export default function App() {
             )}{' '}
             (CC BY-SA)
           </div>
+        </div>
+      )}
+
+      {sign && (
+        <div className="hud-slope">
+          <div className="hud-slope-name">
+            <JaText text={sign.s.t} dict={dict} furigana={furigana} onWord={setWord} />
+          </div>
+          <div className="hud-slope-en">{sign.s.en}</div>
+          <div className="hud-slope-note">{SIGN_NOTES[sign.s.k]}</div>
         </div>
       )}
 
@@ -374,6 +419,16 @@ export default function App() {
       </div>
     </div>
   )
+}
+
+const UNDERGROUND_BG = new THREE.Color('#15171c')
+
+/** A word or two of Japanese for each kind of station sign. */
+const SIGN_NOTES: Record<string, string> = {
+  exit: '出口 (でぐち) means exit. Exits are numbered; the number tells you which street corner you come up on.',
+  gate: '改札口 (かいさつぐち): the ticket gates. Tap your IC card (Suica, PASMO) on the blue reader.',
+  platform: '番線 (ばんせん) is the track number, and 方面 (ほうめん) means "toward": trains here head for that end of the line.',
+  name: '次 (つぎ) means next. The board shows this station and the next one down the line.',
 }
 
 function tokyoMonth(date: Date) {
