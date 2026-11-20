@@ -4,6 +4,9 @@ import * as THREE from 'three'
 
 type Flat = number[]
 
+/** Ground height at a map point, in meters. */
+export type HeightFn = (x: number, z: number) => number
+
 const toPts = (p: Flat) => {
   const pts: [number, number][] = []
   for (let i = 0; i < p.length; i += 2) pts.push([p[i], p[i + 1]])
@@ -31,6 +34,98 @@ function finish(pos: number[], extra: Record<string, { data: number[]; size: num
   g.computeVertexNormals()
   g.computeBoundingSphere()
   return g
+}
+
+/** Lays flat, non-indexed ground geometry over the terrain. The terrain is
+ *  flat inside each triangle of its grid (cells of `cell` meters cut along
+ *  the x + z diagonal), so every triangle here is cut along those grid lines
+ *  first: each piece then lies exactly on the ground, and layers a few
+ *  centimeters apart never poke through each other. Normals follow the
+ *  smooth slope. */
+export function drape(g: THREE.BufferGeometry, height: HeightFn, cell: number) {
+  const src = g.getAttribute('position')
+  const uvAttr = g.getAttribute('uv')
+  const pos: number[] = []
+  const uv: number[] = []
+  // A vertex: x, y, z, u, v.
+  type V = number[]
+  const lerp = (a: V, b: V, t: number) => a.map((v, i) => v + (b[i] - v) * t)
+  // Cut a convex polygon by the lines f(p) = k·cell for every integer k.
+  const cutAll = (poly: V[], f: (p: V) => number): V[][] => {
+    let lo = Infinity
+    let hi = -Infinity
+    for (const p of poly) {
+      lo = Math.min(lo, f(p))
+      hi = Math.max(hi, f(p))
+    }
+    let pieces = [poly]
+    for (let k = Math.floor(lo / cell) + 1; k * cell < hi; k++) {
+      const c = k * cell
+      const next: V[][] = []
+      for (const pc of pieces) {
+        const below: V[] = []
+        const above: V[] = []
+        for (let i = 0; i < pc.length; i++) {
+          const A = pc[i]
+          const B = pc[(i + 1) % pc.length]
+          const fa = f(A) - c
+          const fb = f(B) - c
+          if (fa <= 0) below.push(A)
+          if (fa >= 0) above.push(A)
+          if ((fa < 0 && fb > 0) || (fa > 0 && fb < 0)) {
+            const m = lerp(A, B, fa / (fa - fb))
+            below.push(m)
+            above.push(m)
+          }
+        }
+        if (below.length >= 3) next.push(below)
+        if (above.length >= 3) next.push(above)
+      }
+      pieces = next
+    }
+    return pieces
+  }
+  const fx = (p: V) => p[0]
+  const fz = (p: V) => p[2]
+  const fd = (p: V) => p[0] + p[2]
+  for (let i = 0; i + 2 < src.count; i += 3) {
+    const tri: V[] = [0, 1, 2].map((k) => [
+      src.getX(i + k),
+      src.getY(i + k),
+      src.getZ(i + k),
+      uvAttr ? uvAttr.getX(i + k) : 0,
+      uvAttr ? uvAttr.getY(i + k) : 0,
+    ])
+    for (const a of cutAll(tri, fx))
+      for (const b of cutAll(a, fz))
+        for (const c of cutAll(b, fd))
+          for (let k = 1; k + 1 < c.length; k++)
+            for (const v of [c[0], c[k], c[k + 1]]) {
+              pos.push(v[0], v[1], v[2])
+              uv.push(v[3], v[4])
+            }
+  }
+
+  const normals = new Float32Array(pos.length)
+  const e = cell / 2
+  for (let i = 0; i < pos.length; i += 3) {
+    const x = pos[i]
+    const z = pos[i + 2]
+    pos[i + 1] += height(x, z)
+    const dx = (height(x + e, z) - height(x - e, z)) / (2 * e)
+    const dz = (height(x, z + e) - height(x, z - e)) / (2 * e)
+    const l = Math.hypot(dx, 1, dz)
+    normals[i] = -dx / l
+    normals[i + 1] = 1 / l
+    normals[i + 2] = -dz / l
+  }
+  g.dispose()
+  const out = new THREE.BufferGeometry()
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  out.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
+  if (uvAttr) out.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  out.computeBoundingSphere()
+  return out
 }
 
 /** Flat polygons (with holes) at height y, facing up. */
@@ -149,25 +244,49 @@ const WALL = [0xe8e2d8, 0xd8cbbd, 0xc9d1dc, 0xf0ece4, 0xd5dccf, 0xe6d3c8, 0xcfcf
 
 /** Extruded buildings: flat roofs plus walls, with per-building colors.
  *  Extra attributes for the window shader: aWall (1 on walls), aU (distance
- *  along the wall) and aTop (the building's height). */
+ *  along the wall), aTop (the building's height) and aBase (the ground
+ *  height it stands on). */
 export function buildingsGeometry(
   buildings: { p: Flat; h: number; v: number; ho?: Flat[]; c?: [number, number, number] }[],
+  height: HeightFn = () => 0,
 ) {
   const pos: number[] = []
   const col: number[] = []
   const wall: number[] = []
   const us: number[] = []
   const tops: number[] = []
+  const bases: number[] = []
+  // Each building stands on the lowest ground under its outline; walls run
+  // from there, so on a slope the uphill side is partly buried, as in life.
+  let base = 0
   const vert = (x: number, y: number, z: number, c: THREE.Color, w: number, u: number, top: number) => {
-    pos.push(x, y, z)
+    pos.push(x, y + base, z)
     col.push(c.r, c.g, c.b)
     wall.push(w)
     us.push(u)
     tops.push(top)
+    bases.push(base)
   }
-  for (const b of buildings) {
+  const baseOf = (ring: [number, number][]) => {
+    let m = Infinity
+    let cx = 0
+    let cz = 0
+    for (const [x, z] of ring) {
+      m = Math.min(m, height(x, z))
+      cx += x / ring.length
+      cz += z / ring.length
+    }
+    // A little lower, so no gap shows where the ground dips between corners.
+    return Math.min(m, height(cx, cz)) - 0.3
+  }
+  const baseByBuilding = buildings.map((b) => {
+    const ring = toPts(b.p)
+    return ring.length < 3 ? 0 : baseOf(ring)
+  })
+  for (const [bi, b] of buildings.entries()) {
     const outer = toPts(b.p)
     if (outer.length < 3) continue
+    base = baseByBuilding[bi]
     const holes = (b.ho ?? []).map(toPts).filter((h) => h.length >= 3)
     const h = b.h
     const roof = ROOF[b.v % ROOF.length]
@@ -223,9 +342,10 @@ export function buildingsGeometry(
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
     return seed / 4294967296
   }
-  for (const b of buildings) {
+  for (const [bi, b] of buildings.entries()) {
     const ring = toPts(b.p)
     if (ring.length < 3) continue
+    base = baseByBuilding[bi]
     const area = Math.abs(signedArea(ring))
     if (area < 120) continue
     let minX = Infinity
@@ -266,6 +386,176 @@ export function buildingsGeometry(
     aWall: { data: wall, size: 1 },
     aU: { data: us, size: 1 },
     aTop: { data: tops, size: 1 },
+    aBase: { data: bases, size: 1 },
   })
   return g
+}
+
+/** 3D surfaces (bridges) from rings of [x, y, height] map points, in the
+ *  attribute layout of buildingsGeometry so they share its material. Each
+ *  ring is flattened onto its own plane, triangulated, and wound the way the
+ *  ring runs (CityGML rings run counter-clockwise seen from outside). */
+export function surfacesGeometry(rings: Flat[], color: THREE.ColorRepresentation) {
+  const pos: number[] = []
+  const c = new THREE.Color(color)
+  const n = new THREE.Vector3()
+  const u = new THREE.Vector3()
+  const v = new THREE.Vector3()
+  for (const ring of rings) {
+    const pts: THREE.Vector3[] = []
+    for (let i = 0; i + 2 < ring.length; i += 3) pts.push(new THREE.Vector3(ring[i], ring[i + 2], ring[i + 1]))
+    const a = pts[0]
+    const b = pts[pts.length - 1]
+    if (pts.length > 3 && a.distanceToSquared(b) < 1e-6) pts.pop()
+    if (pts.length < 3) continue
+    // Newell's method: the ring's normal, robust for any planar polygon.
+    n.set(0, 0, 0)
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i]
+      const q = pts[(i + 1) % pts.length]
+      n.x += (p.y - q.y) * (p.z + q.z)
+      n.y += (p.z - q.z) * (p.x + q.x)
+      n.z += (p.x - q.x) * (p.y + q.y)
+    }
+    if (n.lengthSq() < 1e-8) continue
+    n.normalize()
+    u.set(Math.abs(n.x) < 0.9 ? 1 : 0, Math.abs(n.x) < 0.9 ? 0 : 1, 0).cross(n).normalize()
+    v.crossVectors(n, u)
+    const flat = pts.map((p) => new THREE.Vector2(p.dot(u), p.dot(v)))
+    // (u, v, n) is right-handed, so a counter-clockwise ring in (u, v)
+    // faces +n; ShapeUtils may reorder, so wind each triangle explicitly.
+    for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(flat, [])) {
+      const A = flat[i]
+      const B = flat[j]
+      const C = flat[k]
+      const ccw = (B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x) > 0
+      for (const idx of ccw ? [i, j, k] : [i, k, j]) pos.push(pts[idx].x, pts[idx].y, pts[idx].z)
+    }
+  }
+  const count = pos.length / 3
+  const fill = (x: number) => new Array(count).fill(x)
+  return finish(pos, {
+    color: { data: Array.from({ length: count }, () => [c.r, c.g, c.b]).flat(), size: 3 },
+    aWall: { data: fill(0), size: 1 },
+    aU: { data: fill(0), size: 1 },
+    aTop: { data: fill(-1000), size: 1 },
+    aBase: { data: fill(0), size: 1 },
+  })
+}
+
+/** Elevated expressway decks along polylines of [x, y, deck height] points:
+ *  road surface, underside, side walls with parapets, and a pier every
+ *  ~30 m. Same attribute layout as buildingsGeometry. */
+export function viaductsGeometry(
+  viaducts: { p: Flat; w: number }[],
+  height: HeightFn,
+  colors: { deck: THREE.ColorRepresentation; side: THREE.ColorRepresentation; road: THREE.ColorRepresentation },
+) {
+  const pos: number[] = []
+  const col: number[] = []
+  const deck = new THREE.Color(colors.deck)
+  const side = new THREE.Color(colors.side)
+  const road = new THREE.Color(colors.road)
+  const THICK = 1.3
+  const PARAPET = 0.9
+  const quad = (a: number[], b: number[], c: number[], d: number[], color: THREE.Color) => {
+    // a-b-c-d run clockwise seen from the side the quad faces.
+    for (const v of [a, c, b, a, d, c]) {
+      pos.push(v[0], v[1], v[2])
+      col.push(color.r, color.g, color.b)
+    }
+  }
+  const box = (cx: number, cz: number, y0: number, y1: number, sx: number, sz: number, ang: number, color: THREE.Color) => {
+    const ca = Math.cos(ang)
+    const sa = Math.sin(ang)
+    const corner = (i: number, j: number, y: number) => [cx + ca * sx * i - sa * sz * j, y, cz + sa * sx * i + ca * sz * j]
+    const ring = [
+      [1, 1],
+      [-1, 1],
+      [-1, -1],
+      [1, -1],
+    ]
+    for (let k = 0; k < 4; k++) {
+      const [i0, j0] = ring[k]
+      const [i1, j1] = ring[(k + 1) % 4]
+      quad(corner(i0, j0, y0), corner(i1, j1, y0), corner(i1, j1, y1), corner(i0, j0, y1), color)
+    }
+  }
+  for (const vd of viaducts) {
+    const pts: [number, number, number][] = []
+    for (let i = 0; i + 2 < vd.p.length; i += 3) pts.push([vd.p[i], vd.p[i + 1], vd.p[i + 2]])
+    if (pts.length < 2) continue
+    const r = vd.w / 2
+    // Mitered side offsets at every point.
+    const offs = pts.map((_, i) => {
+      const seg = (k: number) => {
+        const [ax, az] = pts[k]
+        const [bx, bz] = pts[k + 1]
+        const l = Math.hypot(bx - ax, bz - az) || 1
+        return [-(bz - az) / l, (bx - ax) / l]
+      }
+      const n0 = seg(Math.max(0, i - 1))
+      const n1 = seg(Math.min(pts.length - 2, i))
+      let nx = n0[0] + n1[0]
+      let nz = n0[1] + n1[1]
+      const l = Math.hypot(nx, nz) || 1
+      nx /= l
+      nz /= l
+      const cos = Math.max(0.5, nx * n1[0] + nz * n1[1])
+      return [(nx * r) / cos, (nz * r) / cos]
+    })
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [ax, az, ah] = pts[i]
+      const [bx, bz, bh] = pts[i + 1]
+      const [anx, anz] = offs[i]
+      const [bnx, bnz] = offs[i + 1]
+      // Left (+n) and right (-n) edges.
+      const aL = [ax + anx, az + anz]
+      const aR = [ax - anx, az - anz]
+      const bL = [bx + bnx, bz + bnz]
+      const bR = [bx - bnx, bz - bnz]
+      const P = (p: number[], y: number) => [p[0], y, p[1]]
+      // Road surface (facing up) and underside (facing down).
+      quad(P(aR, ah), P(bR, bh), P(bL, bh), P(aL, ah), road)
+      quad(P(aL, ah - THICK), P(bL, bh - THICK), P(bR, bh - THICK), P(aR, ah - THICK), deck)
+      // Outer side walls, up to the parapet top.
+      quad(P(aL, ah - THICK), P(aL, ah + PARAPET), P(bL, bh + PARAPET), P(bL, bh - THICK), side)
+      quad(P(bR, bh - THICK), P(bR, bh + PARAPET), P(aR, ah + PARAPET), P(aR, ah - THICK), side)
+      // Inner faces of the parapets, seen from the road.
+      quad(P(bL, bh), P(bL, bh + PARAPET), P(aL, ah + PARAPET), P(aL, ah), side)
+      quad(P(aR, ah), P(aR, ah + PARAPET), P(bR, bh + PARAPET), P(bR, bh), side)
+    }
+    // Piers: one every ~30 m where the deck is well off the ground.
+    let next = 15
+    let dist = 0
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [ax, az, ah] = pts[i]
+      const [bx, bz, bh] = pts[i + 1]
+      const len = Math.hypot(bx - ax, bz - az)
+      const ang = Math.atan2(bz - az, bx - ax)
+      while (next <= dist + len) {
+        const t = (next - dist) / (len || 1)
+        const x = ax + (bx - ax) * t
+        const z = az + (bz - az) * t
+        const top = ah + (bh - ah) * t - THICK
+        const g = height(x, z)
+        if (top - g > 2.5) {
+          box(x, z, g - 0.3, top, 0.8, Math.min(1.6, r * 0.35), ang, deck)
+          // A crossbeam under the deck.
+          box(x, z, top - 0.9, top, 0.7, r * 0.85, ang, deck)
+        }
+        next += 30
+      }
+      dist += len
+    }
+  }
+  const count = pos.length / 3
+  const fill = (x: number) => new Array(count).fill(x)
+  return finish(pos, {
+    color: { data: col, size: 3 },
+    aWall: { data: fill(0), size: 1 },
+    aU: { data: fill(0), size: 1 },
+    aTop: { data: fill(-1000), size: 1 },
+    aBase: { data: fill(0), size: 1 },
+  })
 }

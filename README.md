@@ -28,6 +28,17 @@ downloads the street objects its detectors found in photos (street lights,
 utility poles, signs, benches, post boxes, ...) and measures building-front
 colors from photos. `map:build` then places those props and colors the walls.
 
+Building heights and the shape of the ground come from
+[PLATEAU](https://www.mlit.go.jp/plateau/), Japan's open 3D city models:
+`npm run map:plateau` downloads buildings with measured heights and
+`npm run map:terrain` a height grid of the bare ground, and
+`npm run map:bridges` footbridges and walkways as 3D surfaces. The elevated
+Shuto Expressway is built from OpenStreetMap's motorway ways, at a deck
+height from their layer. Slopes are drawn at
+half their real steepness, to match the shortened buildings. Tokyo's named
+slopes (坂, like 芋洗坂) get a sign at each end; stand next to one to see its
+reading and meaning.
+
 The **Map data** GitHub Action runs these steps (Mapillary only when the
 `MAPILLARY_TOKEN` repository secret is set) and commits the result whenever
 the map scripts change, and can be run by hand from the Actions tab.
@@ -36,6 +47,7 @@ Map data © OpenStreetMap contributors, available under the
 [Open Database License](https://www.openstreetmap.org/copyright).
 Street-level data © Mapillary contributors, under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+Buildings and terrain: 3D都市モデル（Project PLATEAU）国土交通省.
 
 ## Code layout
 

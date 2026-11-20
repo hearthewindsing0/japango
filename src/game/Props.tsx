@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import type { GameMap, PropKind } from './map'
+import { groundAt, type GameMap, type PropKind } from './map'
 
 // Street furniture, drawn where Mapillary's detectors found it in street
 // photos. Each kind is built from a few simple parts; every part is one
@@ -20,6 +20,12 @@ const cyl = (r: number, h: number, seg = 8) => () => new THREE.CylinderGeometry(
 const box = (x: number, y: number, z: number) => () => new THREE.BoxGeometry(x, y, z)
 
 const PARTS: Record<PropKind, Part[]> = {
+  // Minato-ku's slope signs: a short stone post with the name on a plate.
+  slopesign: [
+    { geo: box(0.22, 1.25, 0.22), color: '#b9b2a3', at: [0, 0.62, 0] },
+    { geo: box(0.06, 0.55, 0.42), color: '#3b4a5e', at: [0.13, 0.92, 0] },
+    { geo: box(0.07, 0.42, 0.3), color: '#f1ede2', at: [0.15, 0.92, 0], basic: true },
+  ],
   streetlight: [
     { geo: cyl(0.07, 7), color: '#8e9399', at: [0, 3.5, 0] },
     { geo: box(1.6, 0.08, 0.08), color: '#8e9399', at: [0.8, 6.95, 0] },
@@ -65,7 +71,7 @@ const PARTS: Record<PropKind, Part[]> = {
   ],
 }
 
-function PropKindMesh({ list, parts, clip }: { list: GameMap['props']; parts: Part[]; clip: THREE.Plane[] }) {
+function PropKindMesh({ map, list, parts, clip }: { map: GameMap; list: GameMap['props']; parts: Part[]; clip: THREE.Plane[] }) {
   const items = list ?? []
   const refs = useRef<(THREE.InstancedMesh | null)[]>([])
   const geos = useMemo(() => parts.map((p) => p.geo()), [parts])
@@ -82,14 +88,14 @@ function PropKindMesh({ list, parts, clip }: { list: GameMap['props']; parts: Pa
         // Map rotation is measured with y pointing down the screen, which is
         // world +Z; Three's Y rotation turns +X toward -Z, so negate it.
         q.setFromAxisAngle(up, -it.r)
-        m.compose(new THREE.Vector3(it.x, 0, it.y), q, new THREE.Vector3(1, 1, 1))
+        m.compose(new THREE.Vector3(it.x, groundAt(map, it.x, it.y), it.y), q, new THREE.Vector3(1, 1, 1))
         local.makeTranslation(...part.at)
         mesh.setMatrixAt(i, m.clone().multiply(local))
       })
       mesh.instanceMatrix.needsUpdate = true
       mesh.computeBoundingSphere()
     })
-  }, [items, parts])
+  }, [map, items, parts])
 
   useLayoutEffect(() => () => geos.forEach((g) => g.dispose()), [geos])
 
@@ -118,7 +124,8 @@ function PropKindMesh({ list, parts, clip }: { list: GameMap['props']; parts: Pa
 export function Props({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
   const byKind = useMemo(() => {
     const out = new Map<PropKind, NonNullable<GameMap['props']>>()
-    for (const p of map.props ?? []) {
+    const slopeSigns = (map.slopes ?? []).flatMap((s) => s.signs.map((g) => ({ k: 'slopesign' as const, ...g })))
+    for (const p of [...(map.props ?? []), ...slopeSigns]) {
       if (!PARTS[p.k]) continue
       out.set(p.k, [...(out.get(p.k) ?? []), p])
     }
@@ -127,7 +134,7 @@ export function Props({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
   return (
     <group>
       {byKind.map(([kind, list]) => (
-        <PropKindMesh key={kind} list={list} parts={PARTS[kind]} clip={clip} />
+        <PropKindMesh key={kind} map={map} list={list} parts={PARTS[kind]} clip={clip} />
       ))}
     </group>
   )

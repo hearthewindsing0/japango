@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useRef } from 'react'
 import * as THREE from 'three'
 import { input } from './input'
-import { circleBlocked, type GameMap } from './map'
+import { circleBlocked, groundAt, type GameMap } from './map'
 import type { Focus } from './World'
 
 const WALK_SPEED = 4.5 // m/s
@@ -30,7 +30,7 @@ export function Player({ map, focus, distance, onMove }: Props) {
   const legR = useRef<THREE.Group>(null)
   const armL = useRef<THREE.Group>(null)
   const armR = useRef<THREE.Group>(null)
-  const s = useRef({ heading: 0, phase: 0, speed: 0, lastX: focus.current.x, lastY: focus.current.y })
+  const s = useRef({ heading: 0, phase: 0, speed: 0, ground: 0, lastX: focus.current.x, lastY: focus.current.y })
   const camera = useThree((st) => st.camera)
   const placed = useRef(false)
 
@@ -66,14 +66,17 @@ export function Player({ map, focus, distance, onMove }: Props) {
     if (armR.current) armR.current.rotation.x = swing * 0.8
     if (body.current) body.current.position.y = moving ? Math.abs(Math.cos(st.phase)) * 0.05 : 0
 
+    // Follow the ground smoothly up and down slopes.
+    const gh = groundAt(map, f.x, f.y)
+    st.ground = placed.current ? damp(st.ground, gh, 20, dt) : gh
     if (root.current) {
-      root.current.position.set(f.x, 0, f.y)
+      root.current.position.set(f.x, st.ground, f.y)
       root.current.rotation.y = st.heading
     }
 
     // Camera: behind (south of) and above the player, looking at them.
     const cx = f.x
-    const cy = Math.sin(CAMERA_PITCH) * distance
+    const cy = st.ground + Math.sin(CAMERA_PITCH) * distance
     const cz = f.y + Math.cos(CAMERA_PITCH) * distance
     if (!placed.current) {
       camera.position.set(cx, cy, cz)
@@ -83,7 +86,7 @@ export function Player({ map, focus, distance, onMove }: Props) {
       camera.position.y = damp(camera.position.y, cy, 8, dt)
       camera.position.z = damp(camera.position.z, cz, 8, dt)
     }
-    camera.lookAt(camera.position.x, 0.8, camera.position.z - Math.cos(CAMERA_PITCH) * distance)
+    camera.lookAt(camera.position.x, camera.position.y - Math.sin(CAMERA_PITCH) * distance + 0.8, camera.position.z - Math.cos(CAMERA_PITCH) * distance)
 
     if (Math.hypot(f.x - st.lastX, f.y - st.lastY) > 1) {
       st.lastX = f.x

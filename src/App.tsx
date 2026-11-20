@@ -2,7 +2,7 @@ import { Canvas } from '@react-three/fiber'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DPad } from './game/DPad'
 import { LabelLayerSync, Labels } from './game/Labels'
-import { loadMap, nearestPoi, streetNear, type GameMap } from './game/map'
+import { loadMap, nearestPoi, slopeNear, streetNear, type GameMap } from './game/map'
 import { Minimap } from './game/Minimap'
 import { Player } from './game/Player'
 import { World, type Focus } from './game/World'
@@ -22,9 +22,12 @@ export default function App() {
   useEffect(() => {
     loadMap('roppongi')
       .then((m) => {
-        focus.current = { ...m.spawn }
+        // ?at=x,y starts somewhere else (map meters), handy for testing.
+        const at = new URLSearchParams(location.search).get('at')?.split(',').map(Number)
+        const start = at?.length === 2 && at.every(Number.isFinite) ? { x: at[0], y: at[1] } : m.spawn
+        focus.current = { ...start }
         setMap(m)
-        setPos({ ...m.spawn })
+        setPos({ ...start })
       })
       .catch((e: Error) => setError(e.message))
   }, [])
@@ -57,6 +60,7 @@ export default function App() {
 
   const street = streetNear(map, pos.x, pos.y)
   const place = nearestPoi(map, pos.x, pos.y)
+  const slope = slopeNear(map, pos.x, pos.y)
 
   return (
     <div className="game" onWheel={onWheel}>
@@ -93,6 +97,25 @@ export default function App() {
 
       <Minimap map={map} x={pos.x} y={pos.y} big={bigMap} />
 
+      {slope && (
+        <div className="hud-slope">
+          <div className="hud-slope-name">
+            {slope.slope.name}
+            {slope.slope.kana && <span className="hud-slope-kana">{slope.slope.kana}</span>}
+          </div>
+          {slope.slope.en && (
+            <div className="hud-slope-en">
+              {slope.slope.en}: “{slope.slope.gloss}”
+            </div>
+          )}
+          <div className="hud-slope-note">
+            坂 (さか) means slope.
+            {slope.slope.rise >= 2 &&
+              ` It ${slope.top ? 'drops' : 'climbs'} about ${Math.round(slope.slope.rise)} m from here.`}
+          </div>
+        </div>
+      )}
+
       <div className="hud-help">
         Move: arrows / WASD · Run: Shift · Zoom: scroll or +/− · Map: M
       </div>
@@ -111,6 +134,14 @@ export default function App() {
             contributors,{' '}
             <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">
               CC BY-SA
+            </a>
+          </>
+        )}
+        {map.credits?.some((c) => c.includes('PLATEAU')) && (
+          <>
+            {' · '}Buildings and terrain:{' '}
+            <a href="https://www.mlit.go.jp/plateau/" target="_blank" rel="noreferrer">
+              3D都市モデル（Project PLATEAU）国土交通省
             </a>
           </>
         )}
