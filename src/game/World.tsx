@@ -2,6 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { Props } from './Props'
+import { Signs } from './Signs'
 import { patternedMaterial, type Pattern } from './patterns'
 import {
   buildingsGeometry,
@@ -424,6 +425,7 @@ function Sun({ map, focus, sky }: { map: GameMap; focus: React.RefObject<Focus>;
 
 export function World({ map, focus, sky }: { map: GameMap; focus: React.RefObject<Focus>; sky: SkyState }) {
   const clip = useClipPlanes(map)
+  const height = useMemo(() => heightFn(map), [map])
   return (
     <>
       <Sun map={map} focus={focus} sky={sky} />
@@ -431,6 +433,7 @@ export function World({ map, focus, sky }: { map: GameMap; focus: React.RefObjec
       <Buildings map={map} clip={clip} focus={focus} night={sky.night} />
       <Trees map={map} clip={clip} />
       <Props map={map} clip={clip} night={sky.night} />
+      <Signs map={map} clip={clip} height={height} />
       <WeatherFx focus={focus} rain={sky.rain} snow={sky.snow} />
     </>
   )

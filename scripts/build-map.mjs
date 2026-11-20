@@ -617,6 +617,76 @@ for (const e of roadWays) {
   streets.push(s)
 }
 
+// --- Shop signs -------------------------------------------------------------
+// Mapillary's detectors found where store signs are, but not what they say;
+// OSM knows which shops are nearby. Put a sign on the closest wall to each
+// detection, named after the nearest shop, café, bar or restaurant that
+// doesn't have one yet.
+const SIGN_KINDS = new Set(['konbini', 'food', 'cafe', 'bar', 'shop'])
+const signPois = pois.filter((p) => SIGN_KINDS.has(p.kind))
+const signs = []
+if (mly) {
+  const usedPoi = new Set()
+  const segs = []
+  buildings.forEach((b, bi) => {
+    if (b.h < 4) return
+    for (let k = 0; k + 3 < b.p.length; k += 2) {
+      const len = Math.hypot(b.p[k + 2] - b.p[k], b.p[k + 3] - b.p[k + 1])
+      if (len >= 3) segs.push({ bi, ax: b.p[k], ay: b.p[k + 1], bx: b.p[k + 2], by: b.p[k + 3], len })
+    }
+  })
+  for (const f of mly.features) {
+    if (f.v !== 'object--sign--store') continue
+    const [x, y] = proj([f.lat, f.lon])
+    if (x < 1 || y < 1 || x > FW - 1 || y > FH - 1) continue
+    // Nearest wall within 12 m.
+    let best = null
+    for (const sg of segs) {
+      if (Math.abs(sg.ax - x) > 40 || Math.abs(sg.ay - y) > 40) continue
+      const dx = sg.bx - sg.ax
+      const dy = sg.by - sg.ay
+      const t = Math.max(0.15, Math.min(0.85, ((x - sg.ax) * dx + (y - sg.ay) * dy) / (sg.len * sg.len)))
+      const px = sg.ax + dx * t
+      const py = sg.ay + dy * t
+      const d = Math.hypot(px - x, py - y)
+      if (d < 12 && (!best || d < best.d)) best = { sg, px, py, d }
+    }
+    if (!best) continue
+    // The wall's outward side is the one the detection is on.
+    const { sg } = best
+    let nx = -(sg.by - sg.ay) / sg.len
+    let ny = (sg.bx - sg.ax) / sg.len
+    if ((x - best.px) * nx + (y - best.py) * ny < 0) {
+      nx = -nx
+      ny = -ny
+    }
+    if (cellAt(best.px + nx * 1.5, best.py + ny * 1.5) === T.BUILDING) continue
+    if (signs.some((o) => Math.hypot(o.x - best.px, o.y - best.py) < 4)) continue
+    let poi = null
+    let pd = 22
+    for (const p of signPois) {
+      if (usedPoi.has(p)) continue
+      const d = Math.hypot(p.x - best.px, p.y - best.py)
+      if (d < pd) {
+        pd = d
+        poi = p
+      }
+    }
+    if (!poi) continue
+    usedPoi.add(poi)
+    signs.push({
+      x: r1(best.px),
+      y: r1(best.py),
+      r: Math.round(Math.atan2(ny, nx) * 100) / 100,
+      w: r1(Math.min(sg.len * 0.7, 7)),
+      b: sg.bi,
+      t: poi.name,
+      k: poi.kind,
+    })
+  }
+  console.log(`Shop signs: ${signs.length} (${signs.slice(0, 8).map((s) => s.t).join('、')}…)`)
+}
+
 // --- Spawn ----------------------------------------------------------------
 const BLOCKED = new Set([T.BUILDING, T.WATER, T.TREE, T.VOID])
 const [sx0, sy0] = proj([AREA.spawn.lat, AREA.spawn.lon]).map((v) => Math.floor(v / cell))
@@ -942,6 +1012,7 @@ await writeFile(
     pois,
     streets,
     slopes,
+    signs,
     discoveries,
     bridges,
     viaducts,

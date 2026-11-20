@@ -62,6 +62,9 @@ export interface MapFile {
   /** Named slopes (坂), with a sign at the bottom (top: 0) and top (1). rise
    *  is the real height difference in meters. */
   slopes?: Slope[]
+  /** Shop signs on walls: t = text, k = shop kind, r = facing, w = max
+   *  width, b = index of the building it hangs on. */
+  signs?: { x: number; y: number; r: number; w: number; b: number; t: string; k: PoiKind }[]
   /** Places with a Wikipedia article; stamp = part of the stamp rally. */
   discoveries?: Discovery[]
   /** Bridge surfaces: rings of [x, y, height] in game meters. */
