@@ -1,6 +1,6 @@
 {
  "source": "Freesound (freesound.org)",
- "fetchedAt": "2026-11-20T20:11:27.409Z",
+ "fetchedAt": "2026-11-20T20:29:33.476Z",
  "sounds": {
   "city": {
    "name": "Japan_Tokyo_Uchibori-Dori_Crossing_Traffic_Cars_Trucks.wav",
@@ -17,11 +17,11 @@
    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/"
   },
   "crossing": {
-   "name": "TRAIN CROSSING - JAPAN 3.aif",
-   "author": "muse88",
-   "url": "https://freesound.org/people/muse88/sounds/490524/",
-   "license": "CC0",
-   "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/"
+   "name": "Pedestrian Crossing Japan",
+   "author": "MrAuralization",
+   "url": "https://freesound.org/people/MrAuralization/sounds/162144/",
+   "license": "CC BY",
+   "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
   },
   "rain": {
    "name": "City Rain Dark.wav",
