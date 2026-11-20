@@ -329,22 +329,44 @@ for (const n of elements) {
 }
 
 // --- 3. Buildings ---------------------------------------------------------
+// PLATEAU's survey-based models when we have them (accurate footprints and
+// measured heights), otherwise OpenStreetMap's building outlines.
+const plateauFile = `data/${AREA.id}.plateau.json`
+const plateau = existsSync(plateauFile) ? JSON.parse(await readFile(plateauFile, 'utf8')) : null
+
+// Real heights would put 200 m towers on screen, so squash tall buildings:
+// full height up to 3 floors, then gently rising, capped at 22 m.
+const gameHeight = (real) => (real <= 10 ? real : Math.min(22, 10 + Math.sqrt(real - 10) * 1.8))
+
 const buildings = []
-const buildingWays = ways.filter(
-  (e) => e.tags.building && isClosed(e) && !below(e.tags) && !['roof', 'no', 'canopy'].includes(e.tags.building),
-)
-for (const e of buildingWays) {
-  const { outer, inner } = roleRings(e)
-  if (!outer.length || !outer.some(nearFrame)) continue
-  fillPolygon([...outer, ...inner], T.BUILDING)
-  const levels = parseFloat(e.tags['building:levels'])
-  const height = parseFloat(e.tags.height)
-  // Real heights would put 200 m towers on screen, so squash tall buildings:
-  // full height up to 3 floors, then gently rising, capped at 22 m.
-  const real = height > 0 ? height : levels > 0 ? levels * 3.2 : 8
-  const h = real <= 10 ? real : Math.min(22, 10 + Math.sqrt(real - 10) * 1.8)
-  const v = hash(e.id) % 8
-  for (const ring of outer) buildings.push({ p: flat(ring), h: r1(h), v, ho: inner.filter((r) => r.length > 3).map(flat) })
+if (plateau?.buildings?.length) {
+  plateau.buildings.forEach((b, i) => {
+    const ring = b.ring.map(proj)
+    if (ring.length < 4 || !nearFrame(ring)) return
+    // Close the ring if the source didn't.
+    const [fx, fy] = ring[0]
+    const [lx, ly] = ring.at(-1)
+    if (fx !== lx || fy !== ly) ring.push([fx, fy])
+    fillPolygon([ring], T.BUILDING)
+    const real = b.h > 0 ? b.h : b.st > 0 ? b.st * 3.3 : 8
+    buildings.push({ p: flat(ring), h: r1(gameHeight(real)), v: hash(i + 1) % 8, ho: [] })
+  })
+  console.log(`Buildings from PLATEAU: ${buildings.length}`)
+} else {
+  const buildingWays = ways.filter(
+    (e) => e.tags.building && isClosed(e) && !below(e.tags) && !['roof', 'no', 'canopy'].includes(e.tags.building),
+  )
+  for (const e of buildingWays) {
+    const { outer, inner } = roleRings(e)
+    if (!outer.length || !outer.some(nearFrame)) continue
+    fillPolygon([...outer, ...inner], T.BUILDING)
+    const levels = parseFloat(e.tags['building:levels'])
+    const height = parseFloat(e.tags.height)
+    const real = height > 0 ? height : levels > 0 ? levels * 3.2 : 8
+    const v = hash(e.id) % 8
+    for (const ring of outer)
+      buildings.push({ p: flat(ring), h: r1(gameHeight(real)), v, ho: inner.filter((r) => r.length > 3).map(flat) })
+  }
 }
 
 // --- 4. Trees -------------------------------------------------------------
@@ -593,7 +615,7 @@ await writeFile(
     name: AREA.name,
     nameEn: AREA.nameEn,
     attribution: osm.attribution,
-    credits: [osm.attribution, mly?.attribution].filter(Boolean),
+    credits: [osm.attribution, plateau?.buildings?.length ? plateau.attribution : null, mly?.attribution].filter(Boolean),
     fetchedAt: osm.fetchedAt,
     rotationDeg: AREA.rotationDeg,
     width: FW,

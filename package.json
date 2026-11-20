@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "map:fetch": "node scripts/fetch-osm.mjs",
     "map:build": "node scripts/build-map.mjs",
-    "map:mapillary": "node scripts/fetch-mapillary.mjs"
+    "map:mapillary": "node scripts/fetch-mapillary.mjs",
+    "map:plateau": "node scripts/fetch-plateau.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
