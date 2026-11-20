@@ -45,7 +45,7 @@ code {
   font-weight: 700;
   font-size: 18px;
 }
-.hud-location span {
+.hud-location span:not(.ja, .ja *) {
   color: #a1a1aa;
   font-size: 0.85em;
   margin-left: 4px;
@@ -259,7 +259,7 @@ code {
   font-size: 18px;
   font-weight: 700;
 }
-.hud-discovery-name span {
+.hud-discovery-name span:not(.ja, .ja *) {
   font-size: 13px;
   font-weight: 400;
   color: #a1a1aa;

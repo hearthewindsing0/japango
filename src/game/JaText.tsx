@@ -21,9 +21,9 @@ export function JaText({
   onWord: (w: WordPick) => void
 }) {
   const segs = dict?.texts[text]
-  if (!segs) return <>{text}</>
+  if (!segs) return <span className="ja">{text}</span>
   return (
-    <>
+    <span className="ja">
       {segs.map(([surface, key, reading], i) => {
         const body = furigana && reading ? (
           <ruby>
@@ -48,7 +48,7 @@ export function JaText({
           </span>
         )
       })}
-    </>
+    </span>
   )
 }
 
