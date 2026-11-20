@@ -1,11 +1,12 @@
 import { Canvas } from '@react-three/fiber'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DPad } from './game/DPad'
 import { LabelLayerSync, Labels } from './game/Labels'
 import { loadMap, nearestPoi, slopeNear, streetNear, type GameMap } from './game/map'
 import { Minimap } from './game/Minimap'
 import { Player } from './game/Player'
 import { World, type Focus } from './game/World'
+import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
 
 const MIN_DIST = 10
 const MAX_DIST = 160
@@ -18,6 +19,33 @@ export default function App() {
   const focus = useRef<Focus>({ x: 0, y: 0 })
   const [bigMap, setBigMap] = useState(false)
   const labelLayer = useRef<HTMLDivElement>(null)
+
+  // Tokyo time and weather, live. ?time=21:30 and ?weather=rain (or a WMO
+  // code) override them for testing.
+  const params = useMemo(() => new URLSearchParams(location.search), [])
+  const [now, setNow] = useState(() => new Date())
+  const [weather, setWeather] = useState<Weather>({ kind: 'clear', cloud: 0.1 })
+  useEffect(() => {
+    const fixed = params.get('time')
+    const start = fixed ? tokyoTimeToday(fixed) : null
+    const offset = start ? start.getTime() - Date.now() : 0
+    const tick = () => setNow(new Date(Date.now() + offset))
+    tick()
+    const id = setInterval(tick, 30000)
+    return () => clearInterval(id)
+  }, [params])
+  useEffect(() => {
+    const forced = params.get('weather')
+    if (forced) {
+      const kind = (Number.isFinite(Number(forced)) ? weatherKind(Number(forced)) : forced) as WeatherKind
+      if (WEATHER_WORDS[kind]) setWeather({ kind, cloud: kind === 'clear' ? 0.1 : 0.9 })
+      return
+    }
+    const load = () => fetchWeather().then(setWeather, () => {})
+    load()
+    const id = setInterval(load, 15 * 60000)
+    return () => clearInterval(id)
+  }, [params])
 
   useEffect(() => {
     loadMap('roppongi')
@@ -46,6 +74,8 @@ export default function App() {
     setDistance((d) => Math.min(MAX_DIST, Math.max(MIN_DIST, d * Math.exp(e.deltaY * 0.0015))))
   }, [])
 
+  const sky = useMemo(() => skyState(now, weather, map?.rotationDeg ?? 0), [now, weather, map])
+
   if (error)
     return (
       <div className="center-msg">
@@ -58,6 +88,7 @@ export default function App() {
     )
   if (!map || !pos) return <div className="center-msg">読み込み中… Loading Roppongi</div>
 
+  const words = WEATHER_WORDS[weather.kind]
   const street = streetNear(map, pos.x, pos.y)
   const place = nearestPoi(map, pos.x, pos.y)
   const slope = slopeNear(map, pos.x, pos.y)
@@ -70,9 +101,9 @@ export default function App() {
         gl={{ antialias: true, localClippingEnabled: true }}
         dpr={[1, 2]}
       >
-        <color attach="background" args={['#cfe3f2']} />
-        <fog attach="fog" args={['#cfe3f2', distance * 2.5, distance * 6]} />
-        <World map={map} focus={focus} />
+        <color attach="background" args={[sky.background]} />
+        <fog attach="fog" args={[sky.background, distance * 2.5 * sky.fogScale, distance * 6 * sky.fogScale]} />
+        <World map={map} focus={focus} sky={sky} />
         <Player map={map} focus={focus} distance={distance} onMove={(x, y) => setPos({ x, y })} />
         <LabelLayerSync layer={labelLayer} />
       </Canvas>
@@ -82,6 +113,12 @@ export default function App() {
       <div className="hud-location">
         <div className="hud-area">
           {map.name} <span>{map.nameEn}</span>
+        </div>
+        <div className="hud-time">
+          {japaneseTime(now)} · {words.icon} {words.ja}
+          <span>
+            {words.kana} ({words.en}){weather.tempC != null && `, ${Math.round(weather.tempC)}°C`}
+          </span>
         </div>
         {street && (
           <div className="hud-street">
@@ -134,6 +171,14 @@ export default function App() {
             contributors,{' '}
             <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">
               CC BY-SA
+            </a>
+          </>
+        )}
+        {!params.get('weather') && (
+          <>
+            {' · '}
+            <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
+              Weather data by Open-Meteo.com
             </a>
           </>
         )}

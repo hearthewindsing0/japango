@@ -15,6 +15,8 @@ import {
 } from './geometry'
 import { groundAt, type GameMap } from './map'
 import { COLORS, T } from './tiles'
+import type { SkyState } from './sky'
+import { Weather as WeatherFx } from './Weather'
 
 /** Shared state the world reads every frame: where the player is. */
 export interface Focus {
@@ -100,7 +102,7 @@ function useDisposable<T extends { dispose(): void }>(make: () => T, deps: unkno
   return value
 }
 
-function Ground({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
+function Ground({ map, clip, night }: { map: GameMap; clip: THREE.Plane[]; night: number }) {
   const areaLayers = useMemo(() => {
     const byType = new Map<number, GameMap['areas']>()
     for (const a of map.areas) byType.set(a.t, [...(byType.get(a.t) ?? []), a])
@@ -164,7 +166,7 @@ function Ground({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
     () =>
       new THREE.ShaderMaterial({
         clipping: true,
-        uniforms: {},
+        uniforms: { uBright: { value: 1 } },
         vertexShader: /* glsl */ `
           #include <clipping_planes_pars_vertex>
           varying vec2 vUv;
@@ -176,13 +178,14 @@ function Ground({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
           }`,
         fragmentShader: /* glsl */ `
           #include <clipping_planes_pars_fragment>
+          uniform float uBright;
           varying vec2 vUv;
           void main() {
             #include <clipping_planes_fragment>
             // Zebra bars run along the walking direction, 45 cm wide.
             float bar = step(0.5, fract(vUv.y * 4.0 / 0.9));
             if (bar < 0.5) discard;
-            gl_FragColor = vec4(vec3(0.93), 1.0);
+            gl_FragColor = vec4(vec3(0.93) * uBright, 1.0);
           }`,
       }),
     [],
@@ -190,6 +193,12 @@ function Ground({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
   useLayoutEffect(() => {
     crossingMat.clippingPlanes = clip
   }, [crossingMat, clip])
+  // Painted lines are unlit, so dim them by hand after dark.
+  const bright = 1 - night * 0.6
+  useLayoutEffect(() => {
+    crossingMat.uniforms.uBright.value = bright
+  }, [crossingMat, bright])
+  const lineColor = useMemo(() => new THREE.Color(COLORS.laneLine).multiplyScalar(bright), [bright])
 
   return (
     <group>
@@ -200,7 +209,7 @@ function Ground({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
       <mesh geometry={geos.sidewalk} material={mats.sidewalk} receiveShadow />
       <mesh geometry={geos.road} material={mats.road} receiveShadow />
       <mesh geometry={geos.line}>
-        <meshBasicMaterial color={COLORS.laneLine} clippingPlanes={clip} />
+        <meshBasicMaterial color={lineColor} clippingPlanes={clip} />
       </mesh>
       <mesh geometry={geos.footway} material={mats.footway} receiveShadow />
       <mesh geometry={geos.crossing} material={crossingMat} />
@@ -208,7 +217,17 @@ function Ground({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
   )
 }
 
-function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; focus: React.RefObject<Focus> }) {
+function Buildings({
+  map,
+  clip,
+  focus,
+  night,
+}: {
+  map: GameMap
+  clip: THREE.Plane[]
+  focus: React.RefObject<Focus>
+  night: number
+}) {
   const geo = useDisposable(() => buildingsGeometry(map.buildings, heightFn(map)), [map])
   // Bridges and the Shuto Expressway viaducts: weathered concrete.
   const bridgeGeo = useDisposable(() => surfacesGeometry(map.bridges ?? [], '#a9aaa5'), [map])
@@ -218,7 +237,7 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
   )
   const camera = useThree((s) => s.camera)
   const uniforms = useMemo(
-    () => ({ uPlayer: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() } }),
+    () => ({ uPlayer: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() }, uNight: { value: 0 } }),
     [],
   )
 
@@ -243,7 +262,7 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
         .replace(
           '#include <common>',
           `#include <common>
-          uniform vec3 uPlayer; uniform vec3 uCam;
+          uniform vec3 uPlayer; uniform vec3 uCam; uniform float uNight;
           varying float vWall; varying float vU; varying float vTop; varying float vBase; varying vec3 vWorld;`,
         )
         .replace(
@@ -267,6 +286,7 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
         .replace(
           '#include <color_fragment>',
           `#include <color_fragment>
+          float winGlow = 0.0;
           if (vWall > 0.5) {
             float y = vWorld.y - vBase;
             // Ground floor: shop fronts. Above: rows of windows every 3.2 m.
@@ -276,6 +296,10 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
             float colw = step(0.2, fract(vU / 2.4)) * step(fract(vU / 2.4), 0.8);
             float win = max(shop, row * colw);
             diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.55, 0.66), win * 0.85);
+            // At night most shop fronts and some windows light up.
+            float cellId = fract(sin(dot(vec2(floor(vU / 2.4), floor((y - 3.0) / 3.2)) + vTop * 7.0, vec2(12.9898, 78.233))) * 43758.5453);
+            float lit = shop > 0.5 ? step(0.15, cellId) : step(0.55, cellId);
+            winGlow = win * lit * uNight;
             // Darker base and a band under the roof line.
             if (y < 0.4) diffuseColor.rgb *= 0.7;
             if (y > vTop - 0.35) diffuseColor.rgb *= 0.85;
@@ -286,6 +310,11 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
             float n = fract(sin(dot(floor(q), vec2(127.1, 311.7))) * 43758.5453);
             diffuseColor.rgb *= 1.0 + (n - 0.5) * 0.08 - step(0.48, max(g.x, g.y)) * 0.06;
           }`,
+        )
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+          totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * winGlow * 0.9;`,
         )
     }
     return m
@@ -298,6 +327,7 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
     const { x, y } = focus.current
     uniforms.uPlayer.value.set(x, groundAt(map, x, y) + 1.0, y)
     uniforms.uCam.value.copy(camera.position)
+    uniforms.uNight.value = night
   })
 
   return (
@@ -355,8 +385,8 @@ function Trees({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
   )
 }
 
-/** Sun with a shadow box that follows the player. */
-function Sun({ map, focus }: { map: GameMap; focus: React.RefObject<Focus> }) {
+/** Sun (or moon) with a shadow box that follows the player. */
+function Sun({ map, focus, sky }: { map: GameMap; focus: React.RefObject<Focus>; sky: SkyState }) {
   const light = useRef<THREE.DirectionalLight>(null)
   const target = useMemo(() => new THREE.Object3D(), [])
   useFrame(() => {
@@ -366,16 +396,16 @@ function Sun({ map, focus }: { map: GameMap; focus: React.RefObject<Focus> }) {
     const h = groundAt(map, x, y)
     target.position.set(x, h, y)
     target.updateMatrixWorld()
-    l.position.set(x - 40, h + 70, y + 30)
+    l.position.set(x + sky.lightDir.x * 90, h + sky.lightDir.y * 90, y + sky.lightDir.z * 90)
   })
   return (
     <>
-      <hemisphereLight args={['#e3ecff', '#b3a58c', 1.15]} />
+      <hemisphereLight color={sky.hemi.sky} groundColor={sky.hemi.ground} intensity={sky.hemi.intensity} />
       <directionalLight
         ref={light}
         target={target}
-        intensity={1.7}
-        color="#fff4e2"
+        intensity={sky.sun.intensity}
+        color={sky.sun.color}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-70}
@@ -383,7 +413,7 @@ function Sun({ map, focus }: { map: GameMap; focus: React.RefObject<Focus> }) {
         shadow-camera-top={70}
         shadow-camera-bottom={-70}
         shadow-camera-near={1}
-        shadow-camera-far={200}
+        shadow-camera-far={220}
         shadow-bias={-0.0004}
         shadow-normalBias={0.04}
       />
@@ -392,15 +422,16 @@ function Sun({ map, focus }: { map: GameMap; focus: React.RefObject<Focus> }) {
   )
 }
 
-export function World({ map, focus }: { map: GameMap; focus: React.RefObject<Focus> }) {
+export function World({ map, focus, sky }: { map: GameMap; focus: React.RefObject<Focus>; sky: SkyState }) {
   const clip = useClipPlanes(map)
   return (
     <>
-      <Sun map={map} focus={focus} />
-      <Ground map={map} clip={clip} />
-      <Buildings map={map} clip={clip} focus={focus} />
+      <Sun map={map} focus={focus} sky={sky} />
+      <Ground map={map} clip={clip} night={sky.night} />
+      <Buildings map={map} clip={clip} focus={focus} night={sky.night} />
       <Trees map={map} clip={clip} />
-      <Props map={map} clip={clip} />
+      <Props map={map} clip={clip} night={sky.night} />
+      <WeatherFx focus={focus} rain={sky.rain} snow={sky.snow} />
     </>
   )
 }

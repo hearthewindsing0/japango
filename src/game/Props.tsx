@@ -121,7 +121,53 @@ function PropKindMesh({ map, list, parts, clip }: { map: GameMap; list: GameMap[
   )
 }
 
-export function Props({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
+/** Pools of warm light under street lights, fading in after dark. */
+function LampGlow({ map, night }: { map: GameMap; night: number }) {
+  const lamps = useMemo(() => (map.props ?? []).filter((p) => p.k === 'streetlight'), [map])
+  const on = night >= 0.05
+  const mesh = useRef<THREE.InstancedMesh>(null)
+  const geo = useMemo(() => new THREE.CircleGeometry(4.5, 24).rotateX(-Math.PI / 2), [])
+  const mat = useMemo(() => {
+    // Bright in the middle, fading to nothing at the edge.
+    const m = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: { uAlpha: { value: 0 } },
+      vertexShader: `
+        varying vec2 vP;
+        void main() {
+          vP = position.xz / 4.5;
+          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        uniform float uAlpha;
+        varying vec2 vP;
+        void main() {
+          float f = 1.0 - smoothstep(0.0, 1.0, length(vP));
+          gl_FragColor = vec4(vec3(1.0, 0.82, 0.55) * f * uAlpha, 1.0);
+        }`,
+    })
+    return m
+  }, [])
+  useLayoutEffect(() => {
+    const m = new THREE.Matrix4()
+    lamps.forEach((it, i) => {
+      // The lamp head hangs 1.5 m out from the pole, toward the road.
+      const x = it.x + Math.cos(it.r) * 1.5
+      const y = it.y + Math.sin(it.r) * 1.5
+      m.makeTranslation(x, groundAt(map, x, y) + 0.12, y)
+      mesh.current?.setMatrixAt(i, m)
+    })
+    if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true
+  }, [map, lamps, on])
+  useLayoutEffect(() => () => (geo.dispose(), mat.dispose()), [geo, mat])
+  mat.uniforms.uAlpha.value = night * 0.55
+  if (!on) return null
+  return <instancedMesh ref={mesh} args={[geo, mat, lamps.length]} frustumCulled={false} />
+}
+
+export function Props({ map, clip, night = 0 }: { map: GameMap; clip: THREE.Plane[]; night?: number }) {
   const byKind = useMemo(() => {
     const out = new Map<PropKind, NonNullable<GameMap['props']>>()
     const slopeSigns = (map.slopes ?? []).flatMap((s) => s.signs.map((g) => ({ k: 'slopesign' as const, ...g })))
@@ -136,6 +182,7 @@ export function Props({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
       {byKind.map(([kind, list]) => (
         <PropKindMesh key={kind} map={map} list={list} parts={PARTS[kind]} clip={clip} />
       ))}
+      <LampGlow map={map} night={night} />
     </group>
   )
 }
