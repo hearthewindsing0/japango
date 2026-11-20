@@ -50,6 +50,7 @@ code {
   font-size: 0.85em;
   margin-left: 4px;
 }
+.hud-time,
 .hud-street,
 .hud-near {
   font-size: 14px;

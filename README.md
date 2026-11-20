@@ -39,6 +39,13 @@ half their real steepness, to match the shortened buildings. Tokyo's named
 slopes (坂, like 芋洗坂) get a sign at each end; stand next to one to see its
 reading and meaning.
 
+The game runs on Tokyo time: the sun sits where it really is over Roppongi
+right now, and after dark windows and street lights come on. The weather is
+live from [Open-Meteo](https://open-meteo.com/) (rain, snow, fog, clouds), and
+the corner of the screen shows it in Japanese. Add `?time=21:30` or
+`?weather=rain` (also `snow`, `fog`, `overcast`, ...) to the URL to try
+others, and `?at=x,y` to start somewhere else.
+
 The **Map data** GitHub Action runs these steps (Mapillary only when the
 `MAPILLARY_TOKEN` repository secret is set) and commits the result whenever
 the map scripts change, and can be run by hand from the Actions tab.
@@ -48,6 +55,7 @@ Map data © OpenStreetMap contributors, available under the
 Street-level data © Mapillary contributors, under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 Buildings and terrain: 3D都市モデル（Project PLATEAU）国土交通省.
+Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
 
 ## Code layout
 
