@@ -11,7 +11,13 @@ if (!TOKEN) throw new Error('Set FREESOUND_TOKEN to a Freesound API key')
 const SOUNDS = {
   city: { min: 30, max: 150, queries: ['tokyo street ambience', 'tokyo street', 'japan street ambience', 'city street ambience pedestrians'] },
   night: { min: 30, max: 150, queries: ['tokyo night ambience', 'tokyo night street', 'japan night city', 'city night ambience'] },
-  crossing: { min: 4, max: 60, queries: ['japan pedestrian crossing', 'tokyo crosswalk', 'japanese crosswalk signal', 'pedestrian crossing signal'] },
+  // The chirping crosswalk signals (piyo-piyo, kakkō), not railway bells.
+  crossing: {
+    min: 4,
+    max: 90,
+    queries: ['japan crosswalk signal', 'tokyo crosswalk', 'japan pedestrian signal bird', 'japan pedestrian crossing', 'crosswalk signal'],
+    exclude: /train|rail|level crossing|踏切|station/i,
+  },
   rain: { min: 30, max: 150, queries: ['rain city street', 'rain on umbrella', 'tokyo rain', 'rain ambience'] },
   birds: { min: 30, max: 150, queries: ['japan park birds', 'tokyo park birds', 'japanese birds morning', 'park birds ambience'] },
   cicadas: { min: 20, max: 150, queries: ['japan cicadas', 'tokyo cicadas', 'semi cicada japan', 'cicadas'] },
@@ -37,7 +43,7 @@ async function getJson(url) {
 
 await mkdir('public/sounds', { recursive: true })
 const credits = {}
-for (const [kind, { min, max, queries }] of Object.entries(SOUNDS)) {
+for (const [kind, { min, max, queries, exclude }] of Object.entries(SOUNDS)) {
   let pick = null
   for (const q of queries) {
     const j = await getJson(
@@ -45,11 +51,16 @@ for (const [kind, { min, max, queries }] of Object.entries(SOUNDS)) {
         query: q,
         filter: `duration:[${min} TO ${max}] license:("Creative Commons 0" OR "Attribution")`,
         sort: 'rating_desc',
-        fields: 'id,name,username,license,duration,url,previews,num_ratings,avg_rating',
+        fields: 'id,name,username,license,duration,url,previews,num_ratings,avg_rating,tags,description',
         page_size: '15',
       }),
     )
-    const ok = (j?.results ?? []).filter((r) => LICENSES.test(r.license) && r.previews?.['preview-hq-mp3'])
+    const ok = (j?.results ?? []).filter(
+      (r) =>
+        LICENSES.test(r.license) &&
+        r.previews?.['preview-hq-mp3'] &&
+        !exclude?.test(`${r.name} ${(r.tags ?? []).join(' ')} ${r.description ?? ''}`),
+    )
     // Prefer recordings people have actually rated.
     pick = ok.find((r) => r.num_ratings >= 2 && r.avg_rating >= 3.5) ?? ok[0] ?? null
     if (pick) {
