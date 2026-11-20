@@ -53,6 +53,12 @@ press B for the stamp book. Shop signs go where Mapillary's detectors saw
 store signs, named after the nearest shop in OSM. Q/E or a right-drag turns
 the camera.
 
+Passers-by walk the sidewalks, more at lunch and in the evening (an
+estimated daily curve), fewer in the rain. Press F for furigana over the
+Japanese text, and tap a word for its reading and meaning: the Map data
+Action builds a small dictionary of the map's own text with kuromoji and
+[JMdict](https://www.edrdg.org/jmdict/j_jmdict.html) (`npm run map:dict`).
+
 The **Map data** GitHub Action runs these steps (Mapillary only when the
 `MAPILLARY_TOKEN` repository secret is set) and commits the result whenever
 the map scripts change, and can be run by hand from the Actions tab.
@@ -62,6 +68,9 @@ Map data © OpenStreetMap contributors, available under the
 Street-level data © Mapillary contributors, under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 Buildings and terrain: 3D都市モデル（Project PLATEAU）国土交通省.
+Roof colors are measured from aerial photos (`npm run map:aerial`):
+出典：国土地理院ウェブサイト（地理院タイル シームレス空中写真）.
+Dictionary: JMdict © EDRDG (CC BY-SA 4.0).
 Place text from Wikipedia (CC BY-SA 4.0) and Wikidata (CC0).
 Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
 

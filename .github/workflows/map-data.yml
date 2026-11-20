@@ -15,6 +15,8 @@ on:
       - scripts/fetch-terrain.mjs
       - scripts/fetch-bridges.mjs
       - scripts/fetch-wiki.mjs
+      - scripts/fetch-aerial.mjs
+      - scripts/build-dict.mjs
       - .github/workflows/map-data.yml
 
 permissions:
@@ -46,17 +48,26 @@ jobs:
         run: node scripts/fetch-wiki.mjs
       - name: Install script dependencies
         run: npm ci
+      - name: Roof colors from GSI aerial photos
+        run: node scripts/fetch-aerial.mjs
       - name: Fetch Mapillary street-level data
         # Skipped until the MAPILLARY_TOKEN repository secret is set.
         if: ${{ env.MAPILLARY_TOKEN != '' }}
         run: node scripts/fetch-mapillary.mjs
       - name: Build map
         run: node scripts/build-map.mjs
+      - name: Japanese dictionary for the map's text (JMdict)
+        run: |
+          url=$(curl -fsSL https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest \
+            | jq -r '.assets[] | select(.name | test("^jmdict-eng-[0-9].*\\.json\\.tgz$")) | .browser_download_url' | head -1)
+          echo "JMdict: $url"
+          mkdir -p /tmp/jmdict && curl -fsSL "$url" | tar xz -C /tmp/jmdict
+          node --max-old-space-size=6144 scripts/build-dict.mjs /tmp/jmdict/*.json
       - name: Commit map data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data public/maps
+          git add data public/maps public/dict
           if git diff --cached --quiet; then
             echo "Map data unchanged."
           else
