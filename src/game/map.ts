@@ -72,6 +72,7 @@ export type PropKind =
   | 'postbox'
   | 'bikerack'
   | 'phonebooth'
+  | 'manhole'
 
 export interface GameMap extends Omit<MapFile, 'grid'> {
   cell: number

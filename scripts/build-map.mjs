@@ -335,9 +335,9 @@ const plateauFile = `data/${AREA.id}.plateau.json`
 const plateau = existsSync(plateauFile) ? JSON.parse(await readFile(plateauFile, 'utf8')) : null
 
 // Real heights would put 200 m towers on screen, so squash tall buildings:
-// full height up to about 3 floors, then gently rising, capped at 18 m, so
+// full height up to about 2-3 floors, then gently rising, capped at 15 m, so
 // buildings south of the player don't wall off the view.
-const gameHeight = (real) => (real <= 9 ? real : Math.min(18, 9 + Math.sqrt(real - 9) * 1.5))
+const gameHeight = (real) => (real <= 8 ? real : Math.min(15, 8 + Math.sqrt(real - 8) * 1.3))
 
 const buildings = []
 if (plateau?.buildings?.length) {
@@ -436,20 +436,25 @@ const mly = existsSync(mlyFile) ? JSON.parse(await readFile(mlyFile, 'utf8')) : 
 
 // Mapillary class → prop kind the game knows how to draw.
 function propKind(v, sign) {
+  // A sign or light seen from behind is the same object as its front.
+  if (v.endsWith('-back') || v.includes('--back')) return null
   if (sign) return 'sign'
   if (v.includes('street-light')) return 'streetlight'
   if (v.includes('utility-pole')) return 'pole'
   if (v.includes('traffic-light')) return 'trafficlight'
+  if (v.includes('traffic-sign')) return 'sign'
   if (v.includes('bench')) return 'bench'
   if (v.includes('trash-can')) return 'bin'
   if (v.includes('fire-hydrant')) return 'hydrant'
   if (v.includes('mailbox')) return 'postbox'
   if (v.includes('bike-rack')) return 'bikerack'
   if (v.includes('phone-booth')) return 'phonebooth'
-  if (v.includes('cctv')) return null
-  if (v.includes('sign--')) return 'sign'
+  if (v.includes('manhole')) return 'manhole'
+  // Store signs, ads, cones, road markings and the like are left out for now.
   return null
 }
+// Mapillary can report one object several times from different photos.
+const MIN_GAP_M = { streetlight: 4, pole: 4, trafficlight: 3, sign: 1.5, manhole: 1.5 }
 const props = []
 if (mly) {
   for (const f of mly.features) {
@@ -460,7 +465,7 @@ if (mly) {
     // Detected positions are a few meters off at times; never put a prop
     // inside a building or in the middle of the road.
     const c = cellAt(x, y)
-    if (c === T.BUILDING || c === T.WATER || (c === T.ROAD && kind !== 'trafficlight')) continue
+    if (c === T.BUILDING || c === T.WATER || (c === T.ROAD && kind !== 'trafficlight' && kind !== 'manhole')) continue
     // Face the nearest road, so lamp arms and signs point the right way.
     let rot = 0
     let bestD = Infinity
@@ -472,6 +477,8 @@ if (mly) {
           rot = Math.atan2(dy, dx)
         }
       }
+    const gap = MIN_GAP_M[kind] ?? 1.5
+    if (props.some((p) => p.k === kind && Math.abs(p.x - x) < gap && Math.abs(p.y - y) < gap)) continue
     props.push({ k: kind, x: r1(x), y: r1(y), r: Math.round(rot * 100) / 100 })
   }
 }
@@ -523,6 +530,27 @@ if (mly) {
     if (best) wallSamples[best.i].push(smp.c)
   }
 }
+function rgbToHsl([r, g, b]) {
+  r /= 255
+  g /= 255
+  b /= 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  if (max === min) return [0, 0, l]
+  const d = max - min
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  return [h / 6, s, l]
+}
+function hslToRgb(h, s, l) {
+  const f = (n) => {
+    const k = (n + h * 12) % 12
+    const a = s * Math.min(l, 1 - l)
+    return Math.round((l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))) * 255)
+  }
+  return [f(0), f(8), f(4)]
+}
 let colored = 0
 wallSamples.forEach((list, i) => {
   if (!list.length) return
@@ -531,7 +559,10 @@ wallSamples.forEach((list, i) => {
     const vals = list.map((c) => c[ch]).sort((a, b) => a - b)
     return vals[Math.floor(vals.length / 2)]
   })
-  buildings[i].c = med
+  // Photo patches often catch shade, windows or glare. Keep the hue, but
+  // pull lightness and saturation into a range that reads as a painted wall.
+  const [h, sat, l] = rgbToHsl(med)
+  buildings[i].c = hslToRgb(h, Math.min(sat, 0.45), Math.min(0.85, Math.max(0.5, l)))
   buildings[i].n = list.length
   colored++
 })

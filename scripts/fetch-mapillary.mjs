@@ -21,7 +21,7 @@ if (!TOKEN) {
   process.exit(1)
 }
 const API = 'https://graph.mapillary.com'
-const MAX_PHOTOS = Number(process.env.MAPILLARY_MAX_PHOTOS ?? 1500)
+const MAX_PHOTOS = Number(process.env.MAPILLARY_MAX_PHOTOS ?? 4000)
 // Keep one photo per this many meters of street, so photos spread out.
 const PHOTO_SPACING_M = 12
 

@@ -171,15 +171,9 @@ export function buildingsGeometry(
     const holes = (b.ho ?? []).map(toPts).filter((h) => h.length >= 3)
     const h = b.h
     const roof = ROOF[b.v % ROOF.length]
-    // Use the color measured from street photos when there is one. Photos
-    // are darker than sunlit paint, so lift them a little.
+    // Use the color measured from street photos when there is one.
     const wallC = b.c
-      ? new THREE.Color().setRGB(
-          Math.min(1, (b.c[0] / 255) * 1.15),
-          Math.min(1, (b.c[1] / 255) * 1.15),
-          Math.min(1, (b.c[2] / 255) * 1.15),
-          THREE.SRGBColorSpace,
-        )
+      ? new THREE.Color().setRGB(b.c[0] / 255, b.c[1] / 255, b.c[2] / 255, THREE.SRGBColorSpace)
       : WALL[b.v % WALL.length]
 
     // Roof.

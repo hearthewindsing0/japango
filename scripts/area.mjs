@@ -19,5 +19,5 @@ export const AREA = {
   // Collision and minimap grid resolution, in meters.
   cell: 1,
   // Where the player starts: Roppongi Crossing (六本木交差点).
-  spawn: { lat: 35.66275, lon: 139.73157 },
+  spawn: { lat: 35.663173, lon: 139.732354 },
 }

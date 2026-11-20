@@ -210,7 +210,7 @@ function Buildings({ map, clip, focus }: { map: GameMap; clip: THREE.Plane[]; fo
             float d = length(pa - ba * t);
             // A cone with its tip at the camera: the hole stays the same
             // size on screen however far the wall is from the player.
-            float r = 2.4 * (1.0 - t);
+            float r = 3.2 * (1.0 - t);
             float edge = smoothstep(r * 0.7, r, d);
             float dither = fract(dot(floor(gl_FragCoord.xy), vec2(0.5, 0.25)) + 0.125);
             if (t > 0.03 && vWorld.y > 0.4 && edge < dither) discard;

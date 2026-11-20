@@ -8,7 +8,7 @@ import type { Focus } from './World'
 const WALK_SPEED = 4.5 // m/s
 const RUN_SPEED = 9
 const RADIUS = 0.3
-const CAMERA_PITCH = (58 * Math.PI) / 180
+const CAMERA_PITCH = (63 * Math.PI) / 180
 
 interface Props {
   map: GameMap

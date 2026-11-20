@@ -58,6 +58,7 @@ const PARTS: Record<PropKind, Part[]> = {
     { geo: () => new THREE.CylinderGeometry(0.21, 0.21, 0.45, 14, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), color: '#d32630', at: [0, 1.1, 0] },
   ],
   bikerack: [{ geo: box(0.3, 0.12, 2.2), color: '#8e9399', at: [0, 0.3, 0] }],
+  manhole: [{ geo: () => new THREE.CylinderGeometry(0.32, 0.32, 0.02, 16), color: '#4b4d52', at: [0, 0.1, 0] }],
   phonebooth: [
     { geo: box(0.95, 2.2, 0.95), color: '#a8d5b5', at: [0, 1.1, 0] },
     { geo: box(1.05, 0.12, 1.05), color: '#5f9e72', at: [0, 2.26, 0] },
