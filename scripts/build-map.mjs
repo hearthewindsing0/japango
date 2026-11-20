@@ -832,6 +832,10 @@ if (bridgeData) console.log(`Bridges: ${bridges.length} surfaces from ${bridgeDa
 const wikiFile = `data/${AREA.id}.wiki.json`
 const wiki = existsSync(wikiFile) ? JSON.parse(await readFile(wikiFile, 'utf8')) : null
 const discoveries = []
+const VISITABLE =
+  /museum|gallery|shrine|temple|church|park|garden|station|skyscraper|tower|building|sculpture|hotel|theat|live house|historic|steep road|slope|restaurant|kappō|bathhouse/i
+// Stamp rally spots: landmarks, not restaurants or hotels.
+const STAMPABLE = /museum|gallery|shrine|temple|park|garden|station|skyscraper|tower|building complex|sculpture|historic/i
 const WALKABLE = new Set([T.GROUND, T.ROAD, T.FOOTWAY, T.GRASS, T.CROSSING, T.PARKING, T.PITCH, T.SHRINE, T.SIDEWALK])
 const reachable = (x, y) => {
   const cx = Math.floor(x / cell)
@@ -850,13 +854,15 @@ const reachable = (x, y) => {
 for (const p of wiki?.places ?? []) {
   const [x0, y0] = proj([p.lat, p.lon])
   if (x0 < 5 || y0 < 5 || x0 > FW - 5 || y0 > FH - 5) continue
-  // Skip whole districts and the like: they're everywhere, not a spot.
-  if (p.types.some((t) => /district|neighborhood|town|ward|city|chōme|human settlement|area/i.test(t))) continue
+  // Only places you can visit: no districts, companies, events or groups.
+  if (!p.types.some((t) => VISITABLE.test(t))) continue
   const at = reachable(x0, y0)
   if (!at) continue
-  const d = { id: p.id, x: r1(at[0]), y: r1(at[1]), ja: p.ja, links: p.links }
+  // Drop Wikipedia's disambiguation, e.g. 桜田神社 (東京都港区).
+  const d = { id: p.id, x: r1(at[0]), y: r1(at[1]), ja: p.ja.replace(/\s*[（(][^)）]*[)）]$/, ''), links: p.links }
   if (p.en) d.en = p.en
-  if (p.types[0]) d.kind = p.types[0]
+  const kind = p.types.find((t) => STAMPABLE.test(t)) ?? p.types.find((t) => VISITABLE.test(t))
+  if (kind) d.kind = kind
   if (p.jaText) d.jt = p.jaText
   if (p.enText) d.et = p.enText
   d.jw = p.jaTitle
@@ -869,7 +875,7 @@ discoveries.sort((a, b) => b.links - a.links)
 let stamps = 0
 for (const d of discoveries) {
   if (stamps >= 10) break
-  if (!d.en || !d.jt) continue
+  if (!d.en || !d.jt || !STAMPABLE.test(d.kind ?? '')) continue
   if (discoveries.some((o) => o.stamp && Math.hypot(o.x - d.x, o.y - d.y) < 40)) continue
   d.stamp = 1
   stamps++

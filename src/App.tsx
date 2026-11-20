@@ -201,7 +201,7 @@ export default function App() {
         </div>
       )}
 
-      {here && (
+      {here && !book && (
         <div className="hud-discovery">
           <div className="hud-discovery-name">
             {here.stamp ? '🎴' : '✦'} {here.ja}

@@ -46,6 +46,13 @@ the corner of the screen shows it in Japanese. Add `?time=21:30` or
 `?weather=rain` (also `snow`, `fog`, `overcast`, ...) to the URL to try
 others, and `?at=x,y` to start somewhere else.
 
+Places with a Wikipedia article (found through Wikidata, `npm run map:wiki`)
+are marked in the world; walk up to one to read the opening lines of its
+Japanese and English articles. Ten landmarks form a stamp rally (スタンプラリー):
+press B for the stamp book. Shop signs go where Mapillary's detectors saw
+store signs, named after the nearest shop in OSM. Q/E or a right-drag turns
+the camera.
+
 The **Map data** GitHub Action runs these steps (Mapillary only when the
 `MAPILLARY_TOKEN` repository secret is set) and commits the result whenever
 the map scripts change, and can be run by hand from the Actions tab.
@@ -55,6 +62,7 @@ Map data © OpenStreetMap contributors, available under the
 Street-level data © Mapillary contributors, under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 Buildings and terrain: 3D都市モデル（Project PLATEAU）国土交通省.
+Place text from Wikipedia (CC BY-SA 4.0) and Wikidata (CC0).
 Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
 
 ## Code layout
