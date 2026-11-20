@@ -384,3 +384,49 @@ code {
     bottom: 160px;
   }
 }
+
+/* Japanese words you can tap for their meaning. */
+.ja-word {
+  pointer-events: auto;
+  cursor: pointer;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.5);
+}
+.ja-word:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+rt {
+  font-size: 0.55em;
+  color: #cbd5e1;
+}
+.word-popup {
+  position: fixed;
+  transform: translate(-50%, calc(-100% - 8px));
+  min-width: 160px;
+  max-width: 300px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fffdf7;
+  color: #222;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+  z-index: 10;
+}
+.word-popup-head {
+  font-size: 20px;
+  font-weight: 700;
+}
+.word-popup-head span {
+  font-size: 13px;
+  font-weight: 400;
+  color: #666;
+  margin-left: 8px;
+}
+.word-popup ol {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.word-popup-src {
+  margin-top: 4px;
+  font-size: 10px;
+  color: #999;
+}

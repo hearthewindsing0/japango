@@ -5,10 +5,13 @@ import { view } from './game/input'
 import { LabelLayerSync, Labels } from './game/Labels'
 import { discoveryNear, loadMap, nearestPoi, slopeNear, streetNear, type GameMap } from './game/map'
 import { Discoveries } from './game/Discoveries'
+import { Crowd } from './game/Crowd'
+import { loadDict, type Dict } from './game/dict'
+import { JaText, WordPopup, type WordPick } from './game/JaText'
 import { Minimap } from './game/Minimap'
 import { Player } from './game/Player'
 import { World, type Focus } from './game/World'
-import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
+import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoClock, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
 
 const MIN_DIST = 10
 const MAX_DIST = 160
@@ -27,6 +30,13 @@ export default function App() {
   const [stamps, setStamps] = useState(() => loadSet('japango.stamps'))
   const [book, setBook] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  // Dictionary for furigana and tap-for-meaning.
+  const [dict, setDict] = useState<Dict | null>(null)
+  const [furigana, setFurigana] = useState(false)
+  const [word, setWord] = useState<WordPick | null>(null)
+  useEffect(() => {
+    loadDict('roppongi').then(setDict)
+  }, [])
 
   // Tokyo time and weather, live. ?time=21:30 and ?weather=rain (or a WMO
   // code) override them for testing.
@@ -74,6 +84,8 @@ export default function App() {
       if (e.key === '-' || e.key === '_') setDistance((d) => Math.min(MAX_DIST, d * 1.25))
       if (e.key === 'm' || e.key === 'M') setBigMap((b) => !b)
       if (e.key === 'b' || e.key === 'B') setBook((b) => !b)
+      if (e.key === 'f' || e.key === 'F') setFurigana((f) => !f)
+      if (e.key === 'Escape') setWord(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -124,6 +136,7 @@ export default function App() {
       className="game"
       onWheel={onWheel}
       onContextMenu={(e) => e.preventDefault()}
+      onClick={() => setWord(null)}
       onPointerMove={(e) => {
         // Right-drag (or Ctrl-drag) turns the view freely.
         if (e.buttons === 2 || (e.buttons === 1 && e.ctrlKey)) {
@@ -142,6 +155,7 @@ export default function App() {
         <fog attach="fog" args={[sky.background, distance * 2.5 * sky.fogScale, distance * 6 * sky.fogScale]} />
         <World map={map} focus={focus} sky={sky} />
         <Discoveries map={map} found={found} stamps={stamps} />
+        <Crowd map={map} hour={tokyoClock(now).h + tokyoClock(now).m / 60} rain={sky.rain} />
         <Player map={map} focus={focus} distance={distance} onMove={(x, y) => setPos({ x, y })} />
         <LabelLayerSync layer={labelLayer} />
       </Canvas>
@@ -160,12 +174,12 @@ export default function App() {
         </div>
         {street && (
           <div className="hud-street">
-            {street.name} {street.nameEn && <span>{street.nameEn}</span>}
+            <JaText text={street.name} dict={dict} furigana={furigana} onWord={setWord} /> {street.nameEn && <span>{street.nameEn}</span>}
           </div>
         )}
         {place && (
           <div className="hud-near">
-            近く: {place.name} {place.nameEn && <span>{place.nameEn}</span>}
+            近く: <JaText text={place.name} dict={dict} furigana={furigana} onWord={setWord} /> {place.nameEn && <span>{place.nameEn}</span>}
           </div>
         )}
       </div>
@@ -204,10 +218,14 @@ export default function App() {
       {here && !book && (
         <div className="hud-discovery">
           <div className="hud-discovery-name">
-            {here.stamp ? '🎴' : '✦'} {here.ja}
+            {here.stamp ? '🎴' : '✦'} <JaText text={here.ja} dict={dict} furigana={furigana} onWord={setWord} />
             {here.en && <span>{here.en}</span>}
           </div>
-          {here.jt && <p className="hud-discovery-ja">{here.jt}</p>}
+          {here.jt && (
+            <p className="hud-discovery-ja">
+              <JaText text={here.jt} dict={dict} furigana={furigana} onWord={setWord} />
+            </p>
+          )}
           {here.et && <p className="hud-discovery-en">{here.et}</p>}
           <div className="hud-discovery-links">
             Wikipedia:{' '}
@@ -230,7 +248,7 @@ export default function App() {
       {slope && !here && (
         <div className="hud-slope">
           <div className="hud-slope-name">
-            {slope.slope.name}
+            <JaText text={slope.slope.name} dict={dict} furigana={furigana} onWord={setWord} />
             {slope.slope.kana && <span className="hud-slope-kana">{slope.slope.kana}</span>}
           </div>
           {slope.slope.en && (
@@ -246,8 +264,10 @@ export default function App() {
         </div>
       )}
 
+      {word && dict && <WordPopup pick={word} dict={dict} onClose={() => setWord(null)} />}
+
       <div className="hud-help">
-        Move: arrows / WASD · Run: Shift · Zoom: scroll or +/− · Turn: Q/E or right-drag · Map: M · Stamps: B
+        Move: arrows / WASD · Run: Shift · Zoom: scroll or +/− · Turn: Q/E or right-drag · Map: M · Stamps: B · Furigana: F · Tap a word for its meaning
       </div>
       <DPad />
       <div className="attribution">
@@ -272,6 +292,14 @@ export default function App() {
             {' · '}
             <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
               Weather data by Open-Meteo.com
+            </a>
+          </>
+        )}
+        {dict && (
+          <>
+            {' · '}Dictionary:{' '}
+            <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noreferrer">
+              JMdict (EDRDG, CC BY-SA)
             </a>
           </>
         )}
