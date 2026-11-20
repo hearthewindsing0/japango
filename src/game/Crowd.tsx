@@ -1,13 +1,15 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { groundAt, type GameMap } from './map'
+import { tileGroundAt, type MapTile } from './map'
 
 // Passers-by walking the sidewalks and footpaths. How many are out depends
 // on the hour in Tokyo (Roppongi is busy at lunch and late into the night)
 // and the weather; in the rain they carry umbrellas.
 
-const MAX = 1600
+// Most walkers a tile can hold (a busy 256 m square in Roppongi).
+const MAX = 400
+const PER_WALKER = 25
 
 /** Share of the crowd out at a given Tokyo hour (0-23), 0..1. */
 export function crowdLevel(hour: number) {
@@ -27,7 +29,7 @@ interface Walker {
 }
 
 /** Walkable lines: footpaths, plus a line down each sidewalk. */
-function walkLines(map: GameMap) {
+function walkLines(map: MapTile) {
   // Sidewalks of the big streets are busiest.
   const lines: { p: number[]; busy: number }[] = []
   for (const p of map.paths) if (p.t !== 'crossing' && p.t !== 'steps') lines.push({ p: p.p, busy: p.t === 'pedestrian' ? 2 : 1 })
@@ -58,21 +60,29 @@ function walkLines(map: GameMap) {
 const SHIRTS = ['#2f3542', '#57606f', '#a4b0be', '#1e3799', '#b33939', '#f1f2f6', '#227093', '#6d214f', '#33d9b2', '#cc8e35', '#40407a', '#d1ccc0']
 const UMBRELLAS = ['#f5f6fa', '#273c75', '#e84118', '#44bd32', '#353b48', '#fbc531']
 
-export function Crowd({ map, hour, rain }: { map: GameMap; hour: number; rain: number }) {
-  const lines = useMemo(() => walkLines(map), [map])
+export function Crowd({ tile, clip, hour, rain }: { tile: MapTile; clip: THREE.Plane[]; hour: number; rain: number }) {
+  const lines = useMemo(() => walkLines(tile), [tile])
   const walkers = useMemo<Walker[]>(() => {
     // Seeded so the same people appear each visit.
-    let seed = 12345
+    let seed = 12345 + tile.col * 7919 + tile.row * 104729
     const rand = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296)
-    // Longer lines get more people.
-    const weight = (l: (typeof lines)[number]) => l.len[l.len.length - 1] * l.busy
-    const total = lines.reduce((a, l) => a + weight(l), 0)
+    // Longer lines get more people. Only the part of a line on this tile
+    // counts, roughly: lines are shared with the neighbors.
+    const onTile = (l: (typeof lines)[number]) => {
+      let n = 0
+      for (let i = 0; i < l.line.length; i += 2) if (l.line[i] >= tile.x0 && l.line[i] < tile.x1 && l.line[i + 1] >= tile.y0 && l.line[i + 1] < tile.y1) n++
+      return n / (l.line.length / 2)
+    }
+    const weights = lines.map((l) => l.len[l.len.length - 1] * l.busy * onTile(l))
+    const total = weights.reduce((a, w) => a + w, 0)
     const out: Walker[] = []
-    for (let i = 0; i < MAX && lines.length; i++) {
+    // About one walker per 25 m of busy sidewalk.
+    const n = Math.min(MAX, Math.round(total / PER_WALKER))
+    for (let i = 0; i < n && total > 0; i++) {
       let pick = rand() * total
       let li = 0
       for (; li < lines.length - 1; li++) {
-        const l = weight(lines[li])
+        const l = weights[li]
         if (pick <= l) break
         pick -= l
       }
@@ -145,7 +155,7 @@ export function Crowd({ map, hour, rain }: { map: GameMap; hour: number; rain: n
       const x = w.line[a] + dx * segLen * f - dy * w.side
       const y = w.line[a + 1] + dy * segLen * f + dx * w.side
       const bob = Math.abs(Math.sin(t * w.speed * 5 + i)) * 0.04
-      p.set(x, groundAt(map, x, y) + bob, y)
+      p.set(x, tileGroundAt(tile, x, y) + bob, y)
       q.setFromAxisAngle(up, Math.atan2(dx * w.dir, dy * w.dir))
       m.compose(p, q, one)
       body.current?.setMatrixAt(i, m)
@@ -162,13 +172,13 @@ export function Crowd({ map, hour, rain }: { map: GameMap; hour: number; rain: n
   return (
     <group>
       <instancedMesh ref={body} args={[geos.body, undefined, walkers.length]} frustumCulled={false} castShadow>
-        <meshLambertMaterial />
+        <meshLambertMaterial clippingPlanes={clip} />
       </instancedMesh>
       <instancedMesh ref={head} args={[geos.head, undefined, walkers.length]} frustumCulled={false} castShadow>
-        <meshLambertMaterial color="#e8c4a0" />
+        <meshLambertMaterial color="#e8c4a0" clippingPlanes={clip} />
       </instancedMesh>
       <instancedMesh ref={umbrella} args={[geos.umbrella, undefined, walkers.length]} frustumCulled={false} castShadow>
-        <meshLambertMaterial />
+        <meshLambertMaterial clippingPlanes={clip} />
       </instancedMesh>
     </group>
   )

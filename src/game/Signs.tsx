@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { buildingBase, type HeightFn } from './geometry'
-import { groundAt, type GameMap } from './map'
+import type { MapTile } from './map'
 
 // Shop signs: a lit board over each shop front with its name, and for bars
 // and restaurants in taller buildings a vertical sign (袖看板) sticking out
@@ -9,12 +9,11 @@ import { groundAt, type GameMap } from './map'
 // canvas texture.
 
 const FONT = '"Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif'
-const ATLAS = 2048
+const ATLAS = 1024 // atlas width; its height fits the tile's signs
 const H_SLOT = { w: 256, h: 64 } // horizontal boards
 const V_SLOT = { w: 64, h: 256 } // vertical signs
-const H_ROWS = 24 // rows of horizontal slots; vertical ones go below
 
-type Kind = NonNullable<GameMap['signs']>[number]['k']
+type Kind = MapTile['signs'][number]['k']
 
 function colorsFor(text: string, kind: Kind): [string, string] {
   if (/ファミリーマート|FamilyMart/i.test(text)) return ['#ffffff', '#0b7a3e']
@@ -71,13 +70,20 @@ function drawVertical(ctx: CanvasRenderingContext2D, x: number, y: number, text:
 /** Mostly Japanese names suit vertical signs; long Latin names don't. */
 const verticalOk = (t: string) => [...t].length <= 8 && /[぀-ヿ一-鿿]/.test(t)
 
-export function Signs({ map, clip, height }: { map: GameMap; clip: THREE.Plane[]; height: HeightFn }) {
+export function Signs({ tile, clip, height }: { tile: MapTile; clip: THREE.Plane[]; height: HeightFn }) {
   const built = useMemo(() => {
-    const signs = map.signs ?? []
+    const signs = tile.signs
     if (!signs.length || typeof document === 'undefined') return null
+    // Horizontal boards first, then a band of vertical signs below them.
+    const isVertical = (s: (typeof signs)[number]) => (s.k === 'bar' || s.k === 'food') && verticalOk(s.t) && (tile.buildings[s.b]?.h ?? 6) >= 8
+    const hCols = ATLAS / H_SLOT.w
+    const vCols = ATLAS / V_SLOT.w
+    const H_ROWS = Math.ceil(signs.length / hCols)
+    const vRows = Math.ceil(signs.filter(isVertical).length / vCols)
+    const atlasH = 2 ** Math.ceil(Math.log2(Math.max(64, H_ROWS * H_SLOT.h + vRows * V_SLOT.h)))
     const canvas = document.createElement('canvas')
     canvas.width = ATLAS
-    canvas.height = ATLAS
+    canvas.height = atlasH
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
 
@@ -108,20 +114,16 @@ export function Signs({ map, clip, height }: { map: GameMap; clip: THREE.Plane[]
     // Slot rectangle in UV space (flipY: v = 1 at the top of the canvas).
     const rect = (x: number, y: number, w: number, h: number): [number, number, number, number] => [
       x / ATLAS,
-      1 - (y + h) / ATLAS,
+      1 - (y + h) / atlasH,
       (x + w) / ATLAS,
-      1 - y / ATLAS,
+      1 - y / atlasH,
     ]
 
-    const hCols = ATLAS / H_SLOT.w
-    const vCols = ATLAS / V_SLOT.w
-    const vRows = Math.floor((ATLAS - H_ROWS * H_SLOT.h) / V_SLOT.h)
     let nh = 0
     let nv = 0
     for (const s of signs) {
-      if (nh >= hCols * H_ROWS) break
-      const b = map.buildings[s.b]
-      const base = b ? buildingBase(b.p, height) : groundAt(map, s.x, s.y)
+      const b = tile.buildings[s.b]
+      const base = b ? buildingBase(b.p, height) : height(s.x, s.y)
       const top = b ? b.h : 6
       const n = new THREE.Vector3(Math.cos(s.r), 0, Math.sin(s.r))
       // Board over the shop front.
@@ -132,7 +134,7 @@ export function Signs({ map, clip, height }: { map: GameMap; clip: THREE.Plane[]
       quad(new THREE.Vector3(s.x + n.x * 0.06, base + 3.05, s.y + n.z * 0.06), n, w, w / 4, rect(sx, sy, H_SLOT.w, H_SLOT.h))
       nh++
       // A vertical sign for bars and restaurants with floors above.
-      if ((s.k === 'bar' || s.k === 'food') && top >= 8 && verticalOk(s.t) && nv < vCols * vRows) {
+      if (isVertical(s)) {
         const vx = (nv % vCols) * V_SLOT.w
         const vy = H_ROWS * H_SLOT.h + Math.floor(nv / vCols) * V_SLOT.h
         drawVertical(ctx, vx, vy, s.t, s.k)
@@ -155,7 +157,7 @@ export function Signs({ map, clip, height }: { map: GameMap; clip: THREE.Plane[]
     tex.anisotropy = 4
     const mat = new THREE.MeshBasicMaterial({ map: tex, clippingPlanes: clip })
     return { geo, tex, mat }
-  }, [map, clip, height])
+  }, [tile, clip, height])
 
   useEffect(
     () => () => {

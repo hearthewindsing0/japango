@@ -120,13 +120,78 @@ export type PropKind =
 /** Real slopes are shrunk by this much, to match the shortened buildings. */
 export const TERRAIN_SCALE = 0.5
 
-export interface GameMap extends Omit<MapFile, 'grid' | 'terrain'> {
+/** One square of the map, as the tile files hold it. Shapes that cross
+ *  the square's edge are in every tile they touch; drawing is clipped to
+ *  the square. */
+export interface TileFile {
+  col: number
+  row: number
+  x0: number
+  y0: number
+  size: number
+  grid: { cell: number; ox: number; oy: number; width: number; height: number; rle: string }
+  terrain?: { cell: number; ox: number; oy: number; width: number; height: number; base: number; data: string }
+  buildings: MapFile['buildings']
+  roads: MapFile['roads']
+  paths: MapFile['paths']
+  areas: MapFile['areas']
+  bridges: Flat[]
+  viaducts: NonNullable<MapFile['viaducts']>
+  trees: number[]
+  props: NonNullable<MapFile['props']>
+  pois: Poi[]
+  signs: NonNullable<MapFile['signs']>
+}
+
+export interface MapTile extends Omit<TileFile, 'grid' | 'terrain'> {
+  key: string
+  /** Far edges of the square, cut at the map's edge. */
+  x1: number
+  y1: number
   cell: number
+  /** Grid cell of the tile's first ground-type cell. */
+  gx: number
+  gy: number
   gridW: number
   gridH: number
   grid: Uint8Array
-  /** Ground height in game meters at each terrain grid point, or null if flat. */
-  ground: { cell: number; width: number; height: number; h: Float32Array } | null
+  /** Ground height in game meters at each terrain point, or null if flat.
+   *  ox, oy: the first point's index on the map-wide terrain grid. */
+  ground: { cell: number; ox: number; oy: number; width: number; height: number; h: Float32Array } | null
+}
+
+/** What the tile manifest holds: the area, and the few lists the HUD needs
+ *  wherever you are. */
+export interface Manifest {
+  version: 3
+  id: string
+  name: string
+  nameEn: string
+  attribution: string
+  credits?: string[]
+  rotationDeg: number
+  width: number
+  height: number
+  spawn: { x: number; y: number }
+  cell: number
+  tile: number
+  cols: number
+  rows: number
+  tiles: [number, number][]
+  streets: Street[]
+  slopes: Slope[]
+  discoveries: Discovery[]
+}
+
+/** The map as the game sees it: the manifest plus whichever tiles are
+ *  loaded right now (see useTileStream). */
+export interface GameMap extends Omit<Manifest, 'tiles'> {
+  /** Every tile the map has, as [col, row]. */
+  index: [number, number][]
+  /** The tiles loaded right now, by tileKey. */
+  tiles: Map<string, MapTile>
+  /** Where tiles are fetched from. */
+  base: string
 }
 
 function decodeRle(b64: string, size: number) {
@@ -140,41 +205,69 @@ function decodeRle(b64: string, size: number) {
   return out
 }
 
+/** Tiles come with the game unless VITE_TILES_URL points elsewhere (R2). */
+const TILES_URL: string = import.meta.env.VITE_TILES_URL || `${import.meta.env.BASE_URL}tiles/`
+
 export async function loadMap(id: string): Promise<GameMap> {
-  const res = await fetch(`${import.meta.env.BASE_URL}maps/${id}.json`)
+  const base = `${TILES_URL.replace(/\/?$/, '/')}${id}/`
+  const res = await fetch(`${base}manifest.json`)
   if (!res.ok) throw new Error(`Map "${id}" not found (${res.status})`)
-  const file = (await res.json()) as MapFile
-  if (file.version !== 2) throw new Error(`Map "${id}" is an old format. Run npm run map:build.`)
+  const file = (await res.json()) as Manifest
+  if (file.version !== 3) throw new Error(`Map "${id}" is an old format. Run npm run map:build.`)
+  const { tiles, ...rest } = file
+  return { ...rest, index: tiles, tiles: new Map(), base }
+}
+
+export const tileKey = (col: number, row: number) => `${col}_${row}`
+
+export async function loadTile(map: GameMap, col: number, row: number): Promise<MapTile> {
+  const res = await fetch(`${map.base}${tileKey(col, row)}.json`)
+  if (!res.ok) throw new Error(`Tile ${tileKey(col, row)}: ${res.status}`)
+  const file = (await res.json()) as TileFile
   const { grid, terrain, ...rest } = file
-  let ground: GameMap['ground'] = null
+  let ground: MapTile['ground'] = null
   if (terrain) {
     const bytes = Uint8Array.from(atob(terrain.data), (c) => c.charCodeAt(0))
     const dm = new Int16Array(bytes.buffer)
     ground = {
       cell: terrain.cell,
+      ox: terrain.ox,
+      oy: terrain.oy,
       width: terrain.width,
       height: terrain.height,
       h: Float32Array.from(dm, (v) => v * 0.1 * TERRAIN_SCALE),
     }
   }
   return {
-    ground,
     ...rest,
+    key: tileKey(col, row),
+    x1: Math.min(file.x0 + file.size, map.width),
+    y1: Math.min(file.y0 + file.size, map.height),
+    ground,
     cell: grid.cell,
+    gx: grid.ox,
+    gy: grid.oy,
     gridW: grid.width,
     gridH: grid.height,
     grid: decodeRle(grid.rle, grid.width * grid.height),
   }
 }
 
-/** Height of the ground at a point, in meters. The ground is flat inside
- *  each triangle of the terrain grid, whose cells are cut from corner
- *  (x0, y1) to (x1, y0), so this matches the drawn ground exactly. */
-export function groundAt(map: GameMap, x: number, y: number) {
-  const g = map.ground
+/** The loaded tile under a point, if any. */
+export function tileAt(map: GameMap, x: number, y: number) {
+  if (x < 0 || y < 0 || x >= map.width || y >= map.height) return undefined
+  return map.tiles.get(tileKey(Math.floor(x / map.tile), Math.floor(y / map.tile)))
+}
+
+/** Height of the ground at a point, in meters, from one tile's terrain.
+ *  The ground is flat inside each triangle of the terrain grid, whose cells
+ *  are cut from corner (x0, y1) to (x1, y0), so this matches the drawn
+ *  ground exactly. */
+export function tileGroundAt(tile: MapTile, x: number, y: number) {
+  const g = tile.ground
   if (!g) return 0
-  const fx = Math.min(Math.max(x / g.cell, 0), g.width - 1.0001)
-  const fy = Math.min(Math.max(y / g.cell, 0), g.height - 1.0001)
+  const fx = Math.min(Math.max(x / g.cell - g.ox, 0), g.width - 1.0001)
+  const fy = Math.min(Math.max(y / g.cell - g.oy, 0), g.height - 1.0001)
   const x0 = Math.floor(fx)
   const y0 = Math.floor(fy)
   const tx = fx - x0
@@ -186,12 +279,20 @@ export function groundAt(map: GameMap, x: number, y: number) {
   return h[j] + (h[j - 1] - h[j]) * (1 - tx) + (h[i + 1] - h[j]) * (1 - ty)
 }
 
+/** Height of the ground anywhere on the map (0 where no tile is loaded). */
+export function groundAt(map: GameMap, x: number, y: number) {
+  const t = tileAt(map, Math.min(Math.max(x, 0), map.width - 0.01), Math.min(Math.max(y, 0), map.height - 0.01))
+  return t ? tileGroundAt(t, x, y) : 0
+}
+
 /** Ground type at a point in meters. */
 export function cellAt(map: GameMap, x: number, y: number) {
-  const cx = Math.floor(x / map.cell)
-  const cy = Math.floor(y / map.cell)
-  if (cx < 0 || cy < 0 || cx >= map.gridW || cy >= map.gridH) return T.VOID
-  return map.grid[cy * map.gridW + cx]
+  const t = tileAt(map, x, y)
+  if (!t) return T.VOID // not loaded yet: solid until it is
+  const cx = Math.floor(x / t.cell) - t.gx
+  const cy = Math.floor(y / t.cell) - t.gy
+  if (cx < 0 || cy < 0 || cx >= t.gridW || cy >= t.gridH) return T.VOID
+  return t.grid[cy * t.gridW + cx]
 }
 
 export const isBlocked = (map: GameMap, x: number, y: number) => BLOCKED.has(cellAt(map, x, y))
@@ -247,7 +348,8 @@ const KIND_RANK: Record<PoiKind, number> = {
 
 /** Places within `radius` meters, most important first. */
 export function poisNear(map: GameMap, x: number, y: number, radius: number, limit: number) {
-  return map.pois
+  return [...map.tiles.values()]
+    .flatMap((t) => t.pois)
     .filter((p) => Math.abs(p.x - x) <= radius && Math.abs(p.y - y) <= radius * 0.8)
     .sort((a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind])
     .slice(0, limit)
@@ -286,7 +388,8 @@ export function slopeNear(map: GameMap, x: number, y: number, maxDist = 14) {
 export function nearestPoi(map: GameMap, x: number, y: number, maxDist = 25) {
   let best: Poi | null = null
   let bestD = maxDist
-  for (const p of map.pois) {
+  for (const t of map.tiles.values())
+  for (const p of t.pois) {
     if (p.kind === 'building' && !p.nameEn) continue
     const d = Math.hypot(p.x - x, p.y - y)
     if (d < bestD) {

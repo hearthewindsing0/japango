@@ -18,7 +18,7 @@ const kuromoji = require('kuromoji')
 const jmdictPath = process.argv[2]
 if (!jmdictPath) throw new Error('Pass the path to jmdict-eng-*.json')
 
-const map = JSON.parse(await readFile(`public/maps/${AREA.id}.json`, 'utf8'))
+const map = JSON.parse(await readFile(`data/${AREA.id}.map.json`, 'utf8'))
 const hasJa = (s) => /[぀-ヿ一-鿿]/.test(s ?? '')
 const texts = new Set()
 const add = (s) => hasJa(s) && texts.add(s)
