@@ -1,7 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useMemo, type RefObject } from 'react'
 import * as THREE from 'three'
-import { groundAt, poisNear, type GameMap, type PoiKind } from './map'
+import { groundAt, poisNear, type GameMap, type MapTile, type PoiKind } from './map'
 
 const ICON: Record<PoiKind, string> = {
   station: '🚇',
@@ -20,6 +20,8 @@ const ICON: Record<PoiKind, string> = {
 
 interface Props {
   map: GameMap
+  /** Loaded tiles: labels come from them. */
+  tiles: MapTile[]
   x: number
   y: number
   /** Camera distance, which sets how far around the player to label. */
@@ -30,12 +32,13 @@ interface Props {
 /** Name tags for nearby places, in Japanese with English underneath. Plain
  *  DOM over the canvas; <LabelLayerSync> moves each tag to its spot on
  *  screen every frame. */
-export function Labels({ map, x, y, distance, layer }: Props) {
+export function Labels({ map, tiles, x, y, distance, layer }: Props) {
   const radius = Math.max(30, distance * 1.4)
   const limit = distance > 70 ? 18 : 40
   const qx = Math.round(x / 5)
   const qy = Math.round(y / 5)
-  const pois = useMemo(() => poisNear(map, qx * 5, qy * 5, radius, limit), [map, qx, qy, radius, limit])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pois = useMemo(() => poisNear(map, qx * 5, qy * 5, radius, limit), [map, tiles, qx, qy, radius, limit])
   return (
     <div className="label-layer" ref={layer}>
       {pois.map((p) => (

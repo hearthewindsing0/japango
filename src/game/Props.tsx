@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { groundAt, type GameMap, type PropKind } from './map'
+import { tileGroundAt, type MapTile, type PropKind, type Slope } from './map'
 
 // Street furniture, drawn where Mapillary's detectors found it in street
 // photos. Each kind is built from a few simple parts; every part is one
@@ -71,8 +71,7 @@ const PARTS: Record<PropKind, Part[]> = {
   ],
 }
 
-function PropKindMesh({ map, list, parts, clip }: { map: GameMap; list: GameMap['props']; parts: Part[]; clip: THREE.Plane[] }) {
-  const items = list ?? []
+function PropKindMesh({ tile, items, parts, clip }: { tile: MapTile; items: MapTile['props']; parts: Part[]; clip: THREE.Plane[] }) {
   const refs = useRef<(THREE.InstancedMesh | null)[]>([])
   const geos = useMemo(() => parts.map((p) => p.geo()), [parts])
 
@@ -88,14 +87,14 @@ function PropKindMesh({ map, list, parts, clip }: { map: GameMap; list: GameMap[
         // Map rotation is measured with y pointing down the screen, which is
         // world +Z; Three's Y rotation turns +X toward -Z, so negate it.
         q.setFromAxisAngle(up, -it.r)
-        m.compose(new THREE.Vector3(it.x, groundAt(map, it.x, it.y), it.y), q, new THREE.Vector3(1, 1, 1))
+        m.compose(new THREE.Vector3(it.x, tileGroundAt(tile, it.x, it.y), it.y), q, new THREE.Vector3(1, 1, 1))
         local.makeTranslation(...part.at)
         mesh.setMatrixAt(i, m.clone().multiply(local))
       })
       mesh.instanceMatrix.needsUpdate = true
       mesh.computeBoundingSphere()
     })
-  }, [map, items, parts])
+  }, [tile, items, parts])
 
   useLayoutEffect(() => () => geos.forEach((g) => g.dispose()), [geos])
 
@@ -122,8 +121,8 @@ function PropKindMesh({ map, list, parts, clip }: { map: GameMap; list: GameMap[
 }
 
 /** Pools of warm light under street lights, fading in after dark. */
-function LampGlow({ map, night }: { map: GameMap; night: number }) {
-  const lamps = useMemo(() => (map.props ?? []).filter((p) => p.k === 'streetlight'), [map])
+function LampGlow({ tile, night }: { tile: MapTile; night: number }) {
+  const lamps = useMemo(() => tile.props.filter((p) => p.k === 'streetlight'), [tile])
   const on = night >= 0.05
   const mesh = useRef<THREE.InstancedMesh>(null)
   const geo = useMemo(() => new THREE.CircleGeometry(4.5, 24).rotateX(-Math.PI / 2), [])
@@ -156,33 +155,36 @@ function LampGlow({ map, night }: { map: GameMap; night: number }) {
       // The lamp head hangs 1.5 m out from the pole, toward the road.
       const x = it.x + Math.cos(it.r) * 1.5
       const y = it.y + Math.sin(it.r) * 1.5
-      m.makeTranslation(x, groundAt(map, x, y) + 0.12, y)
+      m.makeTranslation(x, tileGroundAt(tile, x, y) + 0.12, y)
       mesh.current?.setMatrixAt(i, m)
     })
     if (mesh.current) mesh.current.instanceMatrix.needsUpdate = true
-  }, [map, lamps, on])
+  }, [tile, lamps, on])
   useLayoutEffect(() => () => (geo.dispose(), mat.dispose()), [geo, mat])
   mat.uniforms.uAlpha.value = night * 0.55
   if (!on) return null
   return <instancedMesh ref={mesh} args={[geo, mat, lamps.length]} frustumCulled={false} />
 }
 
-export function Props({ map, clip, night = 0 }: { map: GameMap; clip: THREE.Plane[]; night?: number }) {
+export function Props({ tile, slopes, clip, night = 0 }: { tile: MapTile; slopes: Slope[]; clip: THREE.Plane[]; night?: number }) {
   const byKind = useMemo(() => {
-    const out = new Map<PropKind, NonNullable<GameMap['props']>>()
-    const slopeSigns = (map.slopes ?? []).flatMap((s) => s.signs.map((g) => ({ k: 'slopesign' as const, ...g })))
-    for (const p of [...(map.props ?? []), ...slopeSigns]) {
+    const out = new Map<PropKind, MapTile['props']>()
+    // Slope signs come with the map, not the tile: draw the ones on it.
+    const slopeSigns = slopes
+      .flatMap((s) => s.signs.map((g) => ({ k: 'slopesign' as const, ...g })))
+      .filter((g) => g.x >= tile.x0 && g.x < tile.x1 && g.y >= tile.y0 && g.y < tile.y1)
+    for (const p of [...tile.props, ...slopeSigns]) {
       if (!PARTS[p.k]) continue
       out.set(p.k, [...(out.get(p.k) ?? []), p])
     }
     return [...out.entries()]
-  }, [map])
+  }, [tile, slopes])
   return (
     <group>
       {byKind.map(([kind, list]) => (
-        <PropKindMesh key={kind} map={map} list={list} parts={PARTS[kind]} clip={clip} />
+        <PropKindMesh key={kind} tile={tile} items={list} parts={PARTS[kind]} clip={clip} />
       ))}
-      <LampGlow map={map} night={night} />
+      <LampGlow tile={tile} night={night} />
     </group>
   )
 }

@@ -1,5 +1,5 @@
 // Turns data/<area>.osm.json (from fetch-osm.mjs) into the map the game
-// loads: public/maps/<area>.json.
+// loads: data/<area>.map.json, which build-tiles.mjs cuts into tiles.
 //
 // The output has two parts, both in meters inside the rotated map frame
 // (x grows right along Roppongi-dori, y grows down the screen):
@@ -31,7 +31,7 @@ export const T = {
 }
 
 const input = process.argv[2] ?? `data/${AREA.id}.osm.json`
-const output = process.argv[3] ?? `public/maps/${AREA.id}.json`
+const output = process.argv[3] ?? `data/${AREA.id}.map.json`
 const osm = JSON.parse(await readFile(input, 'utf8'))
 const { width: FW, height: FH, cell } = AREA
 

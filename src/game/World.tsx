@@ -14,7 +14,8 @@ import {
   viaductsGeometry,
   type HeightFn,
 } from './geometry'
-import { groundAt, type GameMap } from './map'
+import { Crowd } from './Crowd'
+import { groundAt, tileGroundAt, type GameMap, type MapTile } from './map'
 import { COLORS, T } from './tiles'
 import type { SkyState } from './sky'
 import { Weather as WeatherFx } from './Weather'
@@ -47,36 +48,37 @@ const AREA_COLOR: Record<number, string> = {
   [T.FOOTWAY]: COLORS.footway,
 }
 
-function useClipPlanes(map: GameMap) {
+/** Everything a tile draws is clipped to its own square. */
+function useClipPlanes(tile: MapTile) {
   return useMemo(
     () => [
-      new THREE.Plane(new THREE.Vector3(1, 0, 0), 0),
-      new THREE.Plane(new THREE.Vector3(-1, 0, 0), map.width),
-      new THREE.Plane(new THREE.Vector3(0, 0, 1), 0),
-      new THREE.Plane(new THREE.Vector3(0, 0, -1), map.height),
+      new THREE.Plane(new THREE.Vector3(1, 0, 0), -tile.x0),
+      new THREE.Plane(new THREE.Vector3(-1, 0, 0), tile.x1),
+      new THREE.Plane(new THREE.Vector3(0, 0, 1), -tile.y0),
+      new THREE.Plane(new THREE.Vector3(0, 0, -1), tile.y1),
     ],
-    [map],
+    [tile],
   )
 }
 
-const heightFn = (map: GameMap): HeightFn => (x, z) => groundAt(map, x, z)
-const cellOf = (map: GameMap) => map.ground?.cell ?? 4
+const heightFn = (tile: MapTile): HeightFn => (x, z) => tileGroundAt(tile, x, z)
+const cellOf = (tile: MapTile) => tile.ground?.cell ?? 4
 
 /** The base ground: the terrain grid itself, each cell cut into two
  *  triangles the same way groundAt() reads it. */
-function groundGeometry(map: GameMap) {
-  const g = map.ground
+function groundGeometry(tile: MapTile) {
+  const g = tile.ground
   if (!g) {
-    const rect = [0, 0, map.width, 0, map.width, map.height, 0, map.height]
+    const rect = [tile.x0, tile.y0, tile.x1, tile.y0, tile.x1, tile.y1, tile.x0, tile.y1]
     return polygonsGeometry([{ p: rect }], 0)
   }
   const pos = new Float32Array(g.width * g.height * 3)
   for (let y = 0; y < g.height; y++)
     for (let x = 0; x < g.width; x++) {
       const i = (y * g.width + x) * 3
-      pos[i] = x * g.cell
+      pos[i] = (g.ox + x) * g.cell
       pos[i + 1] = g.h[y * g.width + x]
-      pos[i + 2] = y * g.cell
+      pos[i + 2] = (g.oy + y) * g.cell
     }
   const index: number[] = []
   for (let y = 0; y + 1 < g.height; y++)
@@ -103,35 +105,35 @@ function useDisposable<T extends { dispose(): void }>(make: () => T, deps: unkno
   return value
 }
 
-function Ground({ map, clip, night }: { map: GameMap; clip: THREE.Plane[]; night: number }) {
+function Ground({ tile, clip, night }: { tile: MapTile; clip: THREE.Plane[]; night: number }) {
   const areaLayers = useMemo(() => {
-    const byType = new Map<number, GameMap['areas']>()
-    for (const a of map.areas) byType.set(a.t, [...(byType.get(a.t) ?? []), a])
+    const byType = new Map<number, MapTile['areas']>()
+    for (const a of tile.areas) byType.set(a.t, [...(byType.get(a.t) ?? []), a])
     // Footway plazas sit with the paths, above the other areas.
     return [...byType.entries()].map(([t, list]) => ({
       t,
-      geo: drape(polygonsGeometry(list, t === T.FOOTWAY ? Y.path : Y.area + (t === T.WATER ? 0.005 : 0)), heightFn(map), cellOf(map)),
+      geo: drape(polygonsGeometry(list, t === T.FOOTWAY ? Y.path : Y.area + (t === T.WATER ? 0.005 : 0)), heightFn(tile), cellOf(tile)),
     }))
-  }, [map])
+  }, [tile])
   useEffect(() => () => areaLayers.forEach((l) => l.geo.dispose()), [areaLayers])
 
   const geos = useMemo(() => {
-    const roads = map.roads
+    const roads = tile.roads
     const sidewalks = roads.filter((r) => r.s > 0).map((r) => ({ p: r.p, w: r.w + r.s * 2 }))
     const centerLines = roads.filter((r) => r.w >= 9).map((r) => r.p)
-    const footways = map.paths.filter((p) => p.t !== 'crossing')
-    const crossings = map.paths.filter((p) => p.t === 'crossing')
-    const h = heightFn(map)
-    const c = cellOf(map)
+    const footways = tile.paths.filter((p) => p.t !== 'crossing')
+    const crossings = tile.paths.filter((p) => p.t === 'crossing')
+    const h = heightFn(tile)
+    const c = cellOf(tile)
     return {
-      base: groundGeometry(map),
+      base: groundGeometry(tile),
       sidewalk: drape(ribbonsGeometry(sidewalks, Y.sidewalk), h, c),
       road: drape(ribbonsGeometry(roads, Y.road), h, c),
       line: drape(dashesGeometry(centerLines, Y.line), h, c),
       footway: drape(ribbonsGeometry(footways, Y.path), h, c),
       crossing: drape(ribbonsGeometry(crossings, Y.crossing, false), h, c),
     }
-  }, [map])
+  }, [tile])
   useEffect(() => () => Object.values(geos).forEach((g) => g.dispose()), [geos])
 
   const mats = useMemo(() => {
@@ -220,21 +222,23 @@ function Ground({ map, clip, night }: { map: GameMap; clip: THREE.Plane[]; night
 
 function Buildings({
   map,
+  tile,
   clip,
   focus,
   night,
 }: {
   map: GameMap
+  tile: MapTile
   clip: THREE.Plane[]
   focus: React.RefObject<Focus>
   night: number
 }) {
-  const geo = useDisposable(() => buildingsGeometry(map.buildings, heightFn(map)), [map])
+  const geo = useDisposable(() => buildingsGeometry(tile.buildings, heightFn(tile)), [tile])
   // Bridges and the Shuto Expressway viaducts: weathered concrete.
-  const bridgeGeo = useDisposable(() => surfacesGeometry(map.bridges ?? [], '#a9aaa5'), [map])
+  const bridgeGeo = useDisposable(() => surfacesGeometry(tile.bridges, '#a9aaa5'), [tile])
   const viaductGeo = useDisposable(
-    () => viaductsGeometry(map.viaducts ?? [], heightFn(map), { deck: '#a3a49f', side: '#d6d7d2', road: '#62646a' }),
-    [map],
+    () => viaductsGeometry(tile.viaducts, heightFn(tile), { deck: '#a3a49f', side: '#d6d7d2', road: '#62646a' }),
+    [tile],
   )
   const camera = useThree((s) => s.camera)
   const uniforms = useMemo(
@@ -340,10 +344,10 @@ function Buildings({
   )
 }
 
-function Trees({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
+function Trees({ tile, clip }: { tile: MapTile; clip: THREE.Plane[] }) {
   const trunks = useRef<THREE.InstancedMesh>(null)
   const crowns = useRef<THREE.InstancedMesh>(null)
-  const count = map.trees.length / 3
+  const count = tile.trees.length / 3
   const trunkGeo = useDisposable(() => new THREE.CylinderGeometry(0.12, 0.18, 1.8, 6).translate(0, 0.9, 0), [])
   const crownGeo = useDisposable(() => new THREE.IcosahedronGeometry(1.3, 1).scale(1, 1.15, 1).translate(0, 2.8, 0), [])
 
@@ -354,11 +358,11 @@ function Trees({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
     const p = new THREE.Vector3()
     const c = new THREE.Color()
     for (let i = 0; i < count; i++) {
-      const x = map.trees[i * 3]
-      const z = map.trees[i * 3 + 1]
-      const k = map.trees[i * 3 + 2]
+      const x = tile.trees[i * 3]
+      const z = tile.trees[i * 3 + 1]
+      const k = tile.trees[i * 3 + 2]
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (i * 2.39996) % (Math.PI * 2))
-      p.set(x, groundAt(map, x, z), z)
+      p.set(x, tileGroundAt(tile, x, z), z)
       s.set(k, k, k)
       m.compose(p, q, s)
       trunks.current?.setMatrixAt(i, m)
@@ -372,7 +376,7 @@ function Trees({ map, clip }: { map: GameMap; clip: THREE.Plane[] }) {
       crowns.current.computeBoundingSphere()
     }
     trunks.current?.computeBoundingSphere()
-  }, [map, count])
+  }, [tile, count])
 
   return (
     <group>
@@ -423,17 +427,42 @@ function Sun({ map, focus, sky }: { map: GameMap; focus: React.RefObject<Focus>;
   )
 }
 
-export function World({ map, focus, sky }: { map: GameMap; focus: React.RefObject<Focus>; sky: SkyState }) {
-  const clip = useClipPlanes(map)
-  const height = useMemo(() => heightFn(map), [map])
+/** One square of the map: everything on it, clipped to its edges. */
+function TileView({ map, tile, focus, sky, hour }: { map: GameMap; tile: MapTile; focus: React.RefObject<Focus>; sky: SkyState; hour: number }) {
+  const clip = useClipPlanes(tile)
+  const height = useMemo(() => heightFn(tile), [tile])
+  return (
+    <>
+      <Ground tile={tile} clip={clip} night={sky.night} />
+      <Buildings map={map} tile={tile} clip={clip} focus={focus} night={sky.night} />
+      <Trees tile={tile} clip={clip} />
+      <Props tile={tile} slopes={map.slopes} clip={clip} night={sky.night} />
+      <Signs tile={tile} clip={clip} height={height} />
+      <Crowd tile={tile} clip={clip} hour={hour} rain={sky.rain} />
+    </>
+  )
+}
+
+export function World({
+  map,
+  tiles,
+  focus,
+  sky,
+  hour,
+}: {
+  map: GameMap
+  /** The loaded tiles; a new array whenever one loads or unloads. */
+  tiles: MapTile[]
+  focus: React.RefObject<Focus>
+  sky: SkyState
+  hour: number
+}) {
   return (
     <>
       <Sun map={map} focus={focus} sky={sky} />
-      <Ground map={map} clip={clip} night={sky.night} />
-      <Buildings map={map} clip={clip} focus={focus} night={sky.night} />
-      <Trees map={map} clip={clip} />
-      <Props map={map} clip={clip} night={sky.night} />
-      <Signs map={map} clip={clip} height={height} />
+      {tiles.map((t) => (
+        <TileView key={t.key} map={map} tile={t} focus={focus} sky={sky} hour={hour} />
+      ))}
       <WeatherFx focus={focus} rain={sky.rain} snow={sky.snow} />
     </>
   )

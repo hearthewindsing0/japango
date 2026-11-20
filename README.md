@@ -19,8 +19,14 @@ crossings, paths, parks, low buildings with windows, and trees.
 - `scripts/area.mjs` sets the downloaded area, the playable rectangle and its
   rotation, and the spawn point.
 - `npm run map:fetch` downloads the area from the Overpass API into `data/`.
-- `npm run map:build` converts it into `public/maps/<area>.json`: vector shapes
-  for drawing, plus a 1 m grid for collisions and the minimap.
+- `npm run map:build` converts it into `data/<area>.map.json`: vector shapes
+  for drawing, plus a 1 m grid for collisions and the minimap. It then cuts
+  that into 256 m tiles in `public/tiles/<area>/` (`npm run map:tiles`).
+  The game loads the manifest and streams the tiles within a few hundred
+  meters of the player, so the map can grow without a bigger download.
+  Each tile holds every shape that touches it and clips drawing to its own
+  square, so streets and buildings run across tile edges without seams.
+  Set `VITE_TILES_URL` to load tiles from somewhere else (Cloudflare R2).
 
 Street-level detail comes from [Mapillary](https://www.mapillary.com):
 `npm run map:mapillary` (needs a Mapillary client token in `MAPILLARY_TOKEN`)

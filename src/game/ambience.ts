@@ -4,7 +4,7 @@
 // scripts/fetch-sounds.mjs); any that are missing are simply silent.
 import { useEffect, useRef, useState } from 'react'
 import { crowdLevel } from './Crowd'
-import { cellAt, type GameMap } from './map'
+import { cellAt, type GameMap, type MapTile } from './map'
 import { T } from './tiles'
 
 const KINDS = ['city', 'night', 'crossing', 'rain', 'birds', 'cicadas'] as const
@@ -63,10 +63,17 @@ export function useAmbience(inputs: Inputs) {
     const have = KINDS.filter((k) => credits[k])
     if (!map || !have.length) return
     const m = map
-    const crossings: number[] = []
-    for (const p of m.paths)
-      if (p.t === 'crossing')
-        for (let i = 0; i < p.p.length; i += 2) crossings.push(p.p[i], p.p[i + 1])
+    // Crossing points of each loaded tile, worked out once per tile.
+    const crossingCache = new WeakMap<MapTile, number[]>()
+    const crossingsOf = (t: MapTile) => {
+      let c = crossingCache.get(t)
+      if (!c) {
+        c = []
+        for (const p of t.paths) if (p.t === 'crossing') for (let i = 0; i < p.p.length; i += 2) c.push(p.p[i], p.p[i + 1])
+        crossingCache.set(t, c)
+      }
+      return c
+    }
 
     let ctx: AudioContext | null = null
     let master: GainNode | null = null
@@ -113,7 +120,10 @@ export function useAmbience(inputs: Inputs) {
       const crowd = crowdLevel(hour)
       const green = greenAround(m, x, y)
       let near = Infinity
-      for (let i = 0; i < crossings.length; i += 2) near = Math.min(near, Math.hypot(crossings[i] - x, crossings[i + 1] - y))
+      for (const tile of m.tiles.values()) {
+        const crossings = crossingsOf(tile)
+        for (let i = 0; i < crossings.length; i += 2) near = Math.min(near, Math.hypot(crossings[i] - x, crossings[i + 1] - y))
+      }
       const wet = Math.min(1, rain)
       const hasNight = !!gains.night
       const target: Record<Kind, number> = {

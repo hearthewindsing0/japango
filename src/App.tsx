@@ -5,13 +5,13 @@ import { view } from './game/input'
 import { LabelLayerSync, Labels } from './game/Labels'
 import { discoveryNear, loadMap, nearestPoi, slopeNear, streetNear, type GameMap } from './game/map'
 import { Discoveries } from './game/Discoveries'
-import { Crowd } from './game/Crowd'
 import { useAmbience, useSoundCredits } from './game/ambience'
 import { loadDict, type Dict } from './game/dict'
 import { JaText, WordPopup, type WordPick } from './game/JaText'
 import { Minimap } from './game/Minimap'
 import { Player } from './game/Player'
 import { World, type Focus } from './game/World'
+import { loadAround, useTileStream } from './game/stream'
 import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoClock, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
 
 const MIN_DIST = 10
@@ -89,8 +89,11 @@ export default function App() {
         const at = new URLSearchParams(location.search).get('at')?.split(',').map(Number)
         const start = at?.length === 2 && at.every(Number.isFinite) ? { x: at[0], y: at[1] } : m.spawn
         focus.current = { ...start }
-        setMap(m)
-        setPos({ ...start })
+        // The tiles around the start, before the player appears.
+        return loadAround(m, start.x, start.y, 32).then(() => {
+          setMap(m)
+          setPos({ ...start })
+        })
       })
       .catch((e: Error) => setError(e.message))
   }, [])
@@ -130,6 +133,7 @@ export default function App() {
   }, [toast])
 
   const sky = useMemo(() => skyState(now, weather, map?.rotationDeg ?? 0), [now, weather, map])
+  const tiles = useTileStream(map, focus, distance)
   const clock = tokyoClock(now)
   const hour = clock.h + clock.m / 60
   useAmbience({ map, focus, hour, month: tokyoMonth(now), night: sky.night, rain: sky.rain, muted, credits: soundCredits })
@@ -174,14 +178,13 @@ export default function App() {
       >
         <color attach="background" args={[sky.background]} />
         <fog attach="fog" args={[sky.background, distance * 2.5 * sky.fogScale, distance * 6 * sky.fogScale]} />
-        <World map={map} focus={focus} sky={sky} />
-        <Discoveries map={map} found={found} stamps={stamps} />
-        <Crowd map={map} hour={hour} rain={sky.rain} />
+        <World map={map} tiles={tiles} focus={focus} sky={sky} hour={hour} />
+        <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />
         <Player map={map} focus={focus} distance={distance} onMove={(x, y) => setPos({ x, y })} />
         <LabelLayerSync layer={labelLayer} />
       </Canvas>
 
-      <Labels map={map} x={pos.x} y={pos.y} distance={distance} layer={labelLayer} />
+      <Labels map={map} tiles={tiles} x={pos.x} y={pos.y} distance={distance} layer={labelLayer} />
 
       <div className="hud-location">
         <div className="hud-area">
@@ -205,7 +208,7 @@ export default function App() {
         )}
       </div>
 
-      <Minimap map={map} x={pos.x} y={pos.y} big={bigMap} />
+      <Minimap map={map} tiles={tiles} x={pos.x} y={pos.y} big={bigMap} />
 
       {rally.length > 0 && (
         <button className="hud-stamps" onClick={() => setBook((b) => !b)}>

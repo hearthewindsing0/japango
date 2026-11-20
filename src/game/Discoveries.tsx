@@ -1,31 +1,33 @@
 import { useFrame } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { groundAt, type Discovery, type GameMap } from './map'
+import { groundAt, type Discovery, type GameMap, type MapTile } from './map'
 
 const HOVER = 2.8
 
 /** Floating markers over discoveries: small gold gems for places, red stamp
  *  seals for the stamp rally (green once collected). */
-export function Discoveries({ map, found, stamps }: { map: GameMap; found: Set<string>; stamps: Set<string> }) {
+export function Discoveries({ map, tiles, found, stamps }: { map: GameMap; tiles: MapTile[]; found: Set<string>; stamps: Set<string> }) {
   const list = useMemo(() => map.discoveries ?? [], [map])
   const places = useMemo(() => list.filter((d) => !d.stamp), [list])
   const rally = useMemo(() => list.filter((d) => d.stamp), [list])
   return (
     <>
-      <Markers map={map} items={places} kind="gem" done={found} />
-      <Markers map={map} items={rally} kind="stamp" done={stamps} />
+      <Markers map={map} tiles={tiles} items={places} kind="gem" done={found} />
+      <Markers map={map} tiles={tiles} items={rally} kind="stamp" done={stamps} />
     </>
   )
 }
 
 function Markers({
   map,
+  tiles,
   items,
   kind,
   done,
 }: {
   map: GameMap
+  tiles: MapTile[]
   items: Discovery[]
   kind: 'gem' | 'stamp'
   done: Set<string>
@@ -38,7 +40,9 @@ function Markers({
         : new THREE.CylinderGeometry(0.6, 0.6, 0.16, 28).rotateX(Math.PI / 2),
     [kind],
   )
-  const bases = useMemo(() => items.map((d) => groundAt(map, d.x, d.y) + HOVER), [map, items])
+  // Heights are known once the tile under each marker has loaded.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const bases = useMemo(() => items.map((d) => groundAt(map, d.x, d.y) + HOVER), [map, tiles, items])
   const m = useMemo(() => new THREE.Matrix4(), [])
   const q = useMemo(() => new THREE.Quaternion(), [])
   const up = useMemo(() => new THREE.Vector3(0, 1, 0), [])
