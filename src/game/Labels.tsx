@@ -1,6 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useMemo, type RefObject } from 'react'
-import { poisIn, type GameMap, type PoiKind } from './map'
+import * as THREE from 'three'
+import { poisNear, type GameMap, type PoiKind } from './map'
 
 const ICON: Record<PoiKind, string> = {
   station: '🚇',
@@ -21,32 +22,29 @@ interface Props {
   map: GameMap
   x: number
   y: number
-  zoom: number
-  viewW: number
-  viewH: number
+  /** Camera distance, which sets how far around the player to label. */
+  distance: number
   layer: RefObject<HTMLDivElement | null>
 }
 
-/** Name tags for places on screen, in Japanese with English underneath.
- *  Plain DOM over the canvas: each tag sits at (tile × zoom) px inside a layer
- *  that <LabelLayerSync> moves with the camera every frame. */
-export function Labels({ map, x, y, zoom, viewW, viewH, layer }: Props) {
-  const halfW = viewW / zoom / 2 + 4
-  const halfH = viewH / zoom / 2 + 4
-  const limit = zoom < 14 ? 15 : 45
-  const qx = Math.round(x / 4)
-  const qy = Math.round(y / 4)
-  const pois = useMemo(
-    () => poisIn(map, qx * 4 - halfW, qy * 4 - halfH, qx * 4 + halfW, qy * 4 + halfH, limit),
-    [map, qx, qy, halfW, halfH, limit],
-  )
+/** Name tags for nearby places, in Japanese with English underneath. Plain
+ *  DOM over the canvas; <LabelLayerSync> moves each tag to its spot on
+ *  screen every frame. */
+export function Labels({ map, x, y, distance, layer }: Props) {
+  const radius = Math.max(30, distance * 1.4)
+  const limit = distance > 70 ? 18 : 40
+  const qx = Math.round(x / 5)
+  const qy = Math.round(y / 5)
+  const pois = useMemo(() => poisNear(map, qx * 5, qy * 5, radius, limit), [map, qx, qy, radius, limit])
   return (
     <div className="label-layer" ref={layer}>
       {pois.map((p) => (
         <div
           key={`${p.name}-${p.x}-${p.y}`}
           className={`label label-${p.kind}`}
-          style={{ left: p.x * zoom, top: p.y * zoom }}
+          data-x={p.x}
+          data-y={p.y}
+          style={{ visibility: 'hidden' }}
         >
           <span className="label-ja">
             {ICON[p.kind]} {p.name}
@@ -59,15 +57,23 @@ export function Labels({ map, x, y, zoom, viewW, viewH, layer }: Props) {
   )
 }
 
-/** Lives inside the Canvas and keeps the label layer aligned with the camera. */
-export function LabelLayerSync({ layer, zoom }: { layer: RefObject<HTMLDivElement | null>; zoom: number }) {
+const v = new THREE.Vector3()
+
+/** Lives inside the Canvas and places each label where its spot projects. */
+export function LabelLayerSync({ layer }: { layer: RefObject<HTMLDivElement | null> }) {
   const { camera, size } = useThree()
   useFrame(() => {
     const el = layer.current
     if (!el) return
-    const tx = size.width / 2 - camera.position.x * zoom
-    const ty = size.height / 2 + camera.position.y * zoom
-    el.style.transform = `translate(${tx}px, ${ty}px)`
+    for (const child of el.children as HTMLCollectionOf<HTMLElement>) {
+      v.set(Number(child.dataset.x), 2.2, Number(child.dataset.y)).project(camera)
+      const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1
+      child.style.visibility = visible ? 'visible' : 'hidden'
+      if (!visible) continue
+      const sx = ((v.x + 1) / 2) * size.width
+      const sy = ((1 - v.y) / 2) * size.height
+      child.style.transform = `translate(${sx}px, ${sy}px) translate(-50%, -50%)`
+    }
   })
   return null
 }

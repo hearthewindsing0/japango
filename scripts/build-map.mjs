@@ -1,13 +1,17 @@
-// Turns data/<area>.osm.json (from fetch-osm.mjs) into a tile map the game
+// Turns data/<area>.osm.json (from fetch-osm.mjs) into the map the game
 // loads: public/maps/<area>.json.
 //
-// Each tile is TILE_SIZE meters square. Tiles are painted in layers, later
-// layers on top: ground → parks/parking/water → roads and paths → crossings →
-// buildings → trees.
+// The output has two parts, both in meters inside the rotated map frame
+// (x grows right along Roppongi-dori, y grows down the screen):
+//
+// - Vector shapes the game draws smoothly: buildings with heights, roads,
+//   paths, crossings, parks, water and trees.
+// - A coarse grid (AREA.cell meters per cell) of ground types, used for
+//   collisions and the minimap.
 import { readFile, writeFile } from 'node:fs/promises'
 import { AREA } from './area.mjs'
 
-// Must match src/game/tiles.ts
+// Grid cell types. Must match src/game/tiles.ts
 export const T = {
   VOID: 0,
   GROUND: 1,
@@ -21,47 +25,75 @@ export const T = {
   PARKING: 9,
   WOODS: 10,
   PITCH: 11,
-  SHRINE: 12, // grounds of shrines and temples
+  SHRINE: 12,
+  SIDEWALK: 13,
 }
 
 const input = process.argv[2] ?? `data/${AREA.id}.osm.json`
 const output = process.argv[3] ?? `public/maps/${AREA.id}.json`
 const osm = JSON.parse(await readFile(input, 'utf8'))
-const { south, west, north, east } = AREA.bbox
-const ts = AREA.tileSize
+const { width: FW, height: FH, cell } = AREA
 
-// Local equirectangular projection; fine at neighborhood scale.
-const lat0 = ((south + north) / 2) * (Math.PI / 180)
+// --- Projection -----------------------------------------------------------
+// Local equirectangular meters around the center, then turned by rotationDeg.
+const lat0 = AREA.center.lat
+const lon0 = AREA.center.lon
 const M_PER_DEG_LAT = 110574
-const M_PER_DEG_LON = 111320 * Math.cos(lat0)
-const W = Math.ceil(((east - west) * M_PER_DEG_LON) / ts)
-const H = Math.ceil(((north - south) * M_PER_DEG_LAT) / ts)
-const proj = ([lat, lon]) => [((lon - west) * M_PER_DEG_LON) / ts, ((north - lat) * M_PER_DEG_LAT) / ts]
+const M_PER_DEG_LON = 111320 * Math.cos((lat0 * Math.PI) / 180)
+const th = (AREA.rotationDeg * Math.PI) / 180
+const cos = Math.cos(th)
+const sin = Math.sin(th)
+const proj = ([lat, lon]) => {
+  const e = (lon - lon0) * M_PER_DEG_LON
+  const n = (lat - lat0) * M_PER_DEG_LAT
+  const x = e * cos + n * sin
+  const yn = -e * sin + n * cos
+  return [x + FW / 2, -yn + FH / 2]
+}
+const r1 = (v) => Math.round(v * 10) / 10
+const flat = (pts) => pts.flatMap(([x, y]) => [r1(x), r1(y)])
 
-const tiles = new Uint8Array(W * H).fill(T.GROUND)
-const variants = new Uint8Array(W * H)
-
-const set = (x, y, v, variant = 0) => {
-  if (x < 0 || y < 0 || x >= W || y >= H) return
-  tiles[y * W + x] = v
-  variants[y * W + x] = variant
+// Rough bounds check: keep features that come anywhere near the frame.
+const MARGIN = 60
+const nearFrame = (pts) => {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const [x, y] of pts) {
+    if (x < minX) minX = x
+    if (y < minY) minY = y
+    if (x > maxX) maxX = x
+    if (y > maxY) maxY = y
+  }
+  return maxX > -MARGIN && maxY > -MARGIN && minX < FW + MARGIN && minY < FH + MARGIN
 }
 
-/** Even-odd scanline fill. `rings` is a list of point lists (tile coords).
- *  Pieces need not be ordered or joined, as long as together they close. */
-function fillPolygon(rings, v, variant = 0, only) {
+// --- Grid rasterization ---------------------------------------------------
+const GW = Math.ceil(FW / cell)
+const GH = Math.ceil(FH / cell)
+const grid = new Uint8Array(GW * GH).fill(T.GROUND)
+const setCell = (x, y, v) => {
+  if (x >= 0 && y >= 0 && x < GW && y < GH) grid[y * GW + x] = v
+}
+
+/** Even-odd scanline fill of rings given in meters. Ring pieces need not be
+ *  joined, as long as together they close. */
+function fillPolygon(rings, v) {
   const edges = []
   let minY = Infinity
   let maxY = -Infinity
   for (const ring of rings) {
     for (let i = 0; i + 1 < ring.length; i++) {
-      edges.push([ring[i], ring[i + 1]])
-      minY = Math.min(minY, ring[i][1], ring[i + 1][1])
-      maxY = Math.max(maxY, ring[i][1], ring[i + 1][1])
+      const a = [ring[i][0] / cell, ring[i][1] / cell]
+      const b = [ring[i + 1][0] / cell, ring[i + 1][1] / cell]
+      edges.push([a, b])
+      minY = Math.min(minY, a[1], b[1])
+      maxY = Math.max(maxY, a[1], b[1])
     }
   }
   const y0 = Math.max(0, Math.floor(minY))
-  const y1 = Math.min(H - 1, Math.ceil(maxY))
+  const y1 = Math.min(GH - 1, Math.ceil(maxY))
   for (let y = y0; y <= y1; y++) {
     const cy = y + 0.5
     const xs = []
@@ -71,28 +103,27 @@ function fillPolygon(rings, v, variant = 0, only) {
     xs.sort((a, b) => a - b)
     for (let i = 0; i + 1 < xs.length; i += 2) {
       const xa = Math.max(0, Math.ceil(xs[i] - 0.5))
-      const xb = Math.min(W - 1, Math.floor(xs[i + 1] - 0.5))
-      for (let x = xa; x <= xb; x++) {
-        if (only && !only.includes(tiles[y * W + x])) continue
-        set(x, y, v, variant)
-      }
+      const xb = Math.min(GW - 1, Math.floor(xs[i + 1] - 0.5))
+      for (let x = xa; x <= xb; x++) setCell(x, y, v)
     }
   }
 }
 
-/** Paints every tile whose center is within width/2 of the polyline. */
-function drawLine(pts, widthTiles, v) {
-  const r = Math.max(widthTiles / 2, 0.5)
+/** Marks every cell whose center is within width/2 meters of the polyline. */
+function drawLine(pts, widthM, v, only) {
+  const r = Math.max(widthM / 2 / cell, 0.5)
   for (let i = 0; i + 1 < pts.length; i++) {
-    const [ax, ay] = pts[i]
-    const [bx, by] = pts[i + 1]
+    const ax = pts[i][0] / cell
+    const ay = pts[i][1] / cell
+    const bx = pts[i + 1][0] / cell
+    const by = pts[i + 1][1] / cell
     const dx = bx - ax
     const dy = by - ay
     const len2 = dx * dx + dy * dy || 1e-9
-    const x0 = Math.floor(Math.min(ax, bx) - r)
-    const x1 = Math.ceil(Math.max(ax, bx) + r)
-    const yA = Math.floor(Math.min(ay, by) - r)
-    const yB = Math.ceil(Math.max(ay, by) + r)
+    const x0 = Math.max(0, Math.floor(Math.min(ax, bx) - r))
+    const x1 = Math.min(GW - 1, Math.ceil(Math.max(ax, bx) + r))
+    const yA = Math.max(0, Math.floor(Math.min(ay, by) - r))
+    const yB = Math.min(GH - 1, Math.ceil(Math.max(ay, by) + r))
     for (let y = yA; y <= yB; y++) {
       for (let x = x0; x <= x1; x++) {
         const px = x + 0.5
@@ -100,21 +131,64 @@ function drawLine(pts, widthTiles, v) {
         const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2))
         const qx = ax + t * dx - px
         const qy = ay + t * dy - py
-        if (qx * qx + qy * qy <= r * r) set(x, y, v)
+        if (qx * qx + qy * qy <= r * r && (!only || only.includes(grid[y * GW + x]))) setCell(x, y, v)
       }
     }
   }
 }
+const cellAt = (xm, ym) => {
+  const x = Math.floor(xm / cell)
+  const y = Math.floor(ym / cell)
+  return x >= 0 && y >= 0 && x < GW && y < GH ? grid[y * GW + x] : T.VOID
+}
 
+// --- Helpers --------------------------------------------------------------
 const hash = (n) => {
-  let h = Number(n % 2147483647) | 0
+  let h = Number(BigInt(n) % 2147483647n) | 0
   h = Math.imul(h ^ (h >>> 16), 0x45d9f3b)
   h = Math.imul(h ^ (h >>> 16), 0x45d9f3b)
   return (h ^ (h >>> 16)) >>> 0
 }
+let seed = 12345
+const rand = () => {
+  seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+  return seed / 4294967296
+}
 
 const ringsOf = (e) =>
   e.type === 'way' ? [e.geom.map(proj)] : e.type === 'relation' ? e.members.map((m) => m.geom.map(proj)) : []
+const roleRings = (e) =>
+  e.type === 'way'
+    ? { outer: [e.geom.map(proj)], inner: [] }
+    : {
+        outer: joinRings(e.members.filter((m) => m.role !== 'inner').map((m) => m.geom.map(proj))),
+        inner: joinRings(e.members.filter((m) => m.role === 'inner').map((m) => m.geom.map(proj))),
+      }
+
+/** Joins way pieces of a multipolygon into closed rings. */
+function joinRings(pieces) {
+  const same = (a, b) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6
+  const rings = []
+  const left = pieces.map((p) => [...p])
+  while (left.length) {
+    let ring = left.shift()
+    let grew = true
+    while (!same(ring[0], ring.at(-1)) && grew) {
+      grew = false
+      for (let i = 0; i < left.length; i++) {
+        const p = left[i]
+        if (same(ring.at(-1), p[0])) ring = ring.concat(p.slice(1))
+        else if (same(ring.at(-1), p.at(-1))) ring = ring.concat([...p].reverse().slice(1))
+        else continue
+        left.splice(i, 1)
+        grew = true
+        break
+      }
+    }
+    if (ring.length >= 4) rings.push(ring)
+  }
+  return rings
+}
 
 const isClosed = (e) =>
   e.type === 'relation' ||
@@ -129,10 +203,16 @@ const below = (tags) =>
   tags.parking === 'underground' ||
   tags.parking === 'multi-storey'
 
+const area2 = (ring) => {
+  let s = 0
+  for (let i = 0; i + 1 < ring.length; i++) s += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1]
+  return s / 2
+}
+
 const elements = osm.elements
 const ways = elements.filter((e) => e.type !== 'node')
 
-// 1. Areas: parks, parking, water, shrine grounds.
+// --- 1. Areas: parks, parking, water, shrine grounds ----------------------
 function areaType(tags) {
   if (tags.amenity === 'place_of_worship') return T.SHRINE
   if (tags.leisure === 'pitch' || tags.leisure === 'track') return T.PITCH
@@ -144,20 +224,20 @@ function areaType(tags) {
   if (tags.amenity === 'parking') return T.PARKING
   return null
 }
-// Paint bigger areas first so that small ones (a pond in a park) end up on top.
-const areas = ways
+const areaList = ways
   .filter((e) => isClosed(e) && !e.tags.building && !below(e.tags) && areaType(e.tags) !== null)
-  .map((e) => ({ e, rings: ringsOf(e) }))
-  .map((a) => {
-    const ring = a.rings[0]
-    let s = 0
-    for (let i = 0; i + 1 < ring.length; i++) s += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1]
-    return { ...a, size: Math.abs(s) }
-  })
+  .map((e) => ({ e, ...roleRings(e) }))
+  .filter((a) => a.outer.length && a.outer.some(nearFrame))
+  .map((a) => ({ ...a, size: Math.abs(area2(a.outer[0])) }))
   .sort((a, b) => b.size - a.size)
-for (const { e, rings } of areas) fillPolygon(rings, areaType(e.tags))
+const areas = []
+for (const a of areaList) {
+  const t = areaType(a.e.tags)
+  fillPolygon([...a.outer, ...a.inner], t)
+  for (const ring of a.outer) areas.push({ t, p: flat(ring), h: a.inner.filter((r) => r.length > 3).map(flat) })
+}
 
-// 2. Roads and paths, widest kinds first so footpaths stay visible on top.
+// --- 2. Roads, sidewalks and paths ----------------------------------------
 const ROAD_WIDTH_M = {
   trunk: 18,
   trunk_link: 8,
@@ -173,48 +253,154 @@ const ROAD_WIDTH_M = {
   service: 4,
   road: 5,
 }
-const PATH_WIDTH_M = { pedestrian: 5, footway: 3, path: 2, steps: 3, cycleway: 2, corridor: 2 }
+// Big roads get a sidewalk on each side, this wide.
+const SIDEWALK_M = { trunk: 4, primary: 4, secondary: 3.5, tertiary: 3 }
+const PATH_WIDTH_M = { pedestrian: 5, footway: 2.5, path: 2, steps: 2.5, cycleway: 2, corridor: 2 }
 
-const highways = ways.filter((e) => e.tags.highway && !below(e.tags) && !e.tags.highway.startsWith('motorway'))
+const highways = ways.filter(
+  (e) => e.tags.highway && !below(e.tags) && !e.tags.highway.startsWith('motorway') && nearFrame(e.geom.map(proj)),
+)
 const widthOf = (tags) => {
   const explicit = parseFloat(tags.width)
-  if (explicit > 0) return explicit
+  if (explicit > 0 && explicit < 60) return explicit
   const lanes = parseInt(tags.lanes)
   if (ROAD_WIDTH_M[tags.highway] && lanes > 0) return Math.max(lanes * 3.2, ROAD_WIDTH_M[tags.highway] / 2)
   return ROAD_WIDTH_M[tags.highway] ?? PATH_WIDTH_M[tags.highway] ?? 0
 }
-const roads = highways.filter((e) => ROAD_WIDTH_M[e.tags.highway]).sort((a, b) => widthOf(b.tags) - widthOf(a.tags))
-for (const e of roads) drawLine(e.geom.map(proj), widthOf(e.tags) / ts, T.ROAD)
 
-const paths = highways.filter((e) => PATH_WIDTH_M[e.tags.highway])
-for (const e of paths) {
+const roadWays = highways
+  .filter((e) => ROAD_WIDTH_M[e.tags.highway])
+  .sort((a, b) => widthOf(b.tags) - widthOf(a.tags))
+const roads = []
+for (const e of roadWays) {
+  const pts = e.geom.map(proj)
+  const w = widthOf(e.tags)
+  const sw = SIDEWALK_M[e.tags.highway.replace('_link', '')] ?? 0
+  if (sw && !e.tags.highway.endsWith('_link')) drawLine(pts, w + sw * 2, T.SIDEWALK, [T.GROUND, T.PARKING, T.GRASS, T.SHRINE])
+  roads.push({ t: e.tags.highway, w: r1(w), s: sw, p: flat(pts), b: e.tags.bridge === 'yes' ? 1 : 0 })
+}
+for (const e of roadWays) drawLine(e.geom.map(proj), widthOf(e.tags), T.ROAD)
+
+const paths = []
+for (const e of highways.filter((e) => PATH_WIDTH_M[e.tags.highway])) {
   const pts = e.geom.map(proj)
   const crossing = e.tags.footway === 'crossing' || e.tags.cycleway === 'crossing'
-  if (e.tags.area === 'yes' && isClosed(e)) fillPolygon([pts], T.FOOTWAY)
-  else drawLine(pts, widthOf(e.tags) / ts, crossing ? T.CROSSING : T.FOOTWAY)
+  if (e.tags.area === 'yes' && isClosed(e)) {
+    fillPolygon([pts], T.FOOTWAY)
+    areas.push({ t: T.FOOTWAY, p: flat(pts), h: [] })
+  } else {
+    const w = crossing ? 4 : widthOf(e.tags)
+    drawLine(pts, w, crossing ? T.CROSSING : T.FOOTWAY)
+    paths.push({ t: crossing ? 'crossing' : e.tags.highway, w: r1(w), p: flat(pts) })
+  }
 }
-// Crossing nodes on roads get a small zebra patch.
+// Crossing nodes on roads without a mapped crossing way: a short zebra patch
+// across the road, perpendicular to it.
 for (const n of elements) {
   if (n.type !== 'node' || n.tags.highway !== 'crossing') continue
   const [x, y] = proj(n.pos)
-  drawLine([[x, y], [x + 0.01, y]], 4 / ts, T.CROSSING)
+  if (x < 0 || y < 0 || x > FW || y > FH) continue
+  let best = null
+  for (const r of roadWays) {
+    const g = r.geom
+    for (let i = 0; i + 1 < g.length; i++) {
+      const a = proj(g[i])
+      const b = proj(g[i + 1])
+      const dx = b[0] - a[0]
+      const dy = b[1] - a[1]
+      const len2 = dx * dx + dy * dy || 1e-9
+      const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / len2))
+      const d = Math.hypot(a[0] + t * dx - x, a[1] + t * dy - y)
+      if (!best || d < best.d) best = { d, dx, dy, w: widthOf(r.tags) }
+    }
+  }
+  if (!best || best.d > 3) continue
+  const len = Math.hypot(best.dx, best.dy)
+  const nx = -best.dy / len
+  const ny = best.dx / len
+  const half = best.w / 2
+  const pts = [
+    [x - nx * half, y - ny * half],
+    [x + nx * half, y + ny * half],
+  ]
+  drawLine(pts, 4, T.CROSSING)
+  paths.push({ t: 'crossing', w: 4, p: flat(pts) })
 }
 
-// 3. Buildings. Each building gets a variant (0-7) for its roof color.
-const buildings = ways.filter(
+// --- 3. Buildings ---------------------------------------------------------
+const buildings = []
+const buildingWays = ways.filter(
   (e) => e.tags.building && isClosed(e) && !below(e.tags) && !['roof', 'no', 'canopy'].includes(e.tags.building),
 )
-for (const e of buildings) fillPolygon(ringsOf(e), T.BUILDING, hash(e.id) % 8)
-
-// 4. Single trees, only where they don't land on a road or building.
-for (const n of elements) {
-  if (n.type !== 'node' || n.tags.natural !== 'tree') continue
-  const [x, y] = proj(n.pos).map(Math.floor)
-  const cur = tiles[y * W + x]
-  if ([T.GROUND, T.FOOTWAY, T.GRASS, T.WOODS, T.SHRINE, T.PARKING].includes(cur)) set(x, y, T.TREE)
+for (const e of buildingWays) {
+  const { outer, inner } = roleRings(e)
+  if (!outer.length || !outer.some(nearFrame)) continue
+  fillPolygon([...outer, ...inner], T.BUILDING)
+  const levels = parseFloat(e.tags['building:levels'])
+  const height = parseFloat(e.tags.height)
+  // Real heights would put 200 m towers on screen, so squash tall buildings:
+  // full height up to 3 floors, then gently rising, capped at 22 m.
+  const real = height > 0 ? height : levels > 0 ? levels * 3.2 : 8
+  const h = real <= 10 ? real : Math.min(22, 10 + Math.sqrt(real - 10) * 1.8)
+  const v = hash(e.id) % 8
+  for (const ring of outer) buildings.push({ p: flat(ring), h: r1(h), v, ho: inner.filter((r) => r.length > 3).map(flat) })
 }
 
-// Points of interest: named places the game can label and NPCs can talk about.
+// --- 4. Trees -------------------------------------------------------------
+const trees = []
+const WALKABLE_FOR_TREE = [T.GROUND, T.FOOTWAY, T.GRASS, T.WOODS, T.SHRINE, T.PARKING, T.SIDEWALK]
+const addTree = (x, y, s) => {
+  if (x < 1 || y < 1 || x > FW - 1 || y > FH - 1) return
+  if (!WALKABLE_FOR_TREE.includes(cellAt(x, y))) return
+  trees.push(r1(x), r1(y), Math.round(s * 100) / 100)
+}
+// Mapped trees.
+for (const n of elements) {
+  if (n.type !== 'node' || n.tags.natural !== 'tree') continue
+  const [x, y] = proj(n.pos)
+  addTree(x, y, 0.9 + rand() * 0.4)
+}
+// Street trees along the edge of big roads' sidewalks, every ~10 m.
+for (const r of roadWays) {
+  const sw = SIDEWALK_M[r.tags.highway]
+  if (!sw || sw < 3.5) continue
+  const pts = r.geom.map(proj)
+  const off = widthOf(r.tags) / 2 + 1
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [ax, ay] = pts[i]
+    const [bx, by] = pts[i + 1]
+    const len = Math.hypot(bx - ax, by - ay)
+    const nx = -(by - ay) / len
+    const ny = (bx - ax) / len
+    for (let d = 5; d < len - 3; d += 10) {
+      const px = ax + ((bx - ax) * d) / len
+      const py = ay + ((by - ay) * d) / len
+      for (const side of [-1, 1]) {
+        const tx = px + nx * off * side
+        const ty = py + ny * off * side
+        if (cellAt(tx, ty) === T.SIDEWALK) addTree(tx, ty, 0.8 + rand() * 0.3)
+      }
+    }
+  }
+}
+// Woods are thick with trees; parks get scattered ones.
+for (let y = 2; y < FH - 2; y += 4) {
+  for (let x = 2; x < FW - 2; x += 4) {
+    const jx = x + (rand() - 0.5) * 3
+    const jy = y + (rand() - 0.5) * 3
+    const c = cellAt(jx, jy)
+    const p = rand()
+    if ((c === T.WOODS && p < 0.6) || (c === T.GRASS && p < 0.12) || (c === T.SHRINE && p < 0.08))
+      addTree(jx, jy, 0.9 + rand() * 0.6)
+  }
+}
+for (let i = 0; i < trees.length; i += 3) {
+  const x = Math.floor(trees[i] / cell)
+  const y = Math.floor(trees[i + 1] / cell)
+  setCell(x, y, T.TREE)
+}
+
+// --- Places and streets ---------------------------------------------------
 function kindOf(tags) {
   if (tags.railway === 'station' || tags.public_transport === 'station') return 'station'
   if (tags.railway === 'subway_entrance') return 'exit'
@@ -230,16 +416,14 @@ function kindOf(tags) {
   if (tags.building || tags.landuse) return 'building'
   return null
 }
-const centroid = (rings) => {
+const centroid = (ring) => {
   let sx = 0
   let sy = 0
-  let n = 0
-  for (const p of rings[0]) {
+  for (const p of ring) {
     sx += p[0]
     sy += p[1]
-    n++
   }
-  return [sx / n, sy / n]
+  return [sx / ring.length, sy / ring.length]
 }
 const pois = []
 for (const e of elements) {
@@ -247,9 +431,9 @@ for (const e of elements) {
   if (!name || e.tags.highway || e.tags.route) continue
   const kind = kindOf(e.tags)
   if (!kind) continue
-  const [x, y] = e.type === 'node' ? proj(e.pos) : centroid(ringsOf(e))
-  if (x < 0 || y < 0 || x >= W || y >= H) continue
-  const poi = { name, kind, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 }
+  const [x, y] = e.type === 'node' ? proj(e.pos) : centroid(ringsOf(e)[0] ?? [[-1, -1]])
+  if (x < 0 || y < 0 || x >= FW || y >= FH) continue
+  const poi = { name, kind, x: r1(x), y: r1(y) }
   const en = e.tags['name:en'] ?? e.tags['name:ja-Latn'] ?? e.tags['name:ja_rm']
   if (en && en !== name) poi.nameEn = en
   if (e.tags['name:ja-Hira']) poi.kana = e.tags['name:ja-Hira']
@@ -257,49 +441,66 @@ for (const e of elements) {
   pois.push(poi)
 }
 
-// Named streets, so the game can say which street you're on.
 const streets = []
-for (const e of roads) {
+for (const e of roadWays) {
   if (!e.tags.name) continue
-  const s = { name: e.tags.name, pts: e.geom.map(proj).map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]) }
+  const s = { name: e.tags.name, pts: e.geom.map(proj).map(([x, y]) => [r1(x), r1(y)]) }
   if (e.tags['name:en']) s.nameEn = e.tags['name:en']
   streets.push(s)
 }
 
-// Spawn on the walkable tile nearest the configured spawn point.
+// --- Spawn ----------------------------------------------------------------
 const BLOCKED = new Set([T.BUILDING, T.WATER, T.TREE, T.VOID])
-const [sx0, sy0] = proj([AREA.spawn.lat, AREA.spawn.lon]).map(Math.floor)
+const [sx0, sy0] = proj([AREA.spawn.lat, AREA.spawn.lon]).map((v) => Math.floor(v / cell))
 let spawn = null
 for (let r = 0; !spawn && r < 200; r++) {
   for (let y = sy0 - r; y <= sy0 + r && !spawn; y++)
     for (let x = sx0 - r; x <= sx0 + r && !spawn; x++)
-      if (x >= 0 && y >= 0 && x < W && y < H && !BLOCKED.has(tiles[y * W + x])) spawn = { x, y }
+      if (x >= 0 && y >= 0 && x < GW && y < GH && !BLOCKED.has(grid[y * GW + x]))
+        spawn = { x: (x + 0.5) * cell, y: (y + 0.5) * cell }
 }
 
-const counts = {}
-for (const k of Object.keys(T)) counts[k] = 0
+// --- Output ---------------------------------------------------------------
+// Run-length encode the grid as (value, count ≤ 255) byte pairs.
+const rle = []
+for (let i = 0; i < grid.length; ) {
+  const v = grid[i]
+  let n = 1
+  while (i + n < grid.length && grid[i + n] === v && n < 255) n++
+  rle.push(v, n)
+  i += n
+}
+
+const counts = Object.fromEntries(Object.keys(T).map((k) => [k, 0]))
 const names = Object.fromEntries(Object.entries(T).map(([k, v]) => [v, k]))
-for (const t of tiles) counts[names[t]]++
+for (const t of grid) counts[names[t]]++
 
 await writeFile(
   output,
   JSON.stringify({
+    version: 2,
     id: AREA.id,
     name: AREA.name,
     nameEn: AREA.nameEn,
     attribution: osm.attribution,
     fetchedAt: osm.fetchedAt,
-    bbox: AREA.bbox,
-    tileSize: ts,
-    width: W,
-    height: H,
+    rotationDeg: AREA.rotationDeg,
+    width: FW,
+    height: FH,
     spawn,
-    tiles: Buffer.from(tiles).toString('base64'),
-    variants: Buffer.from(variants).toString('base64'),
+    grid: { cell, width: GW, height: GH, rle: Buffer.from(rle).toString('base64') },
+    buildings,
+    roads,
+    paths,
+    areas,
+    trees,
     pois,
     streets,
   }),
 )
-console.log(`Built ${W}x${H} map (${ts}m tiles) → ${output}`)
+console.log(`Built ${FW}×${FH} m map → ${output}`)
+console.log(
+  `${buildings.length} buildings, ${roads.length} roads, ${paths.length} paths, ${areas.length} areas, ${trees.length / 3} trees`,
+)
 console.log(`${pois.length} places, ${streets.length} named street segments, spawn at`, spawn)
-console.log('Tile counts:', counts)
+console.log('Grid cells:', counts)

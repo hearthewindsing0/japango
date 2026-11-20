@@ -1,4 +1,4 @@
-import { BLOCKED } from './tiles'
+import { BLOCKED, T } from './tiles'
 
 export type PoiKind =
   | 'station'
@@ -30,42 +30,84 @@ export interface Street {
   pts: [number, number][]
 }
 
-interface MapFile {
+/** Flat [x0, y0, x1, y1, …] coordinate list, in meters. */
+export type Flat = number[]
+
+export interface MapFile {
+  version: 2
   id: string
   name: string
   nameEn: string
   attribution: string
   fetchedAt?: string
-  tileSize: number
+  /** How far the map is turned from north-up, counter-clockwise, in degrees. */
+  rotationDeg: number
   width: number
   height: number
   spawn: { x: number; y: number }
-  tiles: string
-  variants: string
+  grid: { cell: number; width: number; height: number; rle: string }
+  buildings: { p: Flat; h: number; v: number; ho?: Flat[] }[]
+  roads: { t: string; w: number; s: number; p: Flat; b: number }[]
+  paths: { t: string; w: number; p: Flat }[]
+  areas: { t: number; p: Flat; h: Flat[] }[]
+  /** [x, y, scale] triples. */
+  trees: number[]
   pois: Poi[]
   streets: Street[]
 }
 
-export interface GameMap extends Omit<MapFile, 'tiles' | 'variants'> {
-  tiles: Uint8Array
-  variants: Uint8Array
+export interface GameMap extends Omit<MapFile, 'grid'> {
+  cell: number
+  gridW: number
+  gridH: number
+  grid: Uint8Array
 }
 
-const decode = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+function decodeRle(b64: string, size: number) {
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+  const out = new Uint8Array(size)
+  let o = 0
+  for (let i = 0; i < bytes.length; i += 2) {
+    out.fill(bytes[i], o, o + bytes[i + 1])
+    o += bytes[i + 1]
+  }
+  return out
+}
 
 export async function loadMap(id: string): Promise<GameMap> {
   const res = await fetch(`${import.meta.env.BASE_URL}maps/${id}.json`)
   if (!res.ok) throw new Error(`Map "${id}" not found (${res.status})`)
   const file = (await res.json()) as MapFile
-  return { ...file, tiles: decode(file.tiles), variants: decode(file.variants) }
+  if (file.version !== 2) throw new Error(`Map "${id}" is an old format. Run npm run map:build.`)
+  const { grid, ...rest } = file
+  return {
+    ...rest,
+    cell: grid.cell,
+    gridW: grid.width,
+    gridH: grid.height,
+    grid: decodeRle(grid.rle, grid.width * grid.height),
+  }
 }
 
-export function tileAt(map: GameMap, x: number, y: number) {
-  if (x < 0 || y < 0 || x >= map.width || y >= map.height) return 0
-  return map.tiles[y * map.width + x]
+/** Ground type at a point in meters. */
+export function cellAt(map: GameMap, x: number, y: number) {
+  const cx = Math.floor(x / map.cell)
+  const cy = Math.floor(y / map.cell)
+  if (cx < 0 || cy < 0 || cx >= map.gridW || cy >= map.gridH) return T.VOID
+  return map.grid[cy * map.gridW + cx]
 }
 
-export const isBlocked = (map: GameMap, x: number, y: number) => BLOCKED.has(tileAt(map, x, y))
+export const isBlocked = (map: GameMap, x: number, y: number) => BLOCKED.has(cellAt(map, x, y))
+
+/** True if a circle of radius r at (x, y) overlaps anything solid. */
+export function circleBlocked(map: GameMap, x: number, y: number, r: number) {
+  if (isBlocked(map, x, y)) return true
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2
+    if (isBlocked(map, x + Math.cos(a) * r, y + Math.sin(a) * r)) return true
+  }
+  return false
+}
 
 function distToSegment(px: number, py: number, [ax, ay]: [number, number], [bx, by]: [number, number]) {
   const dx = bx - ax
@@ -75,8 +117,8 @@ function distToSegment(px: number, py: number, [ax, ay]: [number, number], [bx, 
   return Math.hypot(ax + t * dx - px, ay + t * dy - py)
 }
 
-/** The named street within `maxDist` tiles of (x, y), if any. */
-export function streetNear(map: GameMap, x: number, y: number, maxDist = 8): Street | null {
+/** The named street within `maxDist` meters of (x, y), if any. */
+export function streetNear(map: GameMap, x: number, y: number, maxDist = 14): Street | null {
   let best: Street | null = null
   let bestD = maxDist
   for (const s of map.streets) {
@@ -106,16 +148,16 @@ const KIND_RANK: Record<PoiKind, number> = {
   amenity: 5,
 }
 
-/** Places inside a rectangle, most important first. */
-export function poisIn(map: GameMap, x0: number, y0: number, x1: number, y1: number, limit: number) {
+/** Places within `radius` meters, most important first. */
+export function poisNear(map: GameMap, x: number, y: number, radius: number, limit: number) {
   return map.pois
-    .filter((p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1)
+    .filter((p) => Math.abs(p.x - x) <= radius && Math.abs(p.y - y) <= radius * 0.8)
     .sort((a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind])
     .slice(0, limit)
 }
 
-/** The closest place within `maxDist` tiles. */
-export function nearestPoi(map: GameMap, x: number, y: number, maxDist = 12) {
+/** The closest place within `maxDist` meters. */
+export function nearestPoi(map: GameMap, x: number, y: number, maxDist = 25) {
   let best: Poi | null = null
   let bestD = maxDist
   for (const p of map.pois) {
