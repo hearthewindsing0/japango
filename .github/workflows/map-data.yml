@@ -1,31 +1,49 @@
-# Downloads OpenStreetMap data for the game area and rebuilds the tile map,
-# then commits the result to the same branch. Runs when the area or the map
-# scripts change, or by hand from the Actions tab.
+# Builds the game map for each area in areas/: downloads every data source
+# for it at once (OpenStreetMap, PLATEAU buildings/terrain/bridges, GSI
+# aerial roof colors, Mapillary, Wikipedia), builds the map, cuts it into
+# tiles and the dictionary, then commits the result to the same branch.
+#
+# To add or change an area, run this from the Actions tab ("Run workflow")
+# with an area id plus a center and size, or a box of corners. It writes
+# areas/<id>.json and builds it. With just an id it rebuilds that area;
+# "all" rebuilds every area.
 name: Map data
 
 on:
   workflow_dispatch:
+    inputs:
+      area:
+        description: 'Area id, like shibuya (lowercase, dashes ok), or "all"'
+        default: all
+      name:
+        description: 'New area: Japanese name, like 渋谷'
+        required: false
+      name_en:
+        description: 'New area: English name, like Shibuya'
+        required: false
+      center:
+        description: 'New area: center "lat,lon" (use with size)'
+        required: false
+      size:
+        description: 'New area: size in meters "width x height", like 1500x1200'
+        required: false
+      corners:
+        description: 'New area instead of center+size: "south,west,north,east"'
+        required: false
+      rotation:
+        description: 'Degrees to turn the map (counter-clockwise), so a main street runs across. Default 0'
+        required: false
+      spawn:
+        description: 'Where players start, "lat,lon" (default: the center)'
+        required: false
   # Nightly refresh at 3 AM in Tokyo. With Cloudflare set up, the fresh
   # tiles go straight to R2 instead of into the repo.
   schedule:
     - cron: '0 18 * * *'
   push:
     paths:
-      - scripts/area.mjs
-      - scripts/fetch-osm.mjs
-      - scripts/build-map.mjs
-      - scripts/build-tiles.mjs
-      - scripts/fetch-mapillary.mjs
-      - scripts/fetch-plateau.mjs
-      - scripts/fetch-terrain.mjs
-      - scripts/fetch-bridges.mjs
-      - scripts/fetch-wiki.mjs
-      - scripts/fetch-aerial.mjs
-      - scripts/build-dict.mjs
-      - scripts/build-dict.sh
-      - scripts/opening-hours.mjs
-      - scripts/cuisine.mjs
-      - scripts/fetch-sounds.mjs
+      - areas/**
+      - scripts/**
       - .github/workflows/map-data.yml
 
 permissions:
@@ -35,12 +53,41 @@ concurrency:
   group: map-data-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CF_READY: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+
 jobs:
-  build-map:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      areas: ${{ steps.list.outputs.areas }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        env:
+          AREA_INPUT: ${{ github.event.inputs.area }}
+        run: |
+          want="${AREA_INPUT:-all}"
+          if [ "$want" = all ]; then
+            areas=$(ls areas/*.json | xargs -n1 basename | sed 's/\.json$//' | jq -R . | jq -sc .)
+          else
+            echo "$want" | grep -Eq '^[a-z0-9-]+$' || { echo "::error::Area id must be lowercase letters, digits and dashes"; exit 1; }
+            areas=$(jq -nc --arg a "$want" '[$a]')
+          fi
+          echo "areas=$areas" >> "$GITHUB_OUTPUT"
+          echo "Areas: $areas"
+
+  build:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        area: ${{ fromJson(needs.plan.outputs.areas) }}
     env:
+      AREA: ${{ matrix.area }}
       MAPILLARY_TOKEN: ${{ secrets.MAPILLARY_TOKEN }}
-      FREESOUND_TOKEN: ${{ secrets.FREESOUND_TOKEN }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       WRANGLER_SEND_METRICS: 'false'
@@ -49,48 +96,101 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Fetch OpenStreetMap data
-        run: node scripts/fetch-osm.mjs
-      - name: Fetch PLATEAU 3D building data
-        run: node scripts/fetch-plateau.mjs
-      - name: Fetch PLATEAU terrain
-        run: node scripts/fetch-terrain.mjs
-      - name: Fetch PLATEAU bridges
-        run: node scripts/fetch-bridges.mjs
-      - name: Fetch Wikipedia places
-        run: node scripts/fetch-wiki.mjs
-      - name: Install script dependencies
-        run: npm ci
-      - name: Roof colors from GSI aerial photos
-        run: node scripts/fetch-aerial.mjs
-      - name: Fetch Mapillary street-level data
-        # Skipped until the MAPILLARY_TOKEN repository secret is set.
-        if: ${{ env.MAPILLARY_TOKEN != '' }}
-        run: node scripts/fetch-mapillary.mjs
-      - name: Build map
-        run: node scripts/build-map.mjs
-      - name: Cut the map into tiles
-        run: node scripts/build-tiles.mjs
+          cache: npm
+      - run: npm ci
+      - name: Add or change the area
+        if: ${{ github.event.inputs.center != '' || github.event.inputs.corners != '' || github.event.inputs.name != '' || github.event.inputs.rotation != '' || github.event.inputs.spawn != '' }}
+        env:
+          IN_NAME: ${{ github.event.inputs.name }}
+          IN_NAME_EN: ${{ github.event.inputs.name_en }}
+          IN_CENTER: ${{ github.event.inputs.center }}
+          IN_SIZE: ${{ github.event.inputs.size }}
+          IN_CORNERS: ${{ github.event.inputs.corners }}
+          IN_ROTATION: ${{ github.event.inputs.rotation }}
+          IN_SPAWN: ${{ github.event.inputs.spawn }}
+        run: |
+          args=(--id "$AREA")
+          [ -n "$IN_NAME" ] && args+=(--name "$IN_NAME")
+          [ -n "$IN_NAME_EN" ] && args+=(--name-en "$IN_NAME_EN")
+          [ -n "$IN_CENTER" ] && args+=(--center "$IN_CENTER")
+          [ -n "$IN_SIZE" ] && args+=(--size "$IN_SIZE")
+          [ -n "$IN_CORNERS" ] && args+=(--corners "$IN_CORNERS")
+          [ -n "$IN_ROTATION" ] && args+=(--rotation "$IN_ROTATION")
+          [ -n "$IN_SPAWN" ] && args+=(--spawn "$IN_SPAWN")
+          node scripts/add-area.mjs "${args[@]}"
+      - name: Check the area exists
+        run: test -f "areas/$AREA.json" || { echo "::error::No areas/$AREA.json. Give a center and size (or corners) to add it."; exit 1; }
+      - name: Download every source at once, build the map and tiles
+        run: node scripts/fetch-all.mjs
       - name: Japanese dictionary for the map's text (JMdict, Tatoeba, KANJIDIC2, KanjiVG)
         run: bash scripts/build-dict.sh
-      - name: City sounds from Freesound
-        # Skipped until the FREESOUND_TOKEN repository secret is set, and on
-        # nightly runs (the recordings don't need refreshing).
-        if: ${{ env.FREESOUND_TOKEN != '' && github.event_name != 'schedule' }}
-        run: node scripts/fetch-sounds.mjs
       - name: Upload the nightly refresh to R2
-        if: ${{ github.event_name == 'schedule' && env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
+        if: ${{ github.event_name == 'schedule' && env.CF_READY == 'true' }}
         run: node scripts/upload-r2.mjs
+      - name: Keep the result for the commit job
+        if: ${{ github.event_name != 'schedule' || env.CF_READY != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: area-${{ matrix.area }}
+          retention-days: 3
+          path: |
+            areas/${{ matrix.area }}.json
+            data/${{ matrix.area }}.*
+            public/tiles/${{ matrix.area }}/
+            public/dict/${{ matrix.area }}.json
+            public/dict/${{ matrix.area }}.*.json
+
+  sounds:
+    # City sounds are shared by every area. Skipped until the FREESOUND_TOKEN
+    # repository secret is set, and on nightly runs.
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'schedule' }}
+    env:
+      FREESOUND_TOKEN: ${{ secrets.FREESOUND_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ env.FREESOUND_TOKEN != '' }}
+      - uses: actions/setup-node@v4
+        if: ${{ env.FREESOUND_TOKEN != '' }}
+        with:
+          node-version: 22
+      - name: City sounds from Freesound
+        if: ${{ env.FREESOUND_TOKEN != '' }}
+        run: node scripts/fetch-sounds.mjs
+      - uses: actions/upload-artifact@v4
+        if: ${{ env.FREESOUND_TOKEN != '' }}
+        with:
+          name: sounds
+          retention-days: 3
+          path: public/sounds/
+
+  commit:
+    # One commit for all areas. Areas that built are committed even if
+    # another failed. Nightly runs only commit while there's no Cloudflare
+    # to upload to.
+    needs: [build, sounds]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        # Nothing to download when everything went to R2.
+        continue-on-error: true
+        with:
+          path: /tmp/built
       - name: Commit map data
-        # Nightly runs only commit while there's no Cloudflare to upload to.
-        if: ${{ github.event_name != 'schedule' || env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == '' }}
         run: |
+          shopt -s nullglob
+          for d in /tmp/built/area-*; do cp -r "$d"/. .; done
+          [ -d /tmp/built/sounds ] && mkdir -p public/sounds && cp -r /tmp/built/sounds/. public/sounds/
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A data public/tiles public/dict public/sounds
+          git add -A areas data public/tiles public/dict public/sounds
           if git diff --cached --quiet; then
             echo "Map data unchanged."
           else
             git commit -m "Update map data from OpenStreetMap, PLATEAU and Mapillary"
+            # The branch may have moved on while the data was downloading.
+            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}"
             git push
           fi

@@ -1,6 +1,7 @@
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AREA_ID } from './game/area'
 import { DPad } from './game/DPad'
 import { hoursToday, isOpen, tokyoWeekMinute } from './game/hours'
 import { view } from './game/input'
@@ -90,7 +91,7 @@ export default function App() {
     }
   }, [word, wordHint])
   useEffect(() => {
-    loadDict('roppongi').then(setDict)
+    loadDict(AREA_ID).then(setDict)
   }, [])
   // People talking at the talking spots, and English under what they say.
   const [talk, setTalk] = useState<Talk | null>(null)
@@ -159,7 +160,7 @@ export default function App() {
   }, [params])
 
   useEffect(() => {
-    loadMap('roppongi')
+    loadMap(AREA_ID)
       .then((m) => {
         // ?at=x,y starts somewhere else (map meters), handy for testing.
         const at = new URLSearchParams(location.search).get('at')?.split(',').map(Number)
@@ -296,7 +297,7 @@ export default function App() {
         </p>
       </div>
     )
-  if (!map || !pos) return <div className="center-msg">読み込み中… Loading Roppongi</div>
+  if (!map || !pos) return <div className="center-msg">読み込み中… Loading</div>
 
   const words = WEATHER_WORDS[weather.kind]
   const rally = (map.discoveries ?? []).filter((d) => d.stamp)
