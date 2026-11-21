@@ -102,6 +102,64 @@ function groundGeometry(tile: MapTile) {
   return geo
 }
 
+/** Crosswalks cut to the part over the roadway: OpenStreetMap's crossing
+ *  ways often run onto the sidewalks, where nobody paints stripes. */
+function crossingsOnRoad(tile: MapTile) {
+  // Road segments as [ax, ay, bx, by, half width].
+  const segs: number[][] = []
+  for (const r of tile.roads) {
+    if (r.b) continue
+    for (let i = 0; i + 3 < r.p.length; i += 2) segs.push([r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], r.w / 2])
+  }
+  let near: number[][] = []
+  const onRoad = (x: number, y: number) => {
+    for (const [ax, ay, bx, by, half] of near) {
+      const dx = bx - ax
+      const dy = by - ay
+      const len2 = dx * dx + dy * dy || 1e-9
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / len2))
+      if (Math.hypot(ax + t * dx - x, ay + t * dy - y) < half) return true
+    }
+    return false
+  }
+  const out: { p: number[]; w: number }[] = []
+  const STEP = 0.3
+  for (const c of tile.paths) {
+    if (c.t !== 'crossing') continue
+    // Only the roads around this crossing.
+    let x0 = Infinity
+    let y0 = Infinity
+    let x1 = -Infinity
+    let y1 = -Infinity
+    for (let i = 0; i < c.p.length; i += 2) {
+      x0 = Math.min(x0, c.p[i])
+      x1 = Math.max(x1, c.p[i])
+      y0 = Math.min(y0, c.p[i + 1])
+      y1 = Math.max(y1, c.p[i + 1])
+    }
+    near = segs.filter(([ax, ay, bx, by, half]) => Math.max(ax, bx) + half > x0 && Math.min(ax, bx) - half < x1 && Math.max(ay, by) + half > y0 && Math.min(ay, by) - half < y1)
+    let run: number[] = []
+    const flush = () => {
+      if (run.length >= 4 && Math.hypot(run[run.length - 2] - run[0], run[run.length - 1] - run[1]) > 1.5) out.push({ p: run, w: Math.max(c.w, 4) })
+      run = []
+    }
+    for (let i = 0; i + 3 < c.p.length; i += 2) {
+      const ax = c.p[i]
+      const ay = c.p[i + 1]
+      const len = Math.hypot(c.p[i + 2] - ax, c.p[i + 3] - ay)
+      const n = Math.max(1, Math.ceil(len / STEP))
+      for (let k = i === 0 ? 0 : 1; k <= n; k++) {
+        const x = ax + ((c.p[i + 2] - ax) * k) / n
+        const y = ay + ((c.p[i + 3] - ay) * k) / n
+        if (onRoad(x, y)) run.push(x, y)
+        else flush()
+      }
+    }
+    flush()
+  }
+  return out
+}
+
 function useDisposable<T extends { dispose(): void }>(make: () => T, deps: unknown[]) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const value = useMemo(make, deps)
@@ -126,7 +184,7 @@ function Ground({ tile, clip, night }: { tile: MapTile; clip: THREE.Plane[]; nig
     const sidewalks = roads.filter((r) => r.s > 0).map((r) => ({ p: r.p, w: r.w + r.s * 2 }))
     const centerLines = roads.filter((r) => r.w >= 9).map((r) => r.p)
     const footways = tile.paths.filter((p) => p.t !== 'crossing')
-    const crossings = tile.paths.filter((p) => p.t === 'crossing')
+    const crossings = crossingsOnRoad(tile)
     const h = heightFn(tile)
     const c = cellOf(tile)
     return {
@@ -189,9 +247,12 @@ function Ground({ tile, clip, night }: { tile: MapTile; clip: THREE.Plane[]; nig
           varying vec2 vUv;
           void main() {
             #include <clipping_planes_fragment>
-            // Zebra bars run along the walking direction, 45 cm wide.
-            float bar = step(0.5, fract(vUv.y * 4.0 / 0.9));
-            if (bar < 0.5) discard;
+            // Zebra bars as painted in Japan: 45 cm white bars with 45 cm
+            // gaps, each spanning the crossing's width, so you step across
+            // them as you walk (u runs along the walk, in meters).
+            if (fract(vUv.x / 0.9) > 0.5) discard;
+            // A little asphalt either side of the bars.
+            if (vUv.y < 0.04 || vUv.y > 0.96) discard;
             gl_FragColor = vec4(vec3(0.93) * uBright, 1.0);
           }`,
       }),
