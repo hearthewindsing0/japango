@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DPad } from './game/DPad'
 import { hoursToday, isOpen, tokyoWeekMinute } from './game/hours'
 import { view } from './game/input'
@@ -114,21 +114,76 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const zoomBy = (f: number) => setDistance((d) => Math.min(MAX_DIST, Math.max(MIN_DIST, d * f)))
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === '+' || e.key === '=') setDistance((d) => Math.max(MIN_DIST, d / 1.25))
-      if (e.key === '-' || e.key === '_') setDistance((d) => Math.min(MAX_DIST, d * 1.25))
+      // Ctrl/Cmd +/− would zoom the whole page (and shrink the map and info
+      // boxes with it); zoom the camera instead.
+      const zoomKey = ['+', '=', '-', '_', '0'].includes(e.key)
+      if ((e.ctrlKey || e.metaKey) && zoomKey) e.preventDefault()
+      if (e.key === '+' || e.key === '=') zoomBy(1 / 1.25)
+      if (e.key === '-' || e.key === '_') zoomBy(1.25)
+      if (e.ctrlKey || e.metaKey) return
       if (e.key === 'm' || e.key === 'M') setBigMap((b) => !b)
       if (e.key === 'b' || e.key === 'B') setBook((b) => !b)
       if (e.key === 'f' || e.key === 'F') setFurigana((f) => !f)
       if (e.key === 'n' || e.key === 'N') setMuted((m) => !m)
       if (e.key === 'Escape') setWord(null)
     }
+    // Scrolling and trackpad pinches zoom the camera, never the page. A
+    // pinch arrives as a wheel event with ctrlKey set; it has to be stopped
+    // in a non-passive listener or the browser zooms the page out.
+    const onWheel = (e: WheelEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.('.stamp-book, .word-popup, .hud-discovery')) {
+        if (e.ctrlKey) e.preventDefault()
+        else return
+      }
+      e.preventDefault()
+      zoomBy(Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)))
+    }
+    // Safari's own pinch gesture.
+    let gestureScale = 1
+    const onGestureStart = (e: Event) => {
+      e.preventDefault()
+      gestureScale = 1
+    }
+    const onGestureChange = (e: Event) => {
+      e.preventDefault()
+      const scale = (e as unknown as { scale: number }).scale
+      zoomBy(gestureScale / scale)
+      gestureScale = scale
+    }
+    // Two-finger pinch on touch screens.
+    let pinch = 0
+    const spread = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) pinch = spread(e.touches)
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !pinch) return
+      e.preventDefault()
+      const now = spread(e.touches)
+      zoomBy(pinch / now)
+      pinch = now
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = 0
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
-
-  const onWheel = useCallback((e: React.WheelEvent) => {
-    setDistance((d) => Math.min(MAX_DIST, Math.max(MIN_DIST, d * Math.exp(e.deltaY * 0.0015))))
+    window.addEventListener('wheel', onWheel, { passive: false })
+    window.addEventListener('gesturestart', onGestureStart)
+    window.addEventListener('gesturechange', onGestureChange)
+    window.addEventListener('touchstart', onTouchStart, { passive: true })
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
+    window.addEventListener('touchend', onTouchEnd)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('wheel', onWheel)
+      window.removeEventListener('gesturestart', onGestureStart)
+      window.removeEventListener('gesturechange', onGestureChange)
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', onTouchEnd)
+    }
   }, [])
 
   // Walking up to a discovery finds it; a stamp gets stamped.
@@ -180,7 +235,6 @@ export default function App() {
   return (
     <div
       className="game"
-      onWheel={onWheel}
       onContextMenu={(e) => e.preventDefault()}
       onClick={() => setWord(null)}
       onPointerMove={(e) => {
@@ -287,11 +341,17 @@ export default function App() {
           🎴 スタンプ {rally.filter((d) => stamps.has(d.id)).length}/{rally.length}
         </button>
       )}
-      {Object.keys(soundCredits).length > 0 && (
-        <button className="hud-sound" onClick={() => setMuted((m) => !m)} aria-label={muted ? 'Sound on' : 'Sound off'}>
-          {muted ? '🔇' : '🔊'}
-        </button>
-      )}
+      <button
+        className={`hud-sound ${muted ? 'muted' : ''}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          setMuted((m) => !m)
+        }}
+        aria-pressed={muted}
+        title={muted ? 'Sound off. Click (or press N) to turn it on.' : 'Sound on. Click (or press N) to mute.'}
+      >
+        {muted ? '🔇 消音 Muted' : '🔊 音 Sound'}
+      </button>
       {toast && <div className="toast">{toast}</div>}
       {book && (
         <div className="stamp-book" onClick={() => setBook(false)}>
@@ -378,7 +438,7 @@ export default function App() {
       {word && dict && <WordPopup key={word.key} pick={word} dict={dict} furigana={furigana} onWord={setWord} onClose={() => setWord(null)} />}
 
       <div className="hud-help">
-        Move: arrows / WASD · Run: Shift · Zoom: scroll or +/− · Turn: Q/E or right-drag · Map: M · Stamps: B · Furigana: F · Sound: N · Tap a word for its word card
+        Move: arrows / WASD · Run: Shift · Zoom: scroll, pinch or +/− · Turn: Q/E or right-drag · Map: M · Stamps: B · Furigana: F · Sound: N · Tap a word for its word card
       </div>
       <DPad />
       <div className="attribution">

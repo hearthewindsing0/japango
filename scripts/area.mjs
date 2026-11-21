@@ -18,6 +18,7 @@ export const AREA = {
   height: 800,
   // Collision and minimap grid resolution, in meters.
   cell: 1,
-  // Where the player starts: Roppongi Crossing (六本木交差点).
-  spawn: { lat: 35.663173, lon: 139.732354 },
+  // Where the player starts: the middle of Roppongi Crossing (六本木交差点),
+  // the average of the four junction nodes of Roppongi-dori × Gaien-Higashi-dori.
+  spawn: { lat: 35.663249, lon: 139.7323 },
 }

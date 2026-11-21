@@ -16,6 +16,7 @@ body,
 .game {
   position: fixed;
   inset: 0;
+  touch-action: none;
 }
 .center-msg {
   display: grid;
@@ -564,13 +565,18 @@ rt {
   position: absolute;
   top: 146px;
   right: 150px;
-  width: 34px;
   height: 31px;
+  padding: 0 12px;
   border: 0;
   border-radius: 999px;
   background: rgba(17, 17, 20, 0.78);
-  font-size: 15px;
+  color: #fff;
+  font-size: 13px;
+  white-space: nowrap;
   cursor: pointer;
+}
+.hud-sound.muted {
+  background: rgba(229, 72, 77, 0.85);
 }
 @media (max-width: 640px) {
   .hud-sound {
