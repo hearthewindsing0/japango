@@ -350,10 +350,6 @@ code {
 
 /* Slope sign card, shown when standing by a 坂 sign. */
 .hud-slope {
-  position: absolute;
-  left: 50%;
-  bottom: 64px;
-  transform: translateX(-50%);
   padding: 10px 16px;
   border-radius: 10px;
   background: rgba(30, 41, 59, 0.88);
@@ -383,10 +379,6 @@ code {
 
 /* Discovery card: a place with a Wikipedia article, next to the player. */
 .hud-discovery {
-  position: absolute;
-  left: 50%;
-  bottom: 56px;
-  transform: translateX(-50%);
   width: min(520px, calc(var(--hud-w, 100vw) - 32px));
   padding: 12px 16px;
   border-radius: 10px;
@@ -724,4 +716,86 @@ rt {
   font-weight: 700;
   font-size: 12px;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+/* Boxes at the bottom middle (overheard talk, a discovery, a slope or
+   station sign), stacked so they never overlap. */
+.hud-stack {
+  position: absolute;
+  left: 50%;
+  bottom: 56px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(var(--hud-w, 100vw) - 32px);
+}
+
+/* What the people nearby are saying. */
+.hud-talk {
+  width: min(560px, calc(var(--hud-w, 100vw) - 32px));
+  padding: 10px 16px 12px;
+  border-radius: 10px;
+  background: rgba(17, 20, 28, 0.88);
+  border: 1px solid rgba(148, 197, 255, 0.4);
+  line-height: 1.5;
+  transition: opacity 0.4s;
+}
+.hud-talk-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a9b4c4;
+}
+.hud-talk-head > span:first-child {
+  color: #94c5ff;
+  font-weight: 700;
+}
+.hud-talk-en {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(169, 180, 196, 0.5);
+  background: transparent;
+  color: #a9b4c4;
+  font-size: 11px;
+  cursor: pointer;
+}
+.hud-talk-en.on {
+  background: #94c5ff;
+  border-color: #94c5ff;
+  color: #11141c;
+}
+.hud-talk-line {
+  margin-top: 4px;
+  font-size: 20px;
+}
+.hud-talk-name {
+  margin-right: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 5px;
+  vertical-align: middle;
+}
+.hud-talk-line.s0 .hud-talk-name {
+  background: rgba(255, 159, 67, 0.25);
+  color: #ffc58f;
+}
+.hud-talk-line.s1 .hud-talk-name {
+  background: rgba(72, 219, 251, 0.22);
+  color: #9be8fb;
+}
+.hud-talk-tr {
+  margin-top: 2px;
+  font-size: 13px;
+  color: #c9d1dc;
+}
+.hud-talk-far,
+.hud-talk-note {
+  margin-top: 4px;
+  font-size: 14px;
+  color: #c9d1dc;
 }

@@ -1,0 +1,66 @@
+# Writes the conversations people have at the talking spots (Claude) and
+# voices them (Azure AI Speech), then rebuilds the dictionary so their words
+# get furigana and word cards, and commits the result. Run it by hand from
+# the Actions tab; it also runs when the conversation script changes.
+# Needs the ANTHROPIC_API_KEY repository secret; AZURE_SPEECH_KEY and
+# AZURE_SPEECH_REGION add the voices.
+name: Conversations
+
+on:
+  workflow_dispatch:
+    inputs:
+      redo:
+        description: Write every conversation again (otherwise only new scenes)
+        type: boolean
+        default: false
+  push:
+    paths:
+      - scripts/fetch-conversations.mjs
+      - .github/workflows/conversations.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: conversations-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  write:
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
+      AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
+    steps:
+      - name: Waiting for the Anthropic key
+        if: ${{ env.ANTHROPIC_API_KEY == '' }}
+        run: echo "::notice::Set the ANTHROPIC_API_KEY repository secret (and AZURE_SPEECH_KEY + AZURE_SPEECH_REGION for voices) to write conversations."
+      - uses: actions/checkout@v4
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+      - uses: actions/setup-node@v4
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        with:
+          node-version: 22
+      - name: Install
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        run: npm ci
+      - name: Write and voice the conversations
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        run: node scripts/fetch-conversations.mjs ${{ inputs.redo && '--redo' || '' }}
+      - name: Dictionary for the new words
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        run: bash scripts/build-dict.sh
+      - name: Commit
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A public/talk public/dict
+          if git diff --cached --quiet; then
+            echo "Conversations unchanged."
+          else
+            git commit -m "Update conversations at the talking spots"
+            git pull --rebase
+            git push
+          fi

@@ -10,7 +10,7 @@ on:
   # The Map data workflow's own commits don't start workflows, so deploy
   # after it finishes on main too.
   workflow_run:
-    workflows: [Map data]
+    workflows: [Map data, Conversations]
     types: [completed]
     branches: [main]
   workflow_dispatch:
