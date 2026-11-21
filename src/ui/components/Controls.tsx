@@ -15,7 +15,7 @@ export function Switch({ className, ...props }: ComponentProps<typeof RxSwitch.R
       )}
       {...props}
     >
-      <span className="pointer-events-none absolute left-2 font-arcade text-[8px] text-ink opacity-0 group-data-[state=checked]:opacity-100">ON</span>
+      <span className="pointer-events-none absolute left-2 font-arcade text-[8px] text-sumi opacity-0 group-data-[state=checked]:opacity-100">ON</span>
       <span className="pointer-events-none absolute right-1.5 font-arcade text-[8px] text-paper-dim group-data-[state=checked]:opacity-0">OFF</span>
       <RxSwitch.Thumb className="block h-5 w-6 rounded-full translate-x-1 bg-paper shadow-[inset_0_-3px_0_var(--color-paper-dim)] transition-transform duration-100 data-[state=checked]:translate-x-9" />
     </RxSwitch.Root>
@@ -41,7 +41,7 @@ export function Toggle({ className, size = 'sm', ...props }: ComponentProps<type
     <RxToggle.Root
       className={cn(
         buttonVariants({ variant: 'secondary', size }),
-        'data-[state=on]:bg-kin data-[state=on]:text-ink data-[state=on]:shadow-[inset_0_-1px_0_var(--color-kin-dark)] data-[state=on]:translate-y-[2px]',
+        'data-[state=on]:bg-kin data-[state=on]:text-sumi data-[state=on]:shadow-[inset_0_-1px_0_var(--color-kin-dark)] data-[state=on]:translate-y-[2px]',
         className,
       )}
       {...props}
@@ -86,8 +86,8 @@ export function Meter({
   const filled = Math.round((Math.max(0, Math.min(max, value)) / max) * segments)
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      {label && <span className="font-arcade text-[0.6em] text-kin">{label}</span>}
-      <RxProgress.Root value={value} max={max} className="flex flex-1 gap-[3px] rounded-md bg-ink/80 p-[3px] shadow-[inset_0_0_0_1px_rgb(244_236_216/0.3)]">
+      {label && <span className="font-arcade text-[0.6em] text-gold">{label}</span>}
+      <RxProgress.Root value={value} max={max} className="flex flex-1 gap-[3px] rounded-md bg-ink/80 p-[3px] shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-paper)_30%,transparent)]">
         {Array.from({ length: segments }, (_, i) => (
           <span key={i} className="h-2.5 flex-1 rounded-[2px]" style={{ background: i < filled ? color : 'var(--color-ink-3)' }} />
         ))}
@@ -124,12 +124,12 @@ export function TabsContent({ className, ...props }: ComponentProps<typeof RxTab
 export const TooltipProvider = RxTooltip.Provider
 
 export function Tooltip({ content, children, side = 'top' }: { content: ReactNode; children: ReactNode; side?: 'top' | 'bottom' | 'left' | 'right' }) {
-  const { scale } = useUiScale()
+  const { scale, theme } = useUiScale()
   return (
     <RxTooltip.Root>
       <RxTooltip.Trigger asChild>{children}</RxTooltip.Trigger>
       <RxTooltip.Portal>
-        <RxTooltip.Content side={side} sideOffset={6} className="jg-ui z-50 animate-pop drop-hard-sm" style={{ zoom: scale }}>
+        <RxTooltip.Content side={side} sideOffset={6} className="jg-ui z-50 animate-pop drop-hard-sm" data-theme={theme} style={{ zoom: scale }}>
           <div className="corner-sm bg-paper px-2.5 py-1 text-sm text-ink">{content}</div>
         </RxTooltip.Content>
       </RxTooltip.Portal>

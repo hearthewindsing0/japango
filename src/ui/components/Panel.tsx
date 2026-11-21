@@ -10,10 +10,10 @@ export const panelVariants = cva('corner relative p-4', {
   variants: {
     tone: {
       ink: 'bg-ink/90 text-paper frame',
-      paper: 'bg-paper text-ink [box-shadow:inset_0_0_0_1px_rgb(13_12_18/0.12)] [&_rt]:text-ink/60',
+      paper: 'jg-paper bg-paper text-ink [box-shadow:inset_0_0_0_1px_color-mix(in_oklab,var(--color-ink)_12%,transparent)] [&_rt]:text-ink/60',
       gold: 'bg-ink/90 text-paper frame-gold',
-      alert: 'bg-shu text-paper',
-      glass: 'bg-ink/70 text-paper backdrop-blur-sm [box-shadow:inset_0_0_0_1px_rgb(244_236_216/0.25)]',
+      alert: 'bg-shu text-white',
+      glass: 'bg-ink/70 text-paper backdrop-blur-sm [box-shadow:inset_0_0_0_1px_color-mix(in_oklab,var(--color-paper)_25%,transparent)]',
     },
     size: {
       sm: 'p-2 text-sm',
@@ -45,7 +45,7 @@ export function PanelTitle({
 }: ComponentProps<'div'> & { aside?: ReactNode }) {
   return (
     <div className={cn('mb-3 flex items-center gap-2 border-b border-current/15 pb-2', className)} {...props}>
-      <span className="font-arcade text-[0.62em] tracking-wider text-kin uppercase">{children}</span>
+      <span className="font-arcade text-[0.62em] tracking-wider text-gold uppercase">{children}</span>
       {aside && <span className="ml-auto flex items-center gap-1">{aside}</span>}
     </div>
   )

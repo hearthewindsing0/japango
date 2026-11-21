@@ -34,10 +34,10 @@ function dismiss(id: number) {
 
 const ICON: Record<ToastKind, string> = { stamp: '🎴', info: '✦', discovery: '★', warn: '!' }
 const TONE: Record<ToastKind, string> = {
-  stamp: 'bg-shu text-paper',
+  stamp: 'bg-shu text-white',
   info: 'bg-ink text-paper frame',
   discovery: 'bg-ink text-paper frame-gold',
-  warn: 'bg-kin text-ink',
+  warn: 'bg-kin text-sumi',
 }
 
 /** Renders toasts. Put one inside your UiRoot. */
@@ -46,7 +46,7 @@ export function Toaster({ position = 'top' }: { position?: 'top' | 'bottom' }) {
     (l) => (listeners.add(l), () => listeners.delete(l)),
     () => items,
   )
-  const { scale } = useUiScale()
+  const { scale, theme } = useUiScale()
   return (
     <RxToast.Provider swipeDirection="up">
       {list.map((t) => (
@@ -70,6 +70,7 @@ export function Toaster({ position = 'top' }: { position?: 'top' | 'bottom' }) {
           'jg-ui fixed left-1/2 z-50 flex w-max max-w-[calc(100vw-32px)] -translate-x-1/2 flex-col items-center gap-2 outline-none',
           position === 'top' ? 'top-[18%]' : 'bottom-[18%]',
         )}
+        data-theme={theme}
         style={{ zoom: scale }}
       />
     </RxToast.Provider>

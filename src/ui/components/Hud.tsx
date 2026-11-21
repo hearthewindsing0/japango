@@ -17,7 +17,7 @@ export function ScaleControl({ className }: { className?: string }) {
       <Button size="sm" onClick={() => step(-1)} disabled={scale <= UI_SIZES[0]} aria-label="Smaller map and boxes" title="Smaller ([)">
         A−
       </Button>
-      <span className="w-10 text-center font-arcade text-[0.6em] text-kin">{scale}×</span>
+      <span className="w-10 text-center font-arcade text-[0.6em] text-gold">{scale}×</span>
       <Button size="sm" onClick={() => step(1)} disabled={scale >= UI_SIZES[UI_SIZES.length - 1]} aria-label="Bigger map and boxes" title="Bigger (])">
         A+
       </Button>
@@ -131,7 +131,7 @@ export function Stamp({ spot, size = 88 }: { spot: StampSpot; size?: number }) {
           'grid place-items-center font-pixel text-[2em] leading-none',
           spot.got
             ? 'animate-stamp rotate-[-8deg] text-shu [box-shadow:inset_0_0_0_4px_var(--color-shu),inset_0_0_0_7px_transparent,inset_0_0_0_9px_var(--color-shu)] [clip-path:circle(50%)]'
-            : 'text-ink/30 [box-shadow:inset_0_0_0_3px_rgb(13_12_18/0.25)] [clip-path:circle(50%)] ',
+            : 'text-ink/30 [box-shadow:inset_0_0_0_3px_color-mix(in_oklab,var(--color-ink)_25%,transparent)] [clip-path:circle(50%)] ',
         )}
         style={{ width: size, height: size }}
       >
@@ -149,7 +149,7 @@ export function StampBook({ spots, found, total }: { spots: StampSpot[]; found?:
   return (
     <div className="text-ink">
       <p className="mb-3 text-sm text-ink/70">Find each place and walk up to its red marker.</p>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] justify-items-center gap-3 bg-[#efe3c4] p-3">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] justify-items-center gap-3 bg-ink/5 p-3">
         {spots.map((s) => (
           <Stamp key={s.id} spot={s} />
         ))}
@@ -289,15 +289,15 @@ export function Hotbar({ slots, className }: { slots: HotbarSlot[]; className?: 
             aria-pressed={s.active}
             title={s.shortcut ? `${s.label} (${s.shortcut})` : s.label}
             className={cn(
-              'corner-sm relative flex w-16 flex-col items-center gap-0.5 bg-ink-3 px-1 pt-2 pb-1 text-paper shadow-[inset_0_-2px_0_var(--color-ink)] hover:bg-[#2f2b3d]',
-              'aria-pressed:bg-kin aria-pressed:text-ink aria-pressed:shadow-none',
+              'corner-sm relative flex w-16 flex-col items-center gap-0.5 bg-ink-3 px-1 pt-2 pb-1 text-paper shadow-[inset_0_-2px_0_var(--color-ink)] hover:bg-ink-4',
+              'aria-pressed:bg-kin aria-pressed:text-sumi aria-pressed:shadow-none',
             )}
           >
             <span className="text-2xl leading-none">{s.icon}</span>
             <span className="max-w-full truncate text-[0.7em]">{s.label}</span>
             {s.shortcut && <span className="absolute top-0.5 left-1 font-arcade text-[7px] opacity-60">{s.shortcut}</span>}
             {s.badge !== undefined && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-5 bg-shu px-1 font-arcade text-[8px] leading-5 text-paper [clip-path:circle(60%)]">{s.badge}</span>
+              <span className="absolute -top-0.5 -right-0.5 min-w-5 bg-shu px-1 font-arcade text-[8px] leading-5 text-white [clip-path:circle(60%)]">{s.badge}</span>
             )}
           </button>
         ))}
@@ -315,7 +315,7 @@ export function LoadingScreen({ progress, label = 'Loading map', tip }: { progre
   return (
     <div className="scanlines grid size-full place-items-center bg-ink p-6">
       <div className="w-full max-w-md text-center">
-        <div className="font-arcade text-xs tracking-widest text-kin">NOW LOADING</div>
+        <div className="font-arcade text-xs tracking-widest text-gold">NOW LOADING</div>
         <div className="mt-1 font-pixel text-3xl">
           ロード中<span className="animate-blink">…</span>
         </div>
@@ -337,7 +337,7 @@ export function TitleScreen({ title = 'JAPANGO', subtitle = '六本木 · Roppon
       <div className="pointer-events-none absolute top-[12%] left-1/2 size-40 -translate-x-1/2 rounded-full bg-[repeating-linear-gradient(transparent_0_10px,var(--color-ink)_10px_14px),linear-gradient(var(--color-kin),var(--color-shu))]" />
       <div className="relative text-center">
         <h1 className="font-arcade text-5xl text-paper [text-shadow:4px_4px_0_var(--color-shu),8px_8px_0_var(--color-ink)]">{title}</h1>
-        <div className="mt-3 text-xl text-kin">{subtitle}</div>
+        <div className="mt-3 text-xl text-gold">{subtitle}</div>
         {children ? <div className="mt-8 inline-block text-left">{children}</div> : <div className="mt-10 animate-blink font-arcade text-sm">{blink}</div>}
       </div>
     </div>

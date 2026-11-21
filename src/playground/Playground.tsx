@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, Button, Kbd, Slider, Switch, Toaster, TooltipProvider, UI_SIZES, UiRoot, cn } from '../ui'
+import { Badge, Button, Kbd, Slider, Switch, Toaster, TooltipProvider, UI_SIZES, UiRoot, cn, type UiTheme } from '../ui'
 import { STORIES } from './stories'
 import type { Control, Story } from './types'
 
@@ -84,6 +84,7 @@ export function Playground() {
   const [props, setProps] = useState<Record<string, unknown>>(() => defaults(current))
   const [scale, setScale] = useState(() => load('scale', window.innerWidth < 700 ? 1 : 1.5))
   const [backdrop, setBackdrop] = useState<Backdrop>(() => load('backdrop', 'night'))
+  const [theme, setTheme] = useState<UiTheme>(() => load('theme', 'dark'))
   const [query, setQuery] = useState('')
   const [log, setLog] = useState<LogLine[]>([])
   const [menu, setMenu] = useState(false)
@@ -102,6 +103,7 @@ export function Playground() {
   }, [])
   useEffect(() => save('scale', scale), [scale])
   useEffect(() => save('backdrop', backdrop), [backdrop])
+  useEffect(() => save('theme', theme), [theme])
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -126,7 +128,7 @@ export function Playground() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="jg-ui flex h-dvh flex-col bg-ink text-paper">
+      <div className="jg-ui flex h-dvh flex-col bg-ink text-paper" data-theme={theme}>
         {/* Top bar */}
         <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b-4 border-shu bg-ink-2 px-4 py-2">
           <button className="corner-sm bg-ink-3 px-2 py-1 md:hidden" onClick={() => setMenu((m) => !m)} aria-label="Components">
@@ -137,6 +139,19 @@ export function Playground() {
           </a>
           <span className="text-sm text-paper-dim">UI kit · 遊び場</span>
           <div className="ml-auto flex flex-wrap items-center gap-3 text-sm">
+            <div className="flex rounded-full bg-ink-3 p-0.5" role="radiogroup" aria-label="Theme">
+              {(['dark', 'light', 'system'] as const).map((t) => (
+                <button
+                  key={t}
+                  role="radio"
+                  aria-checked={theme === t}
+                  onClick={() => setTheme(t)}
+                  className={cn('rounded-full px-2.5 py-0.5 capitalize text-paper-dim', theme === t && 'bg-paper font-semibold text-ink')}
+                >
+                  {t === 'dark' ? '☾ Dark' : t === 'light' ? '☀ Light' : 'System'}
+                </button>
+              ))}
+            </div>
             <label className="flex items-center gap-2">
               <span className="text-paper-dim">Backdrop</span>
               <select
@@ -155,7 +170,7 @@ export function Playground() {
               <Button size="sm" onClick={() => setScale((s) => UI_SIZES[Math.max(0, UI_SIZES.indexOf(s as 1) - 1)] ?? 1)} disabled={scale <= 1}>
                 A−
               </Button>
-              <span className="w-10 text-center font-arcade text-[10px] text-kin">{scale}×</span>
+              <span className="w-10 text-center font-arcade text-[10px] text-gold">{scale}×</span>
               <Button size="sm" onClick={() => setScale((s) => UI_SIZES[Math.min(UI_SIZES.length - 1, UI_SIZES.indexOf(s as 1) + 1)] ?? 1)} disabled={scale >= 4}>
                 A+
               </Button>
@@ -179,7 +194,7 @@ export function Playground() {
             />
             {groups.map(([g, list]) => (
               <div key={g} className="mb-4">
-                <div className="mb-1 font-arcade text-[9px] tracking-widest text-kin uppercase">{g}</div>
+                <div className="mb-1 font-arcade text-[9px] tracking-widest text-gold uppercase">{g}</div>
                 {list.map((s) => (
                   <a
                     key={s.id}
@@ -210,7 +225,7 @@ export function Playground() {
                 <p className="text-sm text-paper-dim">{current.description}</p>
               </div>
               <div className="relative min-h-0 flex-1 overflow-auto" style={backdropStyle(backdrop)}>
-                <UiRoot scale={scale} onScaleChange={setScale} className={cn('min-h-full', fill ? 'h-full' : 'grid grid-cols-[minmax(0,1fr)] place-items-center p-8')} style={fill ? { height: `${100 / scale}%` } : { minHeight: `${100 / scale}%` }}>
+                <UiRoot theme={theme} scale={scale} onScaleChange={setScale} className={cn('min-h-full', fill ? 'h-full' : 'grid grid-cols-[minmax(0,1fr)] place-items-center p-8')} style={fill ? { height: `${100 / scale}%` } : { minHeight: `${100 / scale}%` }}>
                   {current.render(props as never, logFn)}
                   <Toaster />
                 </UiRoot>
@@ -221,7 +236,7 @@ export function Playground() {
             <aside className="flex w-full shrink-0 flex-col border-t-2 border-ink-3 bg-ink-2 lg:overflow-y-auto lg:w-80 lg:border-t-0 lg:border-l-2">
               <div className="p-3">
                 <div className="mb-2 flex items-center">
-                  <span className="font-arcade text-[9px] tracking-widest text-kin">PROPS</span>
+                  <span className="font-arcade text-[9px] tracking-widest text-gold">PROPS</span>
                   {controls.length > 0 && (
                     <button className="ml-auto text-xs text-paper-dim hover:text-paper" onClick={() => setProps(defaults(current))}>
                       ↺ reset
@@ -237,7 +252,7 @@ export function Playground() {
               </div>
               <div className="border-t-2 border-ink-3 p-3">
                 <div className="mb-2 flex items-center">
-                  <span className="font-arcade text-[9px] tracking-widest text-kin">CODE</span>
+                  <span className="font-arcade text-[9px] tracking-widest text-gold">CODE</span>
                   <button
                     className="ml-auto text-xs text-paper-dim hover:text-paper"
                     onClick={() => {
@@ -257,7 +272,7 @@ export function Playground() {
               </div>
               <div className="border-t-2 border-ink-3 p-3">
                 <div className="mb-2 flex items-center">
-                  <span className="font-arcade text-[9px] tracking-widest text-kin">ACTIONS</span>
+                  <span className="font-arcade text-[9px] tracking-widest text-gold">ACTIONS</span>
                   {log.length > 0 && (
                     <button className="ml-auto text-xs text-paper-dim hover:text-paper" onClick={() => setLog([])}>
                       clear
@@ -271,7 +286,7 @@ export function Playground() {
                     {log.map((l) => (
                       <li key={l.n} className="flex gap-2">
                         <span className="text-paper-dim">{l.t}</span>
-                        <span className="text-kin">{l.name}</span>
+                        <span className="text-gold">{l.name}</span>
                         <span className="truncate">{l.args}</span>
                       </li>
                     ))}
@@ -318,7 +333,7 @@ function ControlField({ name, control, value, onChange }: { name: string; contro
         <label className="grid gap-1">
           <span className="flex justify-between">
             {label}
-            <span className="font-arcade text-[9px] text-kin">{String(value)}</span>
+            <span className="font-arcade text-[9px] text-gold">{String(value)}</span>
           </span>
           <Slider value={[value as number]} min={control.min} max={control.max} step={control.step ?? 1} onValueChange={(v) => onChange(v[0])} />
         </label>

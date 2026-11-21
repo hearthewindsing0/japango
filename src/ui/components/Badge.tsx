@@ -23,8 +23,8 @@ export const badgeVariants = cva('inline-flex items-center gap-1 rounded-full px
       open: 'bg-paper text-shu font-bold',
       /** 準備中 / 閉店 */
       closed: 'bg-ink-3 text-paper-dim',
-      gold: 'bg-kin text-ink',
-      shu: 'bg-shu text-paper',
+      gold: 'bg-kin text-sumi',
+      shu: 'bg-shu text-white',
       outline: 'shadow-[inset_0_0_0_1px_currentColor]',
       neon: 'text-sora shadow-[inset_0_0_0_1.5px_var(--color-sora),0_0_8px_rgb(95_211_230/0.5)]',
     },

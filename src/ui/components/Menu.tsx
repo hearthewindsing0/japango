@@ -25,15 +25,15 @@ function Cursor() {
 
 /** Drop-down menu from a button (settings, options...). */
 export function Menu({ trigger, items, label }: { trigger: ReactNode; items: MenuItem[]; label?: ReactNode }) {
-  const { scale } = useUiScale()
+  const { scale, theme } = useUiScale()
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content sideOffset={6} align="start" className="jg-ui z-50 min-w-48 animate-pop drop-hard" style={{ zoom: scale }}>
+        <DropdownMenu.Content sideOffset={6} align="start" className="jg-ui z-50 min-w-48 animate-pop drop-hard" data-theme={theme} style={{ zoom: scale }}>
           <div className="corner bg-ink py-1.5 frame">
             <div className="px-1.5">
-              {label && <DropdownMenu.Label className="px-3 pb-1 font-arcade text-[0.6em] text-kin">{label}</DropdownMenu.Label>}
+              {label && <DropdownMenu.Label className="px-3 pb-1 font-arcade text-[0.6em] text-gold">{label}</DropdownMenu.Label>}
               {items.map((it, i) => (
                 <DropdownMenu.Item key={i} disabled={it.disabled} onSelect={it.onSelect} className={cn(itemClass, it.danger && 'text-shu')}>
                   <Cursor />

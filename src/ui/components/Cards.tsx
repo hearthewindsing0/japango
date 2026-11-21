@@ -173,7 +173,7 @@ export function SignCard({
   furigana?: boolean
   className?: string
 }) {
-  const plate = kind === 'station' ? 'bg-paper text-ink' : kind === 'door' ? 'bg-shu text-paper' : 'bg-[#2c5e3f] text-paper'
+  const plate = kind === 'station' ? 'jg-paper bg-paper text-ink' : kind === 'door' ? 'bg-shu text-white' : 'bg-[#2c5e3f] text-white'
   return (
     <div className={cn('w-80 max-w-full drop-hard', className)}>
       <div className={cn('corner px-4 py-3 [box-shadow:inset_0_0_0_2px_rgb(255_255_255/0.6)]', plate)}>
@@ -226,7 +226,7 @@ export function DiscoveryCard({
       {links && links.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-3 text-sm">
           {links.map((l) => (
-            <a key={l.href} href={l.href} target="_blank" rel="noreferrer" className="text-sora underline decoration-2 underline-offset-4 hover:bg-sora hover:text-ink">
+            <a key={l.href} href={l.href} target="_blank" rel="noreferrer" className="text-sora underline decoration-2 underline-offset-4 hover:bg-sora hover:text-sumi">
               {l.label} ↗
             </a>
           ))}
@@ -274,7 +274,7 @@ export function LocationPanel({
         {areaEn && <span className="text-sm text-paper-dim">{areaEn}</span>}
       </div>
       {(time || temp !== undefined) && (
-        <div className="mt-1 flex items-center gap-2 font-arcade text-[0.65em] text-kin">
+        <div className="mt-1 flex items-center gap-2 font-arcade text-[0.65em] text-gold">
           {time && <span>{time}</span>}
           <span className="text-[1.6em] leading-none">{WEATHER[weather]}</span>
           {temp !== undefined && <span>{temp}°C</span>}

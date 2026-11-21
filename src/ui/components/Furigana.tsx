@@ -61,7 +61,7 @@ export function Furigana({
           <button
             key={i}
             type="button"
-            className="rounded-sm underline decoration-current/35 decoration-1 underline-offset-[5px] hover:bg-kin hover:text-ink hover:decoration-transparent"
+            className="rounded-sm underline decoration-current/35 decoration-1 underline-offset-[5px] hover:bg-kin hover:text-sumi hover:decoration-transparent"
             onClick={(e) => {
               e.stopPropagation()
               onWord(key, e.currentTarget)

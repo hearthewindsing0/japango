@@ -4,15 +4,18 @@ import { cn } from '../lib/cn'
 /** The A−/A+ steps, same as the game's HUD (src/game/hud.ts). */
 export const UI_SIZES = [1, 1.5, 2, 3, 4] as const
 
+export type UiTheme = 'dark' | 'light' | 'system'
+
 interface UiScale {
+  theme: UiTheme
   scale: number
   setScale: (s: number) => void
   step: (dir: 1 | -1) => void
 }
 
-const UiScaleContext = createContext<UiScale>({ scale: 1, setScale: () => {}, step: () => {} })
+const UiScaleContext = createContext<UiScale>({ theme: 'dark', scale: 1, setScale: () => {}, step: () => {} })
 
-/** Current UI scale and the A−/A+ stepper. */
+/** Current UI scale, the A−/A+ stepper and the theme. Popups use it to match the root. */
 export function useUiScale() {
   return useContext(UiScaleContext)
 }
@@ -21,8 +24,10 @@ export function useUiScale() {
  * Root for every piece of game UI. Sets the theme scope (.jg-ui) and scales
  * everything inside as one with CSS zoom, so layouts reflow at the bigger
  * size instead of overflowing. Controlled (`scale` + `onScaleChange`) or not.
+ * `theme` picks dark (default), light, or the OS setting.
  */
 export function UiRoot({
+  theme = 'dark',
   scale: controlled,
   defaultScale = 1,
   onScaleChange,
@@ -30,6 +35,7 @@ export function UiRoot({
   style,
   children,
 }: {
+  theme?: UiTheme
   scale?: number
   defaultScale?: number
   onScaleChange?: (s: number) => void
@@ -54,10 +60,10 @@ export function UiRoot({
     },
     [scale, setScale],
   )
-  const value = useMemo(() => ({ scale, setScale, step }), [scale, setScale, step])
+  const value = useMemo(() => ({ theme, scale, setScale, step }), [theme, scale, setScale, step])
   return (
     <UiScaleContext.Provider value={value}>
-      <div className={cn('jg-ui', className)} style={{ zoom: scale, ...style }}>
+      <div className={cn('jg-ui', className)} data-theme={theme} style={{ zoom: scale, ...style }}>
         {children}
       </div>
     </UiScaleContext.Provider>
