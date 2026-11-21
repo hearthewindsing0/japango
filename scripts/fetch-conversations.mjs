@@ -8,7 +8,7 @@
 // Needs ANTHROPIC_API_KEY. With AZURE_SPEECH_KEY and AZURE_SPEECH_REGION the
 // lines are voiced too; without them the game shows subtitles only.
 //
-// Usage: node scripts/fetch-conversations.mjs [--redo] [--only=<scene id>]
+// Usage: bun scripts/fetch-conversations.mjs [--redo] [--only=<scene id>]
 // Scenes already written are kept; --redo writes them all again.
 import Anthropic from '@anthropic-ai/sdk'
 import { existsSync } from 'node:fs'

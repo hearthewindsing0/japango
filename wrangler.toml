@@ -7,7 +7,7 @@ compatibility_date = "2026-11-01"
 # Build the site before every deploy, so Cloudflare's own Git builds work
 # too (they only run `wrangler deploy` / `wrangler versions upload`).
 [build]
-command = "npm run build"
+command = "bun run build"
 
 [assets]
 directory = "./dist"

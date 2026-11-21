@@ -1,9 +1,14 @@
 ## Run it
 
 ```sh
-npm install
-npm run dev
+bun install
+bun run dev
 ```
+
+The project uses [Bun](https://bun.sh) (1.4 or newer) to install packages and
+run the map scripts; install it with `curl -fsSL https://bun.sh/install | bash`.
+Vite and wrangler run on Node.js when it is installed, otherwise on Bun. The
+game itself runs in the browser and the API on Cloudflare Workers as before.
 
 Move with the arrow keys or WASD, hold Shift to run, scroll or press +/− to
 zoom, and press M for the full map. On a phone, use the on-screen arrows.
@@ -20,17 +25,17 @@ crossings, paths, parks, low buildings with windows, and trees.
   center, size in meters and rotation, and the spawn point. The download box
   is worked out from that. Scripts build the area named by `AREA=<id>`
   (default `roppongi`), and the game plays `?area=<id>`.
-- `npm run map:area -- --id shibuya --name 渋谷 --name-en Shibuya --center
+- `bun run map:area -- --id shibuya --name 渋谷 --name-en Shibuya --center
   35.6595,139.7005 --size 1500x1200` adds an area (or `--corners
   south,west,north,east` instead of center and size; `--rotation` turns it).
-- `AREA=<id> npm run map:all` downloads every source below for that area at
+- `AREA=<id> bun run map:all` downloads every source below for that area at
   the same time, then builds the map and tiles. The Map data Action does the
   same on GitHub: "Run workflow" with an id plus a center and size (or
   corners) adds an area and builds it; nightly it rebuilds every area.
-- `npm run map:fetch` downloads the area from the Overpass API into `data/`.
-- `npm run map:build` converts it into `data/<area>.map.json`: vector shapes
+- `bun run map:fetch` downloads the area from the Overpass API into `data/`.
+- `bun run map:build` converts it into `data/<area>.map.json`: vector shapes
   for drawing, plus a 1 m grid for collisions and the minimap. It then cuts
-  that into 256 m tiles in `public/tiles/<area>/` (`npm run map:tiles`).
+  that into 256 m tiles in `public/tiles/<area>/` (`bun run map:tiles`).
   The game loads the manifest and streams the tiles within a few hundred
   meters of the player, so the map can grow without a bigger download.
   Each tile holds every shape that touches it and clips drawing to its own
@@ -38,16 +43,16 @@ crossings, paths, parks, low buildings with windows, and trees.
   Set `VITE_TILES_URL` to load tiles from somewhere else (Cloudflare R2).
 
 Street-level detail comes from [Mapillary](https://www.mapillary.com):
-`npm run map:mapillary` (needs a Mapillary client token in `MAPILLARY_TOKEN`)
+`bun run map:mapillary` (needs a Mapillary client token in `MAPILLARY_TOKEN`)
 downloads the street objects its detectors found in photos (street lights,
 utility poles, signs, benches, post boxes, ...) and measures building-front
 colors from photos. `map:build` then places those props and colors the walls.
 
 Building heights and the shape of the ground come from
 [PLATEAU](https://www.mlit.go.jp/plateau/), Japan's open 3D city models:
-`npm run map:plateau` downloads buildings with measured heights and
-`npm run map:terrain` a height grid of the bare ground, and
-`npm run map:bridges` footbridges and walkways as 3D surfaces. The elevated
+`bun run map:plateau` downloads buildings with measured heights and
+`bun run map:terrain` a height grid of the bare ground, and
+`bun run map:bridges` footbridges and walkways as 3D surfaces. The elevated
 Shuto Expressway is built from OpenStreetMap's motorway ways, at a deck
 height from their layer. Slopes are drawn at
 half their real steepness, to match the shortened buildings. Tokyo's named
@@ -61,7 +66,7 @@ the corner of the screen shows it in Japanese. Add `?time=21:30` or
 `?weather=rain` (also `snow`, `fog`, `overcast`, ...) to the URL to try
 others, and `?at=x,y` to start somewhere else.
 
-Places with a Wikipedia article (found through Wikidata, `npm run map:wiki`)
+Places with a Wikipedia article (found through Wikidata, `bun run map:wiki`)
 are marked in the world; walk up to one to read the opening lines of its
 Japanese and English articles. Ten landmarks form a stamp rally (スタンプラリー):
 press B for the stamp book. Shop signs go where Mapillary's detectors saw
@@ -72,7 +77,7 @@ Passers-by walk the sidewalks, more at lunch and in the evening (an
 estimated daily curve), fewer in the rain. Press F for furigana over the
 Japanese text, and tap a word for its reading and meaning: the Map data
 Action builds a small dictionary of the map's own text with kuromoji and
-[JMdict](https://www.edrdg.org/jmdict/j_jmdict.html) (`npm run map:dict`).
+[JMdict](https://www.edrdg.org/jmdict/j_jmdict.html) (`bun run map:dict`).
 The word card also shows the word's JLPT level (from the community lists in
 [open-anki-jlpt-decks](https://github.com/jamsinclair/open-anki-jlpt-decks),
 after Jonathan Waller's), an example sentence from
@@ -95,7 +100,7 @@ Background sound follows where you are: street noise that rises and falls
 with the crowd, night air after dark, rain, birds near parks (cicadas in
 summer), and the crossing chimes near pedestrian crossings. Press N or the
 speaker button to turn it off. The recordings are CC0 or CC BY clips from
-[Freesound](https://freesound.org) (`npm run map:sounds`, needs a Freesound
+[Freesound](https://freesound.org) (`bun run map:sounds`, needs a Freesound
 API key in `FREESOUND_TOKEN`); each one is credited at the bottom of the
 screen.
 
@@ -109,7 +114,7 @@ Map data © OpenStreetMap contributors, available under the
 Street-level data © Mapillary contributors, under
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 Buildings and terrain: 3D都市モデル（Project PLATEAU）国土交通省.
-Roof colors are measured from aerial photos (`npm run map:aerial`):
+Roof colors are measured from aerial photos (`bun run map:aerial`):
 出典：国土地理院ウェブサイト（地理院タイル シームレス空中写真）.
 Dictionary: JMdict © EDRDG (CC BY-SA 4.0).
 Place text from Wikipedia (CC BY-SA 4.0) and Wikidata (CC0).
@@ -187,7 +192,7 @@ needs the `CLOUDFLARE_API_TOKEN` (Workers, R2 and D1 edit rights) and
 The Map data Action also runs nightly at 3 AM Tokyo time. With Cloudflare
 set up, it uploads the fresh tiles to R2 instead of committing them.
 
-Run it all locally with `npm run cf:dev`, which uses wrangler's local D1
+Run it all locally with `bun run cf:dev`, which uses wrangler's local D1
 and R2.
 
 ## Code layout

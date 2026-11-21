@@ -8,7 +8,7 @@
 // with each kanji's meanings and readings (KANJIDIC2) and stroke order
 // (KanjiVG), loaded the first time a word card opens.
 //
-// Usage: node scripts/build-dict.mjs path/to/jmdict-examples-eng.json [path/to/kanjidic2-en.json]
+// Usage: bun scripts/build-dict.mjs path/to/jmdict-examples-eng.json [path/to/kanjidic2-en.json]
 // (plain jmdict-eng-*.json works too, without example sentences)
 //
 // JMdict and KANJIDIC2 © the Electronic Dictionary Research and Development
