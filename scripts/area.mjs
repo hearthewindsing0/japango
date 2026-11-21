@@ -1,24 +1,42 @@
-// The real-world area the game map covers.
+// The real-world area the game map covers, read from areas/<id>.json. Pick
+// the area with the AREA environment variable (default: roppongi). Make a
+// new one with scripts/add-area.mjs.
 //
-// `bbox` is what scripts/fetch-osm.mjs downloads. The playable map is a
-// `width` × `height` meter rectangle centered on `center` and turned by
-// `rotationDeg`, so that the main street runs straight across the screen.
-// It must fit inside the downloaded bbox. To grow it, enlarge the bbox too
-// and re-run `npm run map:fetch && npm run map:build`.
+// The playable map is a `width` × `height` meter rectangle centered on
+// `center` and turned by `rotationDeg` (counter-clockwise from east), so a
+// main street can run straight across the screen. `bbox`, what the fetch
+// scripts download, is worked out from that rectangle plus a margin.
+import { readFileSync } from 'node:fs'
+import { frameToLatLon } from './geo.mjs'
+
+export const AREA_ID = process.env.AREA || 'roppongi'
+if (!/^[a-z0-9-]+$/.test(AREA_ID)) throw new Error(`Bad area id "${AREA_ID}"`)
+
+const config = JSON.parse(readFileSync(new URL(`../areas/${AREA_ID}.json`, import.meta.url), 'utf8'))
+
+/** Downloads reach this far past the playable rectangle, in meters. */
+const MARGIN = 80
+
 export const AREA = {
-  id: 'roppongi',
-  name: '六本木',
-  nameEn: 'Roppongi',
-  bbox: { south: 35.6565, west: 139.7235, north: 35.669, east: 139.7385 },
-  center: { lat: 35.66275, lon: 139.731 },
-  // Roppongi-dori's bearing, counter-clockwise from east. Turning the map by
-  // this much makes Roppongi-dori horizontal.
-  rotationDeg: 30.7,
-  width: 1100,
-  height: 800,
-  // Collision and minimap grid resolution, in meters.
   cell: 1,
-  // Where the player starts: the middle of Roppongi Crossing (六本木交差点),
-  // the average of the four junction nodes of Roppongi-dori × Gaien-Higashi-dori.
-  spawn: { lat: 35.663249, lon: 139.7323 },
+  rotationDeg: 0,
+  spawn: config.center,
+  ...config,
+  bbox: config.bbox ?? frameBbox(config, MARGIN),
+}
+
+function frameBbox(a, m) {
+  const corners = [
+    [-m, -m],
+    [a.width + m, -m],
+    [-m, a.height + m],
+    [a.width + m, a.height + m],
+  ].map(([x, y]) => frameToLatLon(a, x, y))
+  const r = (v) => Math.round(v * 1e5) / 1e5
+  return {
+    south: r(Math.min(...corners.map((c) => c[0]))),
+    west: r(Math.min(...corners.map((c) => c[1]))),
+    north: r(Math.max(...corners.map((c) => c[0]))),
+    east: r(Math.max(...corners.map((c) => c[1]))),
+  }
 }

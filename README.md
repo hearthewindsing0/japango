@@ -16,8 +16,17 @@ Roppongi-dori runs straight across the screen (the minimap's compass points
 north), and drawn as smooth 3D shapes: roads with sidewalks and lane lines,
 crossings, paths, parks, low buildings with windows, and trees.
 
-- `scripts/area.mjs` sets the downloaded area, the playable rectangle and its
-  rotation, and the spawn point.
+- Each map area is a file in `areas/<id>.json`: the playable rectangle's
+  center, size in meters and rotation, and the spawn point. The download box
+  is worked out from that. Scripts build the area named by `AREA=<id>`
+  (default `roppongi`), and the game plays `?area=<id>`.
+- `npm run map:area -- --id shibuya --name 渋谷 --name-en Shibuya --center
+  35.6595,139.7005 --size 1500x1200` adds an area (or `--corners
+  south,west,north,east` instead of center and size; `--rotation` turns it).
+- `AREA=<id> npm run map:all` downloads every source below for that area at
+  the same time, then builds the map and tiles. The Map data Action does the
+  same on GitHub: "Run workflow" with an id plus a center and size (or
+  corners) adds an area and builds it; nightly it rebuilds every area.
 - `npm run map:fetch` downloads the area from the Overpass API into `data/`.
 - `npm run map:build` converts it into `data/<area>.map.json`: vector shapes
   for drawing, plus a 1 m grid for collisions and the minimap. It then cuts
@@ -152,7 +161,7 @@ the bar's building that looks onto the pavement, nearest its OSM point), so
 it follows the map when the area changes. The room itself is laid out in
 meters from that door in `src/game/interiors/antnbee.ts`, and the menu,
 phrases and signs live in `src/game/interiors/antnbee.json`. Start inside
-with `?at=702.5,498.9,5.56`.
+with `?at=1112.2,1039.1,11.73`.
 
 ## Hosting on Cloudflare
 

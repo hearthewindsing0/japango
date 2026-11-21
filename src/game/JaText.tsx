@@ -1,3 +1,4 @@
+import { AREA_ID } from './area'
 import { hudScale } from './hud'
 import { useEffect, useState } from 'react'
 import { loadKanji, type Dict, type Kanji } from './dict'
@@ -76,7 +77,7 @@ export function WordPopup({
   const [kanji, setKanji] = useState<Record<string, Kanji> | null>(null)
   useEffect(() => {
     let live = true
-    loadKanji('roppongi').then((k) => live && setKanji(k))
+    loadKanji(AREA_ID).then((k) => live && setKanji(k))
     return () => {
       live = false
     }
