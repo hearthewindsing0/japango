@@ -44,17 +44,22 @@ export function Labels({ map, tiles, x, y, distance, layer }: Props) {
       {pois.map((p) => (
         <div
           key={`${p.name}-${p.x}-${p.y}`}
-          className={`label label-${p.kind}`}
+          className={`label label-${p.kind}${p.fav ? ' label-fav' : ''}${p.gone ? ' label-gone' : ''}`}
           data-x={p.x}
           data-y={p.y}
           data-h={groundAt(map, p.x, p.y)}
           style={{ visibility: 'hidden' }}
         >
           <span className="label-ja">
-            {ICON[p.kind]} {p.name}
+            {p.fav ? '★' : ICON[p.kind]} {p.name}
             {p.ref ? ` ${p.ref}` : ''}
           </span>
-          {p.nameEn && <span className="label-en">{p.nameEn}</span>}
+          {p.nameEn && (
+            <span className="label-en">
+              {p.nameEn}
+              {p.gone ? ' (closed now)' : ''}
+            </span>
+          )}
         </div>
       ))}
     </div>

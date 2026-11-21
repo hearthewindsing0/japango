@@ -45,6 +45,16 @@ export function Minimap({ map, tiles, x, y, big }: { map: GameMap; tiles: MapTil
   return (
     <div className={`minimap ${big ? 'minimap-big' : ''}`}>
       <canvas ref={canvas} width={gw} height={gh} />
+      {(map.places ?? []).map((p) => (
+        <div
+          key={p.id}
+          className={`minimap-star${p.gone ? ' gone' : ''}`}
+          style={{ left: `${(p.x / map.width) * 100}%`, top: `${(p.y / map.height) * 100}%` }}
+          title={`${p.ja} ${p.en}`}
+        >
+          ★{big && <span>{p.en}</span>}
+        </div>
+      ))}
       <div className="minimap-dot" style={{ left: `${(x / map.width) * 100}%`, top: `${(y / map.height) * 100}%` }} />
       {/* The map is turned so the main street runs across; this points north. */}
       <svg ref={compass} className="compass" viewBox="-12 -12 24 24">

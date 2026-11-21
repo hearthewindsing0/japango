@@ -143,6 +143,32 @@ code {
   font-size: 10px;
   color: #3f3f46;
 }
+.label-fav .label-ja {
+  font-size: 15px;
+  color: #b45309;
+}
+.label-gone .label-ja {
+  color: #78716c;
+  font-style: italic;
+}
+.minimap-star {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  line-height: 1;
+  color: #f59e0b;
+  text-shadow: 0 0 2px #000, 0 0 2px #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.minimap-star.gone {
+  color: #d6d3d1;
+}
+.minimap-star span {
+  margin-left: 3px;
+  font-size: 11px;
+  color: #fff;
+}
 .label-station .label-ja,
 .label-sight .label-ja {
   font-size: 15px;

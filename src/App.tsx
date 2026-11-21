@@ -300,6 +300,14 @@ export default function App() {
         {place && (
           <div className="hud-near">
             近く: <JaText text={place.name} dict={dict} furigana={furigana} onWord={setWord} /> {place.nameEn && <span>{place.nameEn}</span>}
+            {place.gone && (
+              <div className="hud-near-info">
+                <span className="hud-open closed">
+                  <JaText text="閉店" dict={dict} furigana={furigana} onWord={setWord} />
+                </span>
+                <span className="hud-near-en">closed now, shown where it used to be</span>
+              </div>
+            )}
             {(place.cu || place.oh) && (
               <div className="hud-near-info">
                 {place.oh && (
