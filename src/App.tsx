@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DPad } from './game/DPad'
 import { hoursToday, isOpen, tokyoWeekMinute } from './game/hours'
 import { view } from './game/input'
@@ -44,6 +44,26 @@ export default function App() {
     setStamps((st) => saveSet('japango.stamps', new Set([...st, ...saved.stamps])))
   })
   const [book, setBook] = useState(false)
+  const [credits, setCredits] = useState(false)
+  // Controls list, opened with the Controls button or H; remembered.
+  const [help, setHelpState] = useState(() => {
+    try {
+      return localStorage.getItem('japango.help') === '1'
+    } catch {
+      return false
+    }
+  })
+  const setHelp = useCallback((v: boolean | ((h: boolean) => boolean)) => {
+    setHelpState((h) => {
+      const next = typeof v === 'function' ? v(h) : v
+      try {
+        localStorage.setItem('japango.help', next ? '1' : '0')
+      } catch {
+        // fine for this visit
+      }
+      return next
+    })
+  }, [])
   const [toast, setToast] = useState<string | null>(null)
   // Dictionary for furigana and tap-for-meaning.
   const [dict, setDict] = useState<Dict | null>(null)
@@ -131,6 +151,7 @@ export default function App() {
       if (e.key === 'b' || e.key === 'B') setBook((b) => !b)
       if (e.key === 'f' || e.key === 'F') setFurigana((f) => !f)
       if (e.key === 'n' || e.key === 'N') setMuted((m) => !m)
+      if (e.key === 'h' || e.key === 'H') setHelp((h) => !h)
       if (e.key === ']') hudStep.current(1)
       if (e.key === '[') hudStep.current(-1)
       if (e.key === 'Escape') setWord(null)
@@ -464,90 +485,152 @@ export default function App() {
         {word && dict && <WordPopup key={word.key} pick={word} dict={dict} furigana={furigana} onWord={setWord} onClose={() => setWord(null)} />}
 
         <DPad />
-      </div>
-      <div className="hud-help">
-        Move: arrows / WASD · Run: Shift · Zoom: scroll, pinch or +/− · Turn: Q/E or right-drag · Map: M · Stamps: B · Furigana: F · Sound: N · Bigger/smaller boxes: ] / [ · Tap a word for its word card
-      </div>
-      <div className="attribution">
-        Map data ©{' '}
-        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
-          OpenStreetMap contributors
-        </a>
-        {map.credits?.some((c) => c.includes('Mapillary')) && (
-          <>
-            {' · '}Street-level data ©{' '}
-            <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">
-              Mapillary
-            </a>{' '}
-            contributors,{' '}
-            <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">
-              CC BY-SA
-            </a>
-          </>
+        {help ? (
+          <div className="hud-help" onClick={(e) => e.stopPropagation()}>
+            <button className="hud-help-close" onClick={() => setHelp(false)} aria-label="Hide controls">
+              ✕
+            </button>
+            <dl>
+              {HELP.map(([k, v]) => (
+                <div key={k}>
+                  <dt>{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : (
+          <button
+            className="hud-help-open"
+            onClick={(e) => {
+              e.stopPropagation()
+              setHelp(true)
+              setCredits(false)
+            }}
+          >
+            ⌨ Controls (H)
+          </button>
         )}
-        {!params.get('weather') && (
-          <>
-            {' · '}
-            <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
-              Weather data by Open-Meteo.com
-            </a>
-          </>
-        )}
-        {dict && (
-          <>
-            {' · '}Dictionary:{' '}
-            <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noreferrer">
-              JMdict and KANJIDIC2 (EDRDG, CC BY-SA)
-            </a>
-            {', '}
-            <a href="https://tatoeba.org/" target="_blank" rel="noreferrer">
-              Tatoeba
-            </a>{' '}
-            (CC BY 2.0 FR),{' '}
-            <a href="https://kanjivg.tagaini.net/" target="_blank" rel="noreferrer">
-              KanjiVG
-            </a>{' '}
-            (CC BY-SA)
-          </>
-        )}
-        {map.credits?.some((c) => c.includes('国土地理院')) && (
-          <>
-            {' · '}Roof colors:{' '}
-            <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noreferrer">
-              出典：国土地理院ウェブサイト
-            </a>
-          </>
-        )}
-        {Object.keys(soundCredits).length > 0 && (
-          <>
-            {' · '}Sounds from Freesound:{' '}
-            {Object.values(soundCredits).map((c, i) => (
-              <span key={c.url}>
-                {i > 0 && ', '}
-                <a href={c.url} target="_blank" rel="noreferrer">
-                  {c.name}
-                </a>{' '}
-                by {c.author} (
-                <a href={c.licenseUrl} target="_blank" rel="noreferrer">
-                  {c.license}
-                </a>
-                )
-              </span>
-            ))}
-          </>
-        )}
-        {map.credits?.some((c) => c.includes('PLATEAU')) && (
-          <>
-            {' · '}Buildings and terrain:{' '}
-            <a href="https://www.mlit.go.jp/plateau/" target="_blank" rel="noreferrer">
-              3D都市モデル（Project PLATEAU）国土交通省
-            </a>
-          </>
-        )}
+        <div className={`attribution ${credits ? 'open' : ''}`} onClick={(e) => e.stopPropagation()}>
+          {credits ? (
+            <>
+              <button className="attribution-close" onClick={() => setCredits(false)} aria-label="Hide credits">
+                ✕
+              </button>
+              Map data ©{' '}
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+                OpenStreetMap contributors
+              </a>
+              {map.credits?.some((c) => c.includes('Mapillary')) && (
+                <>
+                  {' · '}Street-level data ©{' '}
+                  <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">
+                    Mapillary
+                  </a>{' '}
+                  contributors,{' '}
+                  <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">
+                    CC BY-SA
+                  </a>
+                </>
+              )}
+              {!params.get('weather') && (
+                <>
+                  {' · '}
+                  <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
+                    Weather data by Open-Meteo.com
+                  </a>
+                </>
+              )}
+              {dict && (
+                <>
+                  {' · '}Dictionary:{' '}
+                  <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noreferrer">
+                    JMdict and KANJIDIC2 (EDRDG, CC BY-SA)
+                  </a>
+                  {', '}
+                  <a href="https://tatoeba.org/" target="_blank" rel="noreferrer">
+                    Tatoeba
+                  </a>{' '}
+                  (CC BY 2.0 FR),{' '}
+                  <a href="https://kanjivg.tagaini.net/" target="_blank" rel="noreferrer">
+                    KanjiVG
+                  </a>{' '}
+                  (CC BY-SA)
+                </>
+              )}
+              {map.credits?.some((c) => c.includes('国土地理院')) && (
+                <>
+                  {' · '}Roof colors:{' '}
+                  <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noreferrer">
+                    出典：国土地理院ウェブサイト
+                  </a>
+                </>
+              )}
+              {Object.keys(soundCredits).length > 0 && (
+                <>
+                  {' · '}Sounds from Freesound:{' '}
+                  {Object.values(soundCredits).map((c, i) => (
+                    <span key={c.url}>
+                      {i > 0 && ', '}
+                      <a href={c.url} target="_blank" rel="noreferrer">
+                        {c.name}
+                      </a>{' '}
+                      by {c.author} (
+                      <a href={c.licenseUrl} target="_blank" rel="noreferrer">
+                        {c.license}
+                      </a>
+                      )
+                    </span>
+                  ))}
+                </>
+              )}
+              {map.credits?.some((c) => c.includes('PLATEAU')) && (
+                <>
+                  {' · '}Buildings and terrain:{' '}
+                  <a href="https://www.mlit.go.jp/plateau/" target="_blank" rel="noreferrer">
+                    3D都市モデル（Project PLATEAU）国土交通省
+                  </a>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              ©{' '}
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+                OpenStreetMap
+              </a>{' '}
+              ·{' '}
+              <button
+                className="attribution-more"
+                onClick={() => {
+                  setCredits(true)
+                  setHelp(false)
+                }}
+              >
+                All credits
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
 }
+
+/** The controls, as [keys, what they do]. */
+const HELP: [string, string][] = [
+  ['Arrows / WASD', 'Move'],
+  ['Shift', 'Run'],
+  ['Scroll, pinch, + / −', 'Zoom'],
+  ['Q / E, right-drag', 'Turn'],
+  ['M', 'Big map'],
+  ['B', 'Stamp book'],
+  ['F', 'Furigana'],
+  ['N', 'Sound on/off'],
+  ['[ / ]', 'Smaller / bigger boxes'],
+  ['H', 'Show/hide this list'],
+  ['Tap a word', 'Word card'],
+]
 
 const UNDERGROUND_BG = new THREE.Color('#15171c')
 
