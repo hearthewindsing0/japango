@@ -13,6 +13,45 @@ body,
   height: 100%;
   overflow: hidden;
 }
+/* Everything drawn over the game, scaled as one (see hud.ts). */
+.hud-root {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.hud-root > * {
+  pointer-events: auto;
+}
+.hud-size {
+  position: absolute;
+  top: 184px;
+  right: 12px;
+  display: flex;
+  gap: 4px;
+}
+.hud-size button {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(17, 17, 20, 0.78);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hud-size button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+@media (max-width: 640px) {
+  .hud-size {
+    top: auto;
+    bottom: 240px;
+  }
+}
 .game {
   position: fixed;
   inset: 0;
@@ -39,7 +78,7 @@ code {
   border-radius: 10px;
   background: rgba(17, 17, 20, 0.78);
   line-height: 1.5;
-  max-width: calc(100vw - 24px - 180px);
+  max-width: calc(var(--hud-w, 100vw) - 24px - 180px);
   pointer-events: none;
 }
 .hud-area {
@@ -104,7 +143,7 @@ code {
   transition: width 0.2s;
 }
 .minimap-big {
-  width: min(80vh, calc(100vw - 24px));
+  width: min(calc(var(--hud-h, 100vh) * 0.8), calc(var(--hud-w, 100vw) - 24px));
 }
 .minimap canvas {
   display: block;
@@ -136,16 +175,16 @@ code {
   color: #18181b;
 }
 .label-ja {
-  font-size: 13px;
+  font-size: calc(13px * var(--label, 1));
   font-weight: 700;
 }
 .label-en {
-  font-size: 10px;
+  font-size: calc(10px * var(--label, 1));
   color: #3f3f46;
 }
 .label-station .label-ja,
 .label-sight .label-ja {
-  font-size: 15px;
+  font-size: calc(15px * var(--label, 1));
 }
 
 .hud-help {
@@ -257,7 +296,7 @@ code {
   border: 1px solid rgba(241, 237, 226, 0.35);
   text-align: center;
   line-height: 1.5;
-  max-width: calc(100vw - 32px);
+  max-width: calc(var(--hud-w, 100vw) - 32px);
   pointer-events: none;
 }
 .hud-slope-name {
@@ -284,7 +323,7 @@ code {
   left: 50%;
   bottom: 56px;
   transform: translateX(-50%);
-  width: min(520px, calc(100vw - 32px));
+  width: min(520px, calc(var(--hud-w, 100vw) - 32px));
   padding: 12px 16px;
   border-radius: 10px;
   background: rgba(24, 24, 32, 0.9);
@@ -438,8 +477,8 @@ rt {
   position: fixed;
   transform: translate(-50%, calc(-100% - 8px));
   min-width: 180px;
-  max-width: min(330px, calc(100vw - 24px));
-  max-height: calc(50vh - 24px);
+  max-width: min(330px, calc(var(--hud-w, 100vw) - 24px));
+  max-height: calc(var(--hud-h, 100vh) * 0.5 - 24px);
   overflow-y: auto;
   padding: 10px 12px;
   border-radius: 10px;
