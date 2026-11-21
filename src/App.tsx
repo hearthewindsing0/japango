@@ -69,6 +69,23 @@ export default function App() {
   const [dict, setDict] = useState<Dict | null>(null)
   const [furigana, setFurigana] = useState(false)
   const [word, setWord] = useState<WordPick | null>(null)
+  // A hint about word cards until the player opens their first one.
+  const [wordHint, setWordHint] = useState(() => {
+    try {
+      return localStorage.getItem('japango.wordHint') !== 'done'
+    } catch {
+      return true
+    }
+  })
+  useEffect(() => {
+    if (!word || !wordHint) return
+    setWordHint(false)
+    try {
+      localStorage.setItem('japango.wordHint', 'done')
+    } catch {
+      // Shown again next visit; fine.
+    }
+  }, [word, wordHint])
   useEffect(() => {
     loadDict('roppongi').then(setDict)
   }, [])
@@ -369,6 +386,11 @@ export default function App() {
                   </span>
                 </div>
               )}
+            </div>
+          )}
+          {wordHint && dict && (
+            <div className="hud-word-hint">
+              👆 Tap an <u>underlined</u> Japanese word for its word card: meaning, kanji and an example.
             </div>
           )}
         </div>
