@@ -528,10 +528,36 @@ code {
 .ja-word {
   pointer-events: auto;
   cursor: pointer;
-  border-bottom: 1px dotted rgba(255, 255, 255, 0.5);
+  border-bottom: 2px dotted rgba(251, 191, 36, 0.85);
+  border-radius: 2px;
 }
 .ja-word:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(251, 191, 36, 0.22);
+}
+.word-popup .ja-word {
+  border-bottom-color: rgba(180, 120, 20, 0.7);
+}
+.hud-word-hint {
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(251, 191, 36, 0.18);
+  color: #fde68a;
+  font-size: 12px;
+  animation: word-hint 1.6s ease-in-out infinite alternate;
+}
+@keyframes word-hint {
+  from {
+    background: rgba(251, 191, 36, 0.1);
+  }
+  to {
+    background: rgba(251, 191, 36, 0.3);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud-word-hint {
+    animation: none;
+  }
 }
 rt {
   font-size: 0.55em;
