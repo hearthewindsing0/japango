@@ -1,7 +1,9 @@
-# Builds the game and deploys it as a Cloudflare Worker: the site, the map
-# tiles in R2 and the API with its D1 database. Runs on every push to main.
-# Does nothing until the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
-# repository secrets are set.
+# Builds the game and deploys it as a Cloudflare Worker: the site, the API
+# with its D1 database and, when they changed, the map tiles in R2. Runs on
+# every push to main. Tiles are uploaded only after a Map data run, when a
+# push changed public/tiles/, or when asked for by hand ("Run workflow" with
+# "Upload map tiles" ticked). Does nothing until the CLOUDFLARE_API_TOKEN
+# and CLOUDFLARE_ACCOUNT_ID repository secrets are set.
 name: Deploy
 
 on:
@@ -14,6 +16,11 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      upload_tiles:
+        description: Upload map tiles to R2
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy
@@ -34,6 +41,7 @@ jobs:
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
         with:
           ref: main
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
         with:
@@ -44,8 +52,25 @@ jobs:
       - name: Make sure the D1 database and R2 bucket exist
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
         run: node scripts/cf-setup.mjs
-      - name: Upload map tiles to R2
+      - name: Did the map tiles change?
+        id: tiles
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
+        env:
+          EVENT: ${{ github.event_name }}
+          FROM_WORKFLOW: ${{ github.event.workflow_run.name }}
+          ASKED: ${{ inputs.upload_tiles }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          up=false
+          if [ "$EVENT" = workflow_run ] && [ "$FROM_WORKFLOW" = "Map data" ]; then up=true; fi
+          if [ "$EVENT" = workflow_dispatch ] && [ "$ASKED" = true ]; then up=true; fi
+          if [ "$EVENT" = push ]; then
+            if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null || git diff --name-only "$BEFORE" HEAD -- public/tiles | grep -q .; then up=true; fi
+          fi
+          echo "upload=$up" >> "$GITHUB_OUTPUT"
+          echo "Upload tiles: $up"
+      - name: Upload map tiles to R2
+        if: ${{ steps.tiles.outputs.upload == 'true' }}
         run: for f in areas/*.json; do AREA=$(basename "$f" .json) node scripts/upload-r2.mjs; done
       - name: Update the database
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
