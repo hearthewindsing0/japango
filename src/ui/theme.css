@@ -1,0 +1,209 @@
+/*
+ * JapanGo UI theme: "neon-noir arcade meets Showa signage", kept readable.
+ * Ink-black panels, washi-cream text, vermilion (朱) and gold accents.
+ * Body text in a clean Japanese sans (M PLUS 1); pixel fonts only for
+ * titles, names and small labels. Rounded corners, thin lines.
+ *
+ * Tailwind v4 without its preflight, so this sheet can sit next to the
+ * game's own CSS without resetting it. Components are scoped by .jg-ui
+ * (added by <UiRoot>).
+ */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme' layer(theme);
+@import 'tailwindcss/utilities' layer(utilities);
+@import '@fontsource-variable/m-plus-1/index.css';
+@import '@fontsource/dotgothic16/400.css';
+@import '@fontsource/press-start-2p/400.css';
+
+@source '../';
+
+@theme {
+  --font-sans: 'M PLUS 1 Variable', 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic', system-ui, sans-serif;
+  --font-pixel: 'DotGothic16', 'Hiragino Sans', 'Noto Sans JP', monospace;
+  --font-arcade: 'Press Start 2P', 'DotGothic16', monospace;
+
+  --color-ink: #0d0c12;
+  --color-ink-2: #17151f;
+  --color-ink-3: #252231;
+  --color-ink-4: #2f2b3d;
+  --color-paper: #f4ecd8;
+  --color-paper-dim: #cbc2ad;
+  --color-shu: #e8432e; /* vermilion, torii and hanko red */
+  --color-shu-dark: #9e2416;
+  --color-kin: #f5c542; /* gold */
+  --color-kin-dark: #a77d10;
+  --color-ai: #3b5bdb; /* indigo */
+  --color-sora: #5fd3e6; /* neon sky */
+  --color-matcha: #7cc25c;
+  --color-sakura: #f39ab8;
+  --color-gold: #f5c542; /* gold as text (labels); darker in light mode */
+  --color-sumi: #16130c; /* fixed dark text on gold / sky / green fills */
+
+  --animate-blink: blink 1s steps(1) infinite;
+  --animate-pop: pop 0.16s ease-out both;
+  --animate-stamp: stamp 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes pop {
+    from {
+      transform: scale(0.92);
+      opacity: 0;
+    }
+  }
+  @keyframes stamp {
+    from {
+      transform: scale(2.2) rotate(-24deg);
+      opacity: 0;
+    }
+  }
+}
+
+@layer base {
+  .jg-ui,
+  .jg-ui *,
+  .jg-ui ::before,
+  .jg-ui ::after {
+    box-sizing: border-box;
+    border: 0 solid;
+    margin: 0;
+    padding: 0;
+  }
+  .jg-ui {
+    --jg-shadow: rgb(0 0 0 / 0.4);
+    --jg-shadow-sm: rgb(0 0 0 / 0.35);
+    color-scheme: dark;
+    font-family: var(--font-sans);
+    font-weight: 450;
+    color: var(--color-paper);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .jg-ui button,
+  .jg-ui input,
+  .jg-ui select {
+    font: inherit;
+    color: inherit;
+    background: none;
+  }
+  .jg-ui button:not(:disabled) {
+    cursor: pointer;
+  }
+  .jg-ui a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+  .jg-ui :focus-visible {
+    outline: 2px solid var(--color-kin);
+    outline-offset: 2px;
+  }
+  .jg-ui rt {
+    font-size: 0.55em;
+    color: var(--color-paper-dim);
+    letter-spacing: 0;
+  }
+}
+
+/* Rounded corners. Boxes clip their contents to the curve. */
+@utility corner {
+  border-radius: 12px;
+  overflow: hidden;
+}
+@utility corner-sm {
+  border-radius: 7px;
+}
+
+/* One thin line just inside the edge. */
+@utility frame {
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--color-paper) 32%, transparent);
+}
+@utility frame-gold {
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--color-kin) 85%, transparent);
+}
+@utility frame-shu {
+  box-shadow: inset 0 0 0 1.5px var(--color-shu);
+}
+
+/* Hard drop shadow, no blur, straight down. */
+@utility drop-hard {
+  filter: drop-shadow(0 3px 0 var(--jg-shadow));
+}
+@utility drop-hard-sm {
+  filter: drop-shadow(0 2px 0 var(--jg-shadow-sm));
+}
+
+/* Faint CRT scanlines over a surface. */
+@utility scanlines {
+  background-image: repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 3px);
+}
+
+/* Pixel-rendered images (sprites, minimaps). */
+@utility pixelated {
+  image-rendering: pixelated;
+}
+
+/*
+ * Light theme: the same components on warm washi paper. Set by
+ * <UiRoot theme="light">, or theme="system" when the OS is in light mode.
+ * Ink (surfaces) and paper (text) swap; accents are darkened enough to
+ * read on a light ground.
+ */
+@layer base {
+  .jg-ui[data-theme='light'] {
+    --color-ink: #fbf7ee;
+    --color-ink-2: #f2ebdb;
+    --color-ink-3: #e7dec9;
+    --color-ink-4: #ddd2ba;
+    --color-paper: #1d1a24;
+    --color-paper-dim: #5f5849;
+    --color-shu: #dc3a24;
+    --color-shu-dark: #96200f;
+    --color-kin: #f0b93a;
+    --color-kin-dark: #a87a0c;
+    --color-gold: #8f6200;
+    --color-sora: #0e7f93;
+    --color-matcha: #4c9632;
+    --color-sakura: #c94677;
+    --jg-shadow: rgb(70 50 20 / 0.16);
+    --jg-shadow-sm: rgb(70 50 20 / 0.14);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: light) {
+    .jg-ui[data-theme='system'] {
+      --color-ink: #fbf7ee;
+      --color-ink-2: #f2ebdb;
+      --color-ink-3: #e7dec9;
+      --color-ink-4: #ddd2ba;
+      --color-paper: #1d1a24;
+      --color-paper-dim: #5f5849;
+      --color-shu: #dc3a24;
+      --color-shu-dark: #96200f;
+      --color-kin: #f0b93a;
+      --color-kin-dark: #a87a0c;
+      --color-gold: #8f6200;
+      --color-sora: #0e7f93;
+      --color-matcha: #4c9632;
+      --color-sakura: #c94677;
+      --jg-shadow: rgb(70 50 20 / 0.16);
+      --jg-shadow-sm: rgb(70 50 20 / 0.14);
+      color-scheme: light;
+    }
+  }
+  /* Paper cards (word card, stamp book, station signs) stay dark-on-paper
+     in both themes; in light mode the paper turns a brighter white. */
+  .jg-ui[data-theme='light'] .jg-paper {
+    --color-ink: #1d1a24;
+    --color-paper: #fffdf7;
+    --color-paper-dim: #d9d0bc;
+  }
+  @media (prefers-color-scheme: light) {
+    .jg-ui[data-theme='system'] .jg-paper {
+      --color-ink: #1d1a24;
+      --color-paper: #fffdf7;
+      --color-paper-dim: #d9d0bc;
+    }
+  }
+}
