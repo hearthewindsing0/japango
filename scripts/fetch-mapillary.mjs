@@ -146,8 +146,13 @@ async function measure(p) {
     if (++done % 100 === 0) console.log(`${done}/${chosen.length}`)
   }
 }
-// A few downloads at a time.
-for (let i = 0; i < chosen.length; i += 8) await Promise.all(chosen.slice(i, i + 8).map(measure))
+// A pool of downloads at a time.
+const queue = [...chosen]
+await Promise.all(
+  Array.from({ length: 16 }, async () => {
+    for (let p; (p = queue.shift()); ) await measure(p)
+  }),
+)
 
 const file = `data/${AREA.id}.mapillary.json`
 await writeFile(

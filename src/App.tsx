@@ -19,6 +19,9 @@ import { Stations } from './game/Stations'
 import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoClock, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
 
 const MIN_DIST = 10
+// ?area=<id> plays another map area (areas/<id>.json); Roppongi by default.
+const areaParam = new URLSearchParams(location.search).get('area') ?? ''
+const AREA_ID = /^[a-z0-9-]+$/.test(areaParam) ? areaParam : 'roppongi'
 const MAX_DIST = 160
 
 export default function App() {
@@ -48,7 +51,7 @@ export default function App() {
   const [furigana, setFurigana] = useState(false)
   const [word, setWord] = useState<WordPick | null>(null)
   useEffect(() => {
-    loadDict('roppongi').then(setDict)
+    loadDict(AREA_ID).then(setDict)
   }, [])
   // Background sound, on unless the player turned it off.
   const [muted, setMuted] = useState(() => {
@@ -95,7 +98,7 @@ export default function App() {
   }, [params])
 
   useEffect(() => {
-    loadMap('roppongi')
+    loadMap(AREA_ID)
       .then((m) => {
         // ?at=x,y starts somewhere else (map meters), handy for testing.
         const at = new URLSearchParams(location.search).get('at')?.split(',').map(Number)
@@ -163,7 +166,7 @@ export default function App() {
         </p>
       </div>
     )
-  if (!map || !pos) return <div className="center-msg">読み込み中… Loading Roppongi</div>
+  if (!map || !pos) return <div className="center-msg">読み込み中… Loading</div>
 
   const words = WEATHER_WORDS[weather.kind]
   const rally = (map.discoveries ?? []).filter((d) => d.stamp)

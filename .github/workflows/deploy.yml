@@ -46,7 +46,7 @@ jobs:
         run: node scripts/cf-setup.mjs
       - name: Upload map tiles to R2
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
-        run: node scripts/upload-r2.mjs
+        run: for f in areas/*.json; do AREA=$(basename "$f" .json) node scripts/upload-r2.mjs; done
       - name: Build the game
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
         run: npm run build

@@ -81,12 +81,19 @@ const summary = async (lang, title) => {
   return opening(j?.extract, lang)
 }
 
-for (const [i, p] of places.entries()) {
-  p.jaText = await summary('ja', p.jaTitle)
-  p.enText = await summary('en', p.enTitle)
-  if (i % 20 === 0) console.log(`  ${i + 1}/${places.length} ${p.ja}`)
-  await new Promise((r) => setTimeout(r, 120))
-}
+// A few articles at a time, gently.
+const queue = [...places.entries()]
+await Promise.all(
+  Array.from({ length: 4 }, async () => {
+    for (let item; (item = queue.shift()); ) {
+      const [i, p] = item
+      p.jaText = await summary('ja', p.jaTitle)
+      p.enText = await summary('en', p.enTitle)
+      if (i % 20 === 0) console.log(`  ${i + 1}/${places.length} ${p.ja}`)
+      await new Promise((r) => setTimeout(r, 120))
+    }
+  }),
+)
 
 const file = `data/${AREA.id}.wiki.json`
 await writeFile(
