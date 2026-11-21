@@ -1,3 +1,4 @@
+import { hudScale } from './hud'
 import { useEffect, useState } from 'react'
 import { loadKanji, type Dict, type Kanji } from './dict'
 
@@ -83,12 +84,15 @@ export function WordPopup({
   if (!w) return null
   const chars = [...new Set([...pick.key].filter((c) => /[一-鿿]/.test(c)))]
   // Open below the word when it's in the top half of the screen.
-  const below = pick.y < window.innerHeight * 0.5
-  const left = Math.min(Math.max(pick.x, 170), window.innerWidth - 170)
+  // The popup sits in the scaled HUD layer, so work in its units.
+  const px = pick.x / hudScale
+  const py = pick.y / hudScale
+  const below = py < (window.innerHeight / hudScale) * 0.5
+  const left = Math.min(Math.max(px, 170), window.innerWidth / hudScale - 170)
   return (
     <div
       className={`word-popup ${below ? 'below' : ''}`}
-      style={{ left, top: below ? pick.y + 28 : pick.y }}
+      style={{ left, top: below ? py + 28 : py }}
       onClick={(e) => {
         e.stopPropagation()
         onClose()
