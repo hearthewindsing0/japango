@@ -167,6 +167,7 @@ const manifest = {
   streets: map.streets,
   slopes: map.slopes ?? [],
   discoveries: map.discoveries ?? [],
+  places: map.places ?? [],
   stations: map.stations ?? [],
 }
 await writeFile(`${outDir}/manifest.json`, JSON.stringify(manifest))

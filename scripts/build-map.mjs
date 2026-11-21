@@ -725,6 +725,101 @@ if (mly) {
   console.log(`Shop signs: ${signs.length} (${signs.slice(0, 8).map((s) => s.t).join('、')}…)`)
 }
 
+// --- Curated places ---------------------------------------------------------
+// data/places/<area>.json lists places someone wants to find on the map,
+// including ones that have closed since (placed where they were). Each gets
+// a label, a storefront sign on the nearest wall, and a star on the minimap,
+// whether or not OSM knows it. See that file for the format.
+const placesFile = `data/places/${AREA.id}.json`
+const places = []
+if (existsSync(placesFile)) {
+  const list = JSON.parse(await readFile(placesFile, 'utf8')).places ?? []
+  const byId = new Map(elements.filter((e) => e.type === 'node').map((e) => [e.id, e]))
+  const norm = (s) => (s ?? '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+  const walls = []
+  buildings.forEach((b, bi) => {
+    if (b.h < 3) return
+    for (let k = 0; k + 3 < b.p.length; k += 2) {
+      const len = Math.hypot(b.p[k + 2] - b.p[k], b.p[k + 3] - b.p[k + 1])
+      if (len >= 2.5) walls.push({ bi, ax: b.p[k], ay: b.p[k + 1], bx: b.p[k + 2], by: b.p[k + 3], len })
+    }
+  })
+  const skipped = []
+  for (const pl of list) {
+    const node = pl.osm ? byId.get(pl.osm) : null
+    const ll = node?.pos ?? (pl.lat != null && pl.lon != null ? [pl.lat, pl.lon] : null)
+    if (!ll) {
+      skipped.push(`${pl.en} (no location)`)
+      continue
+    }
+    const [x, y] = proj(ll)
+    if (x < 1 || y < 1 || x > FW - 1 || y > FH - 1) {
+      skipped.push(`${pl.en} (outside the map)`)
+      continue
+    }
+    // The OSM entry for the same place, if any, gives way to this one.
+    const names = [pl.ja, pl.en, pl.sign].map(norm).filter(Boolean)
+    for (let i = pois.length - 1; i >= 0; i--) {
+      const p = pois[i]
+      if (Math.hypot(p.x - x, p.y - y) > 30) continue
+      const pn = [p.name, p.nameEn].map(norm).filter(Boolean)
+      if (pn.some((a) => names.some((b) => a.includes(b) || b.includes(a)))) pois.splice(i, 1)
+    }
+    const poi = { name: pl.ja, nameEn: pl.en, kind: pl.kind, x: r1(x), y: r1(y), fav: pl.id }
+    if (pl.status === 'closed') poi.gone = 1
+    if (node) {
+      const oh = parseOpeningHours(node.tags.opening_hours)
+      if (oh && pl.status !== 'closed') poi.oh = oh
+    }
+    pois.push(poi)
+    places.push({ id: pl.id, x: poi.x, y: poi.y, ja: pl.ja, en: pl.en, kind: pl.kind, ...(poi.gone ? { gone: 1 } : {}) })
+
+    // Storefront: the nearest wall within 25 m that faces open ground.
+    let best = null
+    for (const w of walls) {
+      if (Math.abs(w.ax - x) > 45 || Math.abs(w.ay - y) > 45) continue
+      const dx = w.bx - w.ax
+      const dy = w.by - w.ay
+      const t = Math.max(0.2, Math.min(0.8, ((x - w.ax) * dx + (y - w.ay) * dy) / (w.len * w.len)))
+      const px = w.ax + dx * t
+      const py = w.ay + dy * t
+      let nx = -dy / w.len
+      let ny = dx / w.len
+      // Outward is whichever side isn't inside a building.
+      const open = (sx, sy) => cellAt(px + sx * 1.5, py + sy * 1.5) !== T.BUILDING && cellAt(px + sx * 3.5, py + sy * 3.5) !== T.BUILDING
+      if (!open(nx, ny)) {
+        nx = -nx
+        ny = -ny
+        if (!open(nx, ny)) continue
+      }
+      // Prefer walls facing a street or sidewalk.
+      const out = cellAt(px + nx * 4, py + ny * 4)
+      const street = out === T.ROAD || out === T.SIDEWALK || out === T.FOOTWAY || out === T.CROSSING
+      const d = Math.hypot(px - x, py - y) - (street ? 6 : 0)
+      if (Math.hypot(px - x, py - y) < 25 && (!best || d < best.d)) best = { w, px, py, nx, ny, d }
+    }
+    if (!best) {
+      skipped.push(`${pl.en} (no wall for a sign)`)
+      continue
+    }
+    // Make room: drop photo-placed signs right where this one goes.
+    for (let i = signs.length - 1; i >= 0; i--)
+      if (Math.hypot(signs[i].x - best.px, signs[i].y - best.py) < 4) signs.splice(i, 1)
+    signs.push({
+      x: r1(best.px),
+      y: r1(best.py),
+      r: Math.round(Math.atan2(best.ny, best.nx) * 100) / 100,
+      w: r1(Math.min(best.w.len * 0.8, 7)),
+      b: best.w.bi,
+      t: pl.sign ?? pl.ja,
+      k: pl.kind,
+      fav: 1,
+      ...(poi.oh ? { oh: poi.oh } : {}),
+    })
+  }
+  console.log(`Curated places: ${places.length} placed${skipped.length ? `; skipped ${skipped.join(', ')}` : ''}`)
+}
+
 // --- Spawn ----------------------------------------------------------------
 const BLOCKED = new Set([T.BUILDING, T.WATER, T.TREE, T.VOID])
 const [sx0, sy0] = proj([AREA.spawn.lat, AREA.spawn.lon]).map((v) => Math.floor(v / cell))
@@ -1073,6 +1168,7 @@ await writeFile(
     streets,
     slopes,
     signs,
+    places,
     discoveries,
     stations,
     bridges,
