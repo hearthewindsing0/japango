@@ -2,6 +2,7 @@ import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DPad } from './game/DPad'
+import { hoursToday, isOpen, tokyoWeekMinute } from './game/hours'
 import { view } from './game/input'
 import { LabelLayerSync, Labels } from './game/Labels'
 import { discoveryNear, loadMap, nearestPoi, slopeNear, streetNear, type GameMap } from './game/map'
@@ -150,6 +151,7 @@ export default function App() {
   const tiles = useTileStream(map, focus, distance)
   const clock = tokyoClock(now)
   const hour = clock.h + clock.m / 60
+  const week = tokyoWeekMinute(now)
   const ug = useMemo(() => (map?.stations?.length ? new Underground(map.stations) : null), [map])
   useAmbience({ map, focus, under, hour, month: tokyoMonth(now), night: sky.night, rain: sky.rain, muted, credits: soundCredits })
 
@@ -197,7 +199,7 @@ export default function App() {
       >
         <color attach="background" args={[bg]} />
         <fog attach="fog" args={[bg, under ? distance * 2 : distance * 2.5 * sky.fogScale, under ? distance * 4 : distance * 6 * sky.fogScale]} />
-        <World map={map} tiles={tiles} focus={focus} sky={sky} hour={hour} surface={!under} />
+        <World map={map} tiles={tiles} focus={focus} sky={sky} hour={hour} day={week.day} minute={week.minute} surface={!under} />
         {!under && <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />}
         {ug && <Stations ug={ug} focus={focus} under={under} />}
         <Player
@@ -244,6 +246,36 @@ export default function App() {
         {place && (
           <div className="hud-near">
             近く: <JaText text={place.name} dict={dict} furigana={furigana} onWord={setWord} /> {place.nameEn && <span>{place.nameEn}</span>}
+            {(place.cu || place.oh) && (
+              <div className="hud-near-info">
+                {place.oh && (
+                  <span className={`hud-open ${isOpen(place.oh, week.day, week.minute) ? 'open' : 'closed'}`}>
+                    <JaText text={isOpen(place.oh, week.day, week.minute) ? '営業中' : '準備中'} dict={dict} furigana={furigana} onWord={setWord} />
+                  </span>
+                )}
+                {place.cu && (
+                  <span className="hud-cuisine">
+                    <JaText text={place.cu} dict={dict} furigana={furigana} onWord={setWord} />
+                  </span>
+                )}
+                {place.oh && (
+                  <span className="hud-hours">
+                    {/^\d+:/.test(hoursToday(place.oh, week.day)) ? (
+                      <>
+                        <JaText text="本日" dict={dict} furigana={furigana} onWord={setWord} /> {hoursToday(place.oh, week.day)}
+                      </>
+                    ) : (
+                      <JaText text={hoursToday(place.oh, week.day)} dict={dict} furigana={furigana} onWord={setWord} />
+                    )}
+                  </span>
+                )}
+                <span className="hud-near-en">
+                  {place.oh && (isOpen(place.oh, week.day, week.minute) ? 'open now' : 'closed now')}
+                  {place.oh && place.cuEn && ' · '}
+                  {place.cuEn}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -343,10 +375,10 @@ export default function App() {
         </div>
       )}
 
-      {word && dict && <WordPopup pick={word} dict={dict} onClose={() => setWord(null)} />}
+      {word && dict && <WordPopup key={word.key} pick={word} dict={dict} furigana={furigana} onWord={setWord} onClose={() => setWord(null)} />}
 
       <div className="hud-help">
-        Move: arrows / WASD · Run: Shift · Zoom: scroll or +/− · Turn: Q/E or right-drag · Map: M · Stamps: B · Furigana: F · Sound: N · Tap a word for its meaning
+        Move: arrows / WASD · Run: Shift · Zoom: scroll or +/− · Turn: Q/E or right-drag · Map: M · Stamps: B · Furigana: F · Sound: N · Tap a word for its word card
       </div>
       <DPad />
       <div className="attribution">
@@ -378,8 +410,17 @@ export default function App() {
           <>
             {' · '}Dictionary:{' '}
             <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noreferrer">
-              JMdict (EDRDG, CC BY-SA)
+              JMdict and KANJIDIC2 (EDRDG, CC BY-SA)
             </a>
+            {', '}
+            <a href="https://tatoeba.org/" target="_blank" rel="noreferrer">
+              Tatoeba
+            </a>{' '}
+            (CC BY 2.0 FR),{' '}
+            <a href="https://kanjivg.tagaini.net/" target="_blank" rel="noreferrer">
+              KanjiVG
+            </a>{' '}
+            (CC BY-SA)
           </>
         )}
         {map.credits?.some((c) => c.includes('国土地理院')) && (
