@@ -61,7 +61,7 @@ for (const b of sparql.results.bindings) {
   })
 }
 // The best-known places first; keep a sensible number.
-const places = [...byId.values()].sort((a, b) => b.links - a.links).slice(0, 160)
+const places = [...byId.values()].sort((a, b) => b.links - a.links).slice(0, 400)
 console.log(`Wikidata: ${byId.size} places with a Japanese article; keeping ${places.length}`)
 
 /** The first one or two sentences of an article's summary. */

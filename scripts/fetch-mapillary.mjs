@@ -21,7 +21,7 @@ if (!TOKEN) {
   process.exit(1)
 }
 const API = 'https://graph.mapillary.com'
-const MAX_PHOTOS = Number(process.env.MAPILLARY_MAX_PHOTOS ?? 4000)
+const MAX_PHOTOS = Number(process.env.MAPILLARY_MAX_PHOTOS ?? 12000)
 // Keep one photo per this many meters of street, so photos spread out.
 const PHOTO_SPACING_M = 12
 
@@ -42,9 +42,11 @@ async function get(path, params) {
   throw new Error(`Mapillary request failed: ${path}`)
 }
 
-// The API caps results per request, so query the area in small tiles.
-function tiles(n) {
+// The API caps results per request, so query the area in small tiles of
+// about 350 m.
+function tiles() {
   const { south, west, north, east } = AREA.bbox
+  const n = Math.max(4, Math.ceil(Math.max((north - south) / 0.0031, (east - west) / 0.0037)))
   const out = []
   for (let i = 0; i < n; i++)
     for (let j = 0; j < n; j++) {
@@ -58,7 +60,7 @@ function tiles(n) {
 // --- Street objects -------------------------------------------------------
 const features = []
 const seen = new Set()
-for (const bbox of tiles(4)) {
+for (const bbox of tiles()) {
   for (const path of ['/map_features', '/map_features?traffic_signs']) {
     const isSign = path.endsWith('traffic_signs')
     const json = await get('/map_features', {
@@ -88,7 +90,7 @@ console.log(
 
 // --- Photos ---------------------------------------------------------------
 const photos = new Map()
-for (const bbox of tiles(4)) {
+for (const bbox of tiles()) {
   const json = await get('/images', {
     bbox,
     fields: 'id,geometry,computed_geometry,compass_angle,computed_compass_angle,captured_at,is_pano,thumb_1024_url',

@@ -9,13 +9,15 @@ export const AREA = {
   id: 'roppongi',
   name: '六本木',
   nameEn: 'Roppongi',
-  bbox: { south: 35.6565, west: 139.7235, north: 35.669, east: 139.7385 },
-  center: { lat: 35.66275, lon: 139.731 },
+  // Roppongi plus: Hinokicho Park and the Akasaka 9-chome blocks around it
+  // (north), Nishi-Azabu past Gonpachi (west), and Azabudai Hills (south).
+  bbox: { south: 35.6495, west: 139.7154, north: 35.6755, east: 139.747 },
+  center: { lat: 35.66252, lon: 139.73117 },
   // Roppongi-dori's bearing, counter-clockwise from east. Turning the map by
   // this much makes Roppongi-dori horizontal.
   rotationDeg: 30.7,
-  width: 1100,
-  height: 800,
+  width: 1920,
+  height: 1940,
   // Collision and minimap grid resolution, in meters.
   cell: 1,
   // Where the player starts: Roppongi Crossing (六本木交差点).
