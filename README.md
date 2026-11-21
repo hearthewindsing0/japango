@@ -136,6 +136,24 @@ minutes on a made-up schedule; real timetables would need an ODPT key.
 Start underground with `?at=x,y,z`, e.g. `?at=495,408.8,6.14` (Hibiya
 west gates) or `?at=662,350,-12.08` (Ōedo B7).
 
+### Walk-in places: Ant 'n Bee
+
+アントンビー (Ant 'n Bee), the craft beer bar in the basement of 5-1-5
+Roppongi, is the first place you can walk into. Its steep, narrow stairs go
+down from the pavement on Gaien-Higashi-dōri, a minute from the crossing
+toward Tokyo Tower. Downstairs: an L-shaped bar with ten stools, twenty taps
+on the back wall, standing tables, and tables at the back, laid out from
+public reviews and photos (nothing copied in). Walk up to the counter and
+open 🍺 メニュー to order from a real day's tap list (13 Feb 2015), with the
+phrases for ordering, 乾杯 and paying, each with its reading and meaning.
+
+`scripts/interiors.mjs` finds the front door at map-build time (the face of
+the bar's building that looks onto the pavement, nearest its OSM point), so
+it follows the map when the area changes. The room itself is laid out in
+meters from that door in `src/game/interiors/antnbee.ts`, and the menu,
+phrases and signs live in `src/game/interiors/antnbee.json`. Start inside
+with `?at=702.5,498.9,5.56`.
+
 ## Hosting on Cloudflare
 
 The game runs as one Cloudflare Worker (`wrangler.toml`, `worker/index.ts`):
@@ -171,6 +189,7 @@ and R2.
 - `src/game/patterns.ts`: procedural paving, asphalt and grass textures.
 - `src/game/Player.tsx`: free movement with collisions, the walking character and the follow camera.
 - `src/game/station.ts`, `src/game/Stations.tsx`: walking and drawing the subway stations.
+- `src/game/interior.ts`, `src/game/Interiors.tsx`, `src/game/BarMenu.tsx`: walk-in places (Ant 'n Bee) and ordering at the bar.
 - `src/game/Labels.tsx`: Japanese/English name tags for nearby places.
 - `src/game/Minimap.tsx`, `src/game/DPad.tsx`: overview map and touch controls.
 - `src/game/map.ts`, `src/game/tiles.ts`: map loading, ground types, colors and lookups.

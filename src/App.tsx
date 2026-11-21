@@ -18,6 +18,10 @@ import { loadAround, useTileStream } from './game/stream'
 import { useProgressSync } from './game/progress'
 import { Underground } from './game/station'
 import { Stations } from './game/Stations'
+import { buildInteriors } from './game/interior'
+import { Interiors, type Glass } from './game/Interiors'
+import { BarMenu } from './game/BarMenu'
+import { ANTNBEE, ORDER_SPOT, toLocal } from './game/interiors/antnbee'
 import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoClock, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
 
 const MIN_DIST = 10
@@ -65,6 +69,8 @@ export default function App() {
     })
   }, [])
   const [toast, setToast] = useState<string | null>(null)
+  // Beers you've ordered at the bar, until you pay.
+  const [glasses, setGlasses] = useState<Glass[]>([])
   // Dictionary for furigana and tap-for-meaning.
   const [dict, setDict] = useState<Dict | null>(null)
   const [furigana, setFurigana] = useState(false)
@@ -177,7 +183,7 @@ export default function App() {
     // pinch arrives as a wheel event with ctrlKey set; it has to be stopped
     // in a non-passive listener or the browser zooms the page out.
     const onWheel = (e: WheelEvent) => {
-      if ((e.target as HTMLElement | null)?.closest?.('.stamp-book, .word-popup, .hud-discovery')) {
+      if ((e.target as HTMLElement | null)?.closest?.('.stamp-book, .word-popup, .hud-discovery, .bar-menu')) {
         if (e.ctrlKey) e.preventDefault()
         else return
       }
@@ -251,7 +257,10 @@ export default function App() {
   const clock = tokyoClock(now)
   const hour = clock.h + clock.m / 60
   const week = tokyoWeekMinute(now)
-  const ug = useMemo(() => (map?.stations?.length ? new Underground(map.stations) : null), [map])
+  const ug = useMemo(() => {
+    const interiors = buildInteriors(map?.interiors)
+    return map?.stations?.length || interiors.length ? new Underground(map?.stations ?? [], interiors) : null
+  }, [map])
   useAmbience({ map, focus, under, hour, month: tokyoMonth(now), night: sky.night, rain: sky.rain, muted, credits: soundCredits })
 
   if (error)
@@ -272,7 +281,13 @@ export default function App() {
   const place = under ? null : nearestPoi(map, pos.x, pos.y)
   const slope = under ? null : slopeNear(map, pos.x, pos.y)
   const z = focus.current.z ?? 0
-  const station = under && ug ? ug.stationAt(pos.x, pos.y, z) : null
+  const inside = under && ug ? ug.interiorAt(pos.x, pos.y, z) : null
+  const station = under && ug && !inside ? ug.stationAt(pos.x, pos.y, z) : null
+  // Local spot in the bar, to tell if you're at the counter.
+  const barAt = inside ? toLocal(inside.place, pos.x, pos.y) : null
+  const atCounter = !!barAt && barAt[0] < ORDER_SPOT.a && barAt[1] > ORDER_SPOT.b0 && barAt[1] < ORDER_SPOT.b1
+  // On the street, right by a walk-in place's door.
+  const door = !under && ug ? ug.interiors.find((it) => Math.hypot(it.place.x - pos.x, it.place.y - pos.y) < 7) : null
   const sign = under && ug ? ug.signNear(pos.x, pos.y, z) : null
   const bg = under ? UNDERGROUND_BG : sky.background
 
@@ -300,6 +315,7 @@ export default function App() {
         <World map={map} tiles={tiles} focus={focus} sky={sky} hour={hour} day={week.day} minute={week.minute} surface={!under} />
         {!under && <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />}
         {ug && <Stations ug={ug} focus={focus} under={under} />}
+        {ug && ug.interiors.length > 0 && <Interiors interiors={ug.interiors} focus={focus} under={under} night={sky.night > 0.5} glasses={glasses} />}
         <Player
           map={map}
           ug={ug}
@@ -350,6 +366,17 @@ export default function App() {
               <JaText text={`${station.name}駅`} dict={dict} furigana={furigana} onWord={setWord} /> <JaText text={station.line.ja} dict={dict} furigana={furigana} onWord={setWord} />{' '}
               <span>
                 {station.nameEn} Station, {station.line.en}
+              </span>
+            </div>
+          )}
+          {inside && (
+            <div className="hud-street">
+              <span className="hud-line" style={{ background: '#f2b705', color: '#151515' }}>
+                B1
+              </span>{' '}
+              <JaText text={inside.name} dict={dict} furigana={furigana} onWord={setWord} /> <JaText text={inside.kind} dict={dict} furigana={furigana} onWord={setWord} />{' '}
+              <span>
+                {inside.nameEn}, {inside.kindEn} ({inside.floor}, basement 1)
               </span>
             </div>
           )}
@@ -485,7 +512,30 @@ export default function App() {
           </div>
         )}
 
-        {slope && !here && (
+        {door && !sign && (
+          <div className="hud-slope">
+            <div className="hud-slope-name">
+              <JaText text={door.name} dict={dict} furigana={furigana} onWord={setWord} /> <JaText text={ANTNBEE.signs.street.t} dict={dict} furigana={furigana} onWord={setWord} />
+            </div>
+            <div className="hud-slope-en">
+              {door.nameEn}: {ANTNBEE.signs.street.en}. Walk down the stairs to go in.
+            </div>
+            <div className="hud-slope-note">{ANTNBEE.signs.street.n}</div>
+          </div>
+        )}
+
+        {inside && (
+          <BarMenu
+            atCounter={atCounter}
+            dict={dict}
+            furigana={furigana}
+            onWord={setWord}
+            onServe={(color) => setGlasses((g) => [...g.slice(-8), { b: barAt ? Math.min(ORDER_SPOT.b1 - 1, Math.max(ORDER_SPOT.b0 + 0.3, barAt[1])) : 7, color }])}
+            onPaid={() => setGlasses([])}
+          />
+        )}
+
+        {slope && !here && !door && (
           <div className="hud-slope">
             <div className="hud-slope-name">
               <JaText text={slope.slope.name} dict={dict} furigana={furigana} onWord={setWord} />
