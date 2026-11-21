@@ -122,13 +122,19 @@ jobs:
         run: test -f "areas/$AREA.json" || { echo "::error::No areas/$AREA.json. Give a center and size (or corners) to add it."; exit 1; }
       - name: Download every source at once, build the map and tiles
         run: node scripts/fetch-all.mjs
-      - name: Japanese dictionary for the map's text (JMdict)
+      - name: Japanese dictionary for the map's text (JMdict, Tatoeba, KANJIDIC2, KanjiVG)
         run: |
-          url=$(curl -fsSL https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest \
-            | jq -r '.assets[] | select(.name | test("^jmdict-eng-[0-9].*\\.json\\.tgz$")) | .browser_download_url' | head -1)
+          assets=$(curl -fsSL https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest | jq -r '.assets[].browser_download_url')
+          # JMdict with Tatoeba example sentences; plain JMdict if a release lacks it.
+          url=$(echo "$assets" | grep -E '/jmdict-examples-eng-[0-9][^/]*\.json\.tgz$' | head -1 || true)
+          [ -n "$url" ] || url=$(echo "$assets" | grep -E '/jmdict-eng-[0-9][^/]*\.json\.tgz$' | head -1 || true)
+          kd=$(echo "$assets" | grep -E '/kanjidic2-en-[0-9][^/]*\.json\.tgz$' | head -1 || true)
           echo "JMdict: $url"
-          mkdir -p /tmp/jmdict && curl -fsSL "$url" | tar xz -C /tmp/jmdict
-          node --max-old-space-size=6144 scripts/build-dict.mjs /tmp/jmdict/*.json
+          echo "KANJIDIC2: $kd"
+          mkdir -p /tmp/jmdict /tmp/kanjidic
+          curl -fsSL "$url" | tar xz -C /tmp/jmdict
+          [ -n "$kd" ] && curl -fsSL "$kd" | tar xz -C /tmp/kanjidic
+          node --max-old-space-size=8192 scripts/build-dict.mjs /tmp/jmdict/*.json $(ls /tmp/kanjidic/*.json 2>/dev/null | head -1)
       - name: Upload the nightly refresh to R2
         if: ${{ github.event_name == 'schedule' && env.CF_READY == 'true' }}
         run: node scripts/upload-r2.mjs
@@ -143,6 +149,7 @@ jobs:
             data/${{ matrix.area }}.*
             public/tiles/${{ matrix.area }}/
             public/dict/${{ matrix.area }}.json
+            public/dict/${{ matrix.area }}.*.json
 
   sounds:
     # City sounds are shared by every area. Skipped until the FREESOUND_TOKEN
@@ -194,5 +201,7 @@ jobs:
             echo "Map data unchanged."
           else
             git commit -m "Update map data from OpenStreetMap, PLATEAU and Mapillary"
+            # The branch may have moved on while the data was downloading.
+            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}"
             git push
           fi

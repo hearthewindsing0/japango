@@ -73,6 +73,23 @@ estimated daily curve), fewer in the rain. Press F for furigana over the
 Japanese text, and tap a word for its reading and meaning: the Map data
 Action builds a small dictionary of the map's own text with kuromoji and
 [JMdict](https://www.edrdg.org/jmdict/j_jmdict.html) (`npm run map:dict`).
+The word card also shows the word's JLPT level (from the community lists in
+[open-anki-jlpt-decks](https://github.com/jamsinclair/open-anki-jlpt-decks),
+after Jonathan Waller's), an example sentence from
+[Tatoeba](https://tatoeba.org) (through JMdict's examples; tap its words too),
+and each kanji's meanings and on/kun readings from
+[KANJIDIC2](https://www.edrdg.org/wiki/index.php/KANJIDIC_Project) with its
+strokes drawn in order from [KanjiVG](https://kanjivg.tagaini.net) (tap the
+kanji to draw it again). Kanji go in a separate file, loaded the first time a
+word card opens.
+
+Shops follow their real opening hours from OpenStreetMap's `opening_hours`
+(`scripts/opening-hours.mjs` turns them into a weekly schedule; holidays and
+date ranges are skipped). On Tokyo time, an open shop has a 営業中 plate by
+the door; a closed one has its sign off and its shutter down with a 準備中
+plate. Walk up to a place to see whether it's open, today's hours, and for
+restaurants what they serve in Japanese (イタリア料理, ラーメン, from
+`cuisine`, see `scripts/cuisine.mjs`).
 
 Background sound follows where you are: street noise that rises and falls
 with the crowd, night air after dark, rain, birds near parks (cicadas in

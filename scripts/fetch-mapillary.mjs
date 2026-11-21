@@ -60,23 +60,37 @@ function tiles() {
 // --- Street objects -------------------------------------------------------
 const features = []
 const seen = new Set()
-for (const bbox of tiles()) {
-  for (const path of ['/map_features', '/map_features?traffic_signs']) {
-    const isSign = path.endsWith('traffic_signs')
-    const json = await get('/map_features', {
-      bbox,
-      fields: 'id,object_value,geometry',
-      limit: 2000,
-      ...(isSign ? { layers: 'trafficsigns' } : { layers: 'points' }),
-    })
-    for (const f of json.data ?? []) {
-      if (seen.has(f.id) || !f.geometry?.coordinates) continue
-      seen.add(f.id)
-      const [lon, lat] = f.geometry.coordinates
-      features.push({ v: f.object_value, lat, lon, sign: isSign ? 1 : 0 })
-    }
-  }
+
+/** Runs jobs a few at a time. */
+async function pool(jobs, n = 6) {
+  const queue = [...jobs]
+  await Promise.all(
+    Array.from({ length: n }, async () => {
+      for (let job; (job = queue.shift()); ) await job()
+    }),
+  )
 }
+
+await pool(
+  tiles().flatMap((bbox) =>
+    [false, true].map((isSign) => async () => {
+      const json = await get('/map_features', {
+        bbox,
+        fields: 'id,object_value,geometry',
+        limit: 2000,
+        layers: isSign ? 'trafficsigns' : 'points',
+      })
+      for (const f of json.data ?? []) {
+        if (seen.has(f.id) || !f.geometry?.coordinates) continue
+        seen.add(f.id)
+        const [lon, lat] = f.geometry.coordinates
+        features.push({ v: f.object_value, lat, lon, sign: isSign ? 1 : 0 })
+      }
+    }),
+  ),
+)
+// Same order every run, so the saved file only changes when the data does.
+features.sort((a, b) => a.lat - b.lat || a.lon - b.lon)
 console.log(`${features.length} street objects`)
 const byValue = {}
 for (const f of features) byValue[f.v] = (byValue[f.v] ?? 0) + 1
@@ -90,19 +104,21 @@ console.log(
 
 // --- Photos ---------------------------------------------------------------
 const photos = new Map()
-for (const bbox of tiles()) {
-  const json = await get('/images', {
-    bbox,
-    fields: 'id,geometry,computed_geometry,compass_angle,computed_compass_angle,captured_at,is_pano,thumb_1024_url',
-    limit: 2000,
-  })
-  for (const p of json.data ?? []) {
-    const geom = p.computed_geometry ?? p.geometry
-    const angle = p.computed_compass_angle ?? p.compass_angle
-    if (!geom || angle == null || p.is_pano || !p.thumb_1024_url) continue
-    photos.set(p.id, { lat: geom.coordinates[1], lon: geom.coordinates[0], angle, at: p.captured_at, url: p.thumb_1024_url })
-  }
-}
+await pool(
+  tiles().map((bbox) => async () => {
+    const json = await get('/images', {
+      bbox,
+      fields: 'id,geometry,computed_geometry,compass_angle,computed_compass_angle,captured_at,is_pano,thumb_1024_url',
+      limit: 2000,
+    })
+    for (const p of json.data ?? []) {
+      const geom = p.computed_geometry ?? p.geometry
+      const angle = p.computed_compass_angle ?? p.compass_angle
+      if (!geom || angle == null || p.is_pano || !p.thumb_1024_url) continue
+      photos.set(p.id, { lat: geom.coordinates[1], lon: geom.coordinates[0], angle, at: p.captured_at, url: p.thumb_1024_url })
+    }
+  }),
+)
 console.log(`${photos.size} photos in the area`)
 
 // Prefer recent photos, one per grid cell (and per rough heading).

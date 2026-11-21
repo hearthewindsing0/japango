@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { UMBRELLAS, crowdAttributes, crowdDepthMaterial, crowdGeometry, crowdMaterial, packColor, randomLook, type Look } from './character'
 import { tileGroundAt, type MapTile } from './map'
 
 // Passers-by walking the sidewalks and footpaths. How many are out depends
@@ -26,6 +27,9 @@ interface Walker {
   dir: 1 | -1
   speed: number
   side: number // lateral offset
+  phase: number // walk cycle
+  look: Look
+  umbrella: string
 }
 
 /** Walkable lines: footpaths, plus a line down each sidewalk. */
@@ -56,9 +60,6 @@ function walkLines(map: MapTile) {
     })
     .filter((l) => l.len[l.len.length - 1] > 15)
 }
-
-const SHIRTS = ['#2f3542', '#57606f', '#a4b0be', '#1e3799', '#b33939', '#f1f2f6', '#227093', '#6d214f', '#33d9b2', '#cc8e35', '#40407a', '#d1ccc0']
-const UMBRELLAS = ['#f5f6fa', '#273c75', '#e84118', '#44bd32', '#353b48', '#fbc531']
 
 export function Crowd({ tile, clip, hour, rain }: { tile: MapTile; clip: THREE.Plane[]; hour: number; rain: number }) {
   const lines = useMemo(() => walkLines(tile), [tile])
@@ -94,6 +95,9 @@ export function Crowd({ tile, clip, hour, rain }: { tile: MapTile; clip: THREE.P
         dir: rand() < 0.5 ? 1 : -1,
         speed: 1.1 + rand() * 0.6,
         side: (rand() - 0.5) * 1.2,
+        phase: rand() * Math.PI * 2,
+        look: randomLook(rand),
+        umbrella: UMBRELLAS[Math.floor(rand() * UMBRELLAS.length)],
       })
     }
     return out
@@ -101,38 +105,44 @@ export function Crowd({ tile, clip, hour, rain }: { tile: MapTile; clip: THREE.P
 
   const level = crowdLevel(hour) * (rain > 0 ? 0.6 : 1)
   const count = Math.round(walkers.length * level)
-  const body = useRef<THREE.InstancedMesh>(null)
-  const head = useRef<THREE.InstancedMesh>(null)
-  const umbrella = useRef<THREE.InstancedMesh>(null)
-  const geos = useMemo(
-    () => ({
-      body: new THREE.CapsuleGeometry(0.2, 0.9, 3, 8).translate(0, 0.75, 0),
-      head: new THREE.SphereGeometry(0.15, 10, 8).translate(0, 1.55, 0),
-      umbrella: new THREE.ConeGeometry(0.6, 0.3, 10).translate(0, 2.05, 0),
-    }),
-    [],
-  )
-  useEffect(() => () => Object.values(geos).forEach((g) => g.dispose()), [geos])
+  const wet = rain > 0
 
-  useEffect(() => {
-    const c = new THREE.Color()
-    walkers.forEach((_, i) => {
-      body.current?.setColorAt(i, c.set(SHIRTS[(i * 7) % SHIRTS.length]))
-      umbrella.current?.setColorAt(i, c.set(UMBRELLAS[(i * 5) % UMBRELLAS.length]))
+  // Everyone on the tile is one instanced mesh (see character.ts): the same
+  // build as the player, in each walker's own clothes.
+  const mat = useMemo(() => crowdMaterial(clip), [clip])
+  const depthMat = useMemo(() => crowdDepthMaterial(clip), [clip])
+  useEffect(
+    () => () => {
+      mat.dispose()
+      depthMat.dispose()
+    },
+    [mat, depthMat],
+  )
+  // Each tile's crowd has its own copy of the body geometry, carrying its
+  // people's colors and poses.
+  const { geo, attrs } = useMemo(() => {
+    const g = crowdGeometry(0.5)
+    const a = crowdAttributes(Math.max(1, walkers.length))
+    walkers.forEach((w, i) => {
+      a.iColorsA.setXYZ(i, packColor(w.look.pants), packColor(w.look.shirt), packColor(w.look.skin))
+      a.iColorsB.setXYZ(i, packColor(w.look.hair), packColor(w.look.bag), packColor(w.umbrella))
     })
-    if (body.current?.instanceColor) body.current.instanceColor.needsUpdate = true
-    if (umbrella.current?.instanceColor) umbrella.current.instanceColor.needsUpdate = true
-  }, [walkers, rain])
+    g.setAttribute('iColorsA', a.iColorsA)
+    g.setAttribute('iColorsB', a.iColorsB)
+    g.setAttribute('iPose', a.iPose)
+    return { geo: g, attrs: a }
+  }, [walkers])
+  useEffect(() => () => geo.dispose(), [geo])
+  const mesh = useRef<THREE.InstancedMesh>(null)
 
   const m = useMemo(() => new THREE.Matrix4(), [])
   const q = useMemo(() => new THREE.Quaternion(), [])
   const up = useMemo(() => new THREE.Vector3(0, 1, 0), [])
   const p = useMemo(() => new THREE.Vector3(), [])
-  const one = useMemo(() => new THREE.Vector3(1, 1, 1), [])
+  const scale = useMemo(() => new THREE.Vector3(), [])
 
-  useFrame((state, dtRaw) => {
+  useFrame((_, dtRaw) => {
     const dt = Math.min(dtRaw, 0.05)
-    const t = state.clock.elapsedTime
     for (let i = 0; i < count; i++) {
       const w = walkers[i]
       const end = w.len[w.len.length - 1]
@@ -154,32 +164,31 @@ export function Crowd({ tile, clip, hour, rain }: { tile: MapTile; clip: THREE.P
       const dy = (w.line[a + 3] - w.line[a + 1]) / segLen
       const x = w.line[a] + dx * segLen * f - dy * w.side
       const y = w.line[a + 1] + dy * segLen * f + dx * w.side
-      const bob = Math.abs(Math.sin(t * w.speed * 5 + i)) * 0.04
+      // Walk cycle, like the player's: about one stride a second.
+      w.phase += dt * w.speed * 4
+      const swing = Math.sin(w.phase) * 0.45
+      const bob = Math.abs(Math.cos(w.phase)) * 0.04
       p.set(x, tileGroundAt(tile, x, y) + bob, y)
       q.setFromAxisAngle(up, Math.atan2(dx * w.dir, dy * w.dir))
-      m.compose(p, q, one)
-      body.current?.setMatrixAt(i, m)
-      head.current?.setMatrixAt(i, m)
-      if (rain > 0) umbrella.current?.setMatrixAt(i, m)
+      scale.setScalar(w.look.height)
+      m.compose(p, q, scale)
+      mesh.current?.setMatrixAt(i, m)
+      attrs.iPose.setXYZW(i, swing, w.look.backpack ? 1 : 0, w.look.longHair ? 1 : 0, wet ? 1 : 0)
     }
-    for (const r of [body, head, umbrella]) {
-      if (!r.current) continue
-      r.current.count = r === umbrella && rain <= 0 ? 0 : count
-      r.current.instanceMatrix.needsUpdate = true
+    if (mesh.current) {
+      mesh.current.count = count
+      mesh.current.instanceMatrix.needsUpdate = true
     }
+    attrs.iPose.needsUpdate = true
   })
 
   return (
-    <group>
-      <instancedMesh ref={body} args={[geos.body, undefined, walkers.length]} frustumCulled={false} castShadow>
-        <meshLambertMaterial clippingPlanes={clip} />
-      </instancedMesh>
-      <instancedMesh ref={head} args={[geos.head, undefined, walkers.length]} frustumCulled={false} castShadow>
-        <meshLambertMaterial color="#e8c4a0" clippingPlanes={clip} />
-      </instancedMesh>
-      <instancedMesh ref={umbrella} args={[geos.umbrella, undefined, walkers.length]} frustumCulled={false} castShadow>
-        <meshLambertMaterial clippingPlanes={clip} />
-      </instancedMesh>
-    </group>
+    <instancedMesh
+      ref={mesh}
+      args={[geo, mat, Math.max(1, walkers.length)]}
+      customDepthMaterial={depthMat}
+      frustumCulled={false}
+      castShadow
+    />
   )
 }

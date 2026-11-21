@@ -1,3 +1,4 @@
+import type { Week } from './hours'
 import { BLOCKED, T } from './tiles'
 import type { Station } from './station'
 
@@ -23,6 +24,11 @@ export interface Poi {
   kind: PoiKind
   x: number
   y: number
+  /** Real opening hours, Monday first (see hours.ts). */
+  oh?: Week
+  /** What a restaurant serves, in Japanese and English (和食, Japanese food). */
+  cu?: string
+  cuEn?: string
 }
 
 export interface Street {
@@ -66,7 +72,7 @@ export interface MapFile {
   slopes?: Slope[]
   /** Shop signs on walls: t = text, k = shop kind, r = facing, w = max
    *  width, b = index of the building it hangs on. */
-  signs?: { x: number; y: number; r: number; w: number; b: number; t: string; k: PoiKind }[]
+  signs?: { x: number; y: number; r: number; w: number; b: number; t: string; k: PoiKind; oh?: Week }[]
   /** Places with a Wikipedia article; stamp = part of the stamp rally. */
   discoveries?: Discovery[]
   /** Bridge surfaces: rings of [x, y, height] in game meters. */

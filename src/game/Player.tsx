@@ -1,5 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { PARTS, PLAYER_LOOK, hasPart, paintOf } from './character'
 import * as THREE from 'three'
 import { input, view } from './input'
 import { circleBlocked, groundAt, isBlocked, type GameMap } from './map'
@@ -33,6 +34,10 @@ export function Player({ map, ug, focus, distance, onMove }: Props) {
   const legR = useRef<THREE.Group>(null)
   const armL = useRef<THREE.Group>(null)
   const armR = useRef<THREE.Group>(null)
+  const limbs = { legL, legR, armL, armR }
+  // Same build as the people on the street (see character.ts).
+  const parts = useMemo(() => PARTS.filter((p) => hasPart(PLAYER_LOOK, p.name, false)).map((spec) => ({ spec, geo: spec.make(1) })), [])
+  useEffect(() => () => parts.forEach((p) => p.geo.dispose()), [parts])
   const s = useRef({ heading: 0, phase: 0, speed: 0, ground: 0, lastX: focus.current.x, lastY: focus.current.y, lastUnder: false })
   const camera = useThree((st) => st.camera)
   const placed = useRef(false)
@@ -135,7 +140,6 @@ export function Player({ map, ug, focus, distance, onMove }: Props) {
     }
   })
 
-  const skin = '#f2c9a0'
   return (
     <group ref={root}>
       {/* soft blob shadow so the player reads even in building shade */}
@@ -144,62 +148,27 @@ export function Player({ map, ug, focus, distance, onMove }: Props) {
         <meshBasicMaterial color="#000" transparent opacity={0.22} depthWrite={false} />
       </mesh>
       <group ref={body}>
-        {/* legs pivot at the hip */}
-        <group ref={legL} position={[-0.11, 0.78, 0]}>
-          <mesh position={[0, -0.38, 0]} castShadow>
-            <capsuleGeometry args={[0.085, 0.6, 4, 8]} />
-            <meshLambertMaterial color="#2b3445" />
-          </mesh>
-        </group>
-        <group ref={legR} position={[0.11, 0.78, 0]}>
-          <mesh position={[0, -0.38, 0]} castShadow>
-            <capsuleGeometry args={[0.085, 0.6, 4, 8]} />
-            <meshLambertMaterial color="#2b3445" />
-          </mesh>
-        </group>
-        {/* torso */}
-        <mesh position={[0, 1.1, 0]} castShadow>
-          <capsuleGeometry args={[0.2, 0.42, 4, 12]} />
-          <meshLambertMaterial color="#e5484d" />
-        </mesh>
-        {/* backpack */}
-        <mesh position={[0, 1.15, -0.2]} castShadow>
-          <boxGeometry args={[0.32, 0.4, 0.14]} />
-          <meshLambertMaterial color="#f0b429" />
-        </mesh>
-        {/* arms pivot at the shoulder */}
-        <group ref={armL} position={[-0.27, 1.32, 0]}>
-          <mesh position={[0, -0.25, 0]} castShadow>
-            <capsuleGeometry args={[0.065, 0.42, 4, 8]} />
-            <meshLambertMaterial color="#e5484d" />
-          </mesh>
-        </group>
-        <group ref={armR} position={[0.27, 1.32, 0]}>
-          <mesh position={[0, -0.25, 0]} castShadow>
-            <capsuleGeometry args={[0.065, 0.42, 4, 8]} />
-            <meshLambertMaterial color="#e5484d" />
-          </mesh>
-        </group>
-        {/* head */}
-        <mesh position={[0, 1.62, 0]} castShadow>
-          <sphereGeometry args={[0.2, 20, 16]} />
-          <meshLambertMaterial color={skin} />
-        </mesh>
-        {/* hair */}
-        <mesh position={[0, 1.66, -0.02]} scale={[1.05, 0.9, 1.08]}>
-          <sphereGeometry args={[0.2, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshLambertMaterial color="#2a211c" />
-        </mesh>
-        {/* eyes, on the +Z side, which is "forward" */}
-        <mesh position={[-0.07, 1.63, 0.18]}>
-          <sphereGeometry args={[0.025, 8, 8]} />
-          <meshBasicMaterial color="#1b1b1b" />
-        </mesh>
-        <mesh position={[0.07, 1.63, 0.18]}>
-          <sphereGeometry args={[0.025, 8, 8]} />
-          <meshBasicMaterial color="#1b1b1b" />
-        </mesh>
+        {parts.map(({ spec, geo }) => {
+          const mat = spec.paint === 'eyes' ? <meshBasicMaterial color={paintOf(PLAYER_LOOK, spec.paint)} /> : <meshLambertMaterial color={paintOf(PLAYER_LOOK, spec.paint)} />
+          if (!spec.pivot)
+            return (
+              <mesh key={spec.name} geometry={geo} castShadow={spec.shadow}>
+                {mat}
+              </mesh>
+            )
+          // Limbs pivot at the hip or shoulder.
+          const [px, py, pz] = spec.pivot
+          return (
+            <group key={spec.name} ref={limbs[spec.name as Limb]} position={spec.pivot}>
+              <mesh geometry={geo} position={[-px, -py, -pz]} castShadow={spec.shadow}>
+                {mat}
+              </mesh>
+            </group>
+          )
+        })}
       </group>
     </group>
   )
 }
+
+type Limb = 'legL' | 'legR' | 'armL' | 'armR'
