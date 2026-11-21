@@ -9,7 +9,7 @@ export function Switch({ className, ...props }: ComponentProps<typeof RxSwitch.R
   return (
     <RxSwitch.Root
       className={cn(
-        'notch-sm group relative inline-flex h-7 w-16 shrink-0 items-center bg-ink-3 shadow-[inset_0_0_0_2px_var(--color-ink),inset_0_3px_0_rgb(0_0_0/0.5)]',
+        'corner-sm group relative inline-flex h-7 w-16 shrink-0 items-center bg-ink-3 rounded-full shadow-[inset_0_2px_0_rgb(0_0_0/0.4)]',
         'data-[state=checked]:bg-matcha/80 disabled:opacity-40',
         className,
       )}
@@ -17,7 +17,7 @@ export function Switch({ className, ...props }: ComponentProps<typeof RxSwitch.R
     >
       <span className="pointer-events-none absolute left-2 font-arcade text-[8px] text-ink opacity-0 group-data-[state=checked]:opacity-100">ON</span>
       <span className="pointer-events-none absolute right-1.5 font-arcade text-[8px] text-paper-dim group-data-[state=checked]:opacity-0">OFF</span>
-      <RxSwitch.Thumb className="notch-sm block h-5 w-6 translate-x-1 bg-paper shadow-[inset_0_-3px_0_var(--color-paper-dim)] transition-transform duration-100 data-[state=checked]:translate-x-9" />
+      <RxSwitch.Thumb className="block h-5 w-6 rounded-full translate-x-1 bg-paper shadow-[inset_0_-3px_0_var(--color-paper-dim)] transition-transform duration-100 data-[state=checked]:translate-x-9" />
     </RxSwitch.Root>
   )
 }
@@ -53,13 +53,13 @@ export function Toggle({ className, size = 'sm', ...props }: ComponentProps<type
 export function Slider({ className, ...props }: ComponentProps<typeof RxSlider.Root>) {
   return (
     <RxSlider.Root className={cn('relative flex h-7 w-full touch-none items-center select-none', className)} {...props}>
-      <RxSlider.Track className="relative h-3 grow bg-ink shadow-[inset_0_0_0_2px_var(--color-ink-3)]">
-        <RxSlider.Range className="absolute h-full bg-[repeating-linear-gradient(90deg,var(--color-kin)_0_6px,var(--color-kin-dark)_6px_8px)]" />
+      <RxSlider.Track className="relative h-2.5 grow overflow-hidden rounded-full bg-ink-3">
+        <RxSlider.Range className="absolute h-full rounded-full bg-kin" />
       </RxSlider.Track>
       {(props.value ?? props.defaultValue ?? [0]).map((_, i) => (
         <RxSlider.Thumb
           key={i}
-          className="notch-sm block h-6 w-4 bg-paper shadow-[inset_0_-3px_0_var(--color-paper-dim)] focus-visible:outline-2"
+          className="block size-5 rounded-full bg-paper shadow-[inset_0_-3px_0_var(--color-paper-dim)] focus-visible:outline-2"
           aria-label="Value"
         />
       ))}
@@ -87,9 +87,9 @@ export function Meter({
   return (
     <div className={cn('flex items-center gap-2', className)}>
       {label && <span className="font-arcade text-[0.6em] text-kin">{label}</span>}
-      <RxProgress.Root value={value} max={max} className="flex flex-1 gap-[2px] bg-ink p-[3px] shadow-[inset_0_0_0_2px_var(--color-paper)]">
+      <RxProgress.Root value={value} max={max} className="flex flex-1 gap-[3px] rounded-md bg-ink/80 p-[3px] shadow-[inset_0_0_0_1px_rgb(244_236_216/0.3)]">
         {Array.from({ length: segments }, (_, i) => (
-          <span key={i} className="h-3 flex-1" style={{ background: i < filled ? color : 'var(--color-ink-3)' }} />
+          <span key={i} className="h-2.5 flex-1 rounded-[2px]" style={{ background: i < filled ? color : 'var(--color-ink-3)' }} />
         ))}
       </RxProgress.Root>
     </div>
@@ -100,15 +100,15 @@ export function Meter({
 export const Tabs = RxTabs.Root
 
 export function TabsList({ className, ...props }: ComponentProps<typeof RxTabs.List>) {
-  return <RxTabs.List className={cn('flex gap-1 border-b-2 border-paper', className)} {...props} />
+  return <RxTabs.List className={cn('flex gap-1 border-b border-paper/40', className)} {...props} />
 }
 
 export function TabsTrigger({ className, ...props }: ComponentProps<typeof RxTabs.Trigger>) {
   return (
     <RxTabs.Trigger
       className={cn(
-        'notch-sm -mb-[2px] rounded-none px-3 pt-1.5 pb-1 text-paper-dim [clip-path:polygon(4px_0,calc(100%-4px)_0,100%_4px,100%_100%,0_100%,0_4px)]',
-        'bg-ink-3 hover:text-paper data-[state=active]:bg-paper data-[state=active]:text-ink',
+        '-mb-px rounded-t-md px-3 pt-1.5 pb-1 text-paper-dim',
+        'bg-ink-3 hover:text-paper data-[state=active]:bg-paper data-[state=active]:font-semibold data-[state=active]:text-ink',
         className,
       )}
       {...props}
@@ -130,7 +130,7 @@ export function Tooltip({ content, children, side = 'top' }: { content: ReactNod
       <RxTooltip.Trigger asChild>{children}</RxTooltip.Trigger>
       <RxTooltip.Portal>
         <RxTooltip.Content side={side} sideOffset={6} className="jg-ui z-50 animate-pop drop-hard-sm" style={{ zoom: scale }}>
-          <div className="notch-sm bg-paper px-2 py-1 text-sm text-ink">{content}</div>
+          <div className="corner-sm bg-paper px-2.5 py-1 text-sm text-ink">{content}</div>
         </RxTooltip.Content>
       </RxTooltip.Portal>
     </RxTooltip.Root>

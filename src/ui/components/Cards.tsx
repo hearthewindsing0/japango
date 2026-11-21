@@ -51,17 +51,17 @@ export function WordCard({
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           {reading && <div className="text-sm text-ink/60">{reading}</div>}
-          <div className="text-4xl leading-tight" lang="ja">
+          <div className="font-pixel text-4xl leading-tight" lang="ja">
             {word}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-ink/70">
             {jlpt && <JlptBadge level={jlpt} />}
             {romaji && <span className="italic">{romaji}</span>}
-            {pos && <span className="notch-sm bg-ink/10 px-1.5">{pos}</span>}
+            {pos && <span className="corner-sm bg-ink/10 px-1.5">{pos}</span>}
           </div>
         </div>
         {onClose && (
-          <button className="notch-sm grid size-8 place-items-center bg-ink text-paper hover:bg-shu" onClick={onClose} aria-label="Close">
+          <button className="corner-sm grid size-8 place-items-center bg-ink text-paper hover:bg-shu" onClick={onClose} aria-label="Close">
             ✕
           </button>
         )}
@@ -130,8 +130,8 @@ export function PlaceCard({
 }) {
   return (
     <Panel className={cn('w-80 max-w-full', className)}>
-      <div className="text-[0.8em] text-paper-dim">近く · nearby</div>
-      <div className="text-2xl leading-tight">
+      <div className="mb-1 text-[0.8em] text-paper-dim">近く · nearby</div>
+      <div className="font-pixel text-2xl leading-tight">
         <Furigana text={name} furigana={furigana} />
       </div>
       {nameEn && <div className="text-paper-dim">{nameEn}</div>}
@@ -176,8 +176,8 @@ export function SignCard({
   const plate = kind === 'station' ? 'bg-paper text-ink' : kind === 'door' ? 'bg-shu text-paper' : 'bg-[#2c5e3f] text-paper'
   return (
     <div className={cn('w-80 max-w-full drop-hard', className)}>
-      <div className={cn('notch px-4 py-3 [box-shadow:inset_0_0_0_2px_rgb(255_255_255/0.6)]', plate)}>
-        <div className="flex items-baseline gap-2 text-3xl leading-tight">
+      <div className={cn('corner px-4 py-3 [box-shadow:inset_0_0_0_2px_rgb(255_255_255/0.6)]', plate)}>
+        <div className="flex items-baseline gap-2 font-pixel text-3xl leading-tight">
           <Furigana text={title} furigana={furigana} />
           {kana && <span className="text-base opacity-75">{kana}</span>}
         </div>
@@ -214,7 +214,7 @@ export function DiscoveryCard({
   return (
     <Panel tone="gold" className={cn('w-[26rem] max-w-full', className)}>
       <PanelTitle aside={stamp && <Badge variant="shu">🎴 STAMP</Badge>}>Discovery ★</PanelTitle>
-      <div className="text-2xl leading-tight">
+      <div className="font-pixel text-2xl leading-tight">
         <Furigana text={name} furigana={furigana} /> {nameEn && <span className="text-base text-paper-dim">{nameEn}</span>}
       </div>
       {textJa && (
@@ -268,7 +268,7 @@ export function LocationPanel({
   return (
     <Panel size="sm" className={cn('w-72 max-w-full px-3', className)}>
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl leading-tight">
+        <span className="font-pixel text-2xl leading-tight">
           <Furigana text={area} furigana={furigana} />
         </span>
         {areaEn && <span className="text-sm text-paper-dim">{areaEn}</span>}

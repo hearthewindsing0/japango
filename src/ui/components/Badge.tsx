@@ -7,8 +7,8 @@ export function Kbd({ className, ...props }: ComponentProps<'kbd'>) {
   return (
     <kbd
       className={cn(
-        'notch-sm inline-flex h-[1.7em] min-w-[1.7em] items-center justify-center bg-paper px-[0.45em] font-arcade text-[0.62em] leading-none text-ink',
-        'shadow-[inset_0_-3px_0_var(--color-paper-dim)]',
+        'corner-sm inline-flex h-[1.7em] min-w-[1.7em] items-center justify-center bg-paper px-[0.45em] font-arcade text-[0.62em] leading-none text-ink',
+        'shadow-[inset_0_-2px_0_var(--color-paper-dim)]',
         className,
       )}
       {...props}
@@ -16,7 +16,7 @@ export function Kbd({ className, ...props }: ComponentProps<'kbd'>) {
   )
 }
 
-export const badgeVariants = cva('notch-sm inline-flex items-center gap-1 px-[0.5em] py-[0.1em] text-[0.85em] leading-snug whitespace-nowrap', {
+export const badgeVariants = cva('inline-flex items-center gap-1 rounded-full px-[0.6em] py-[0.1em] text-[0.85em] font-medium leading-snug whitespace-nowrap', {
   variants: {
     variant: {
       /** 営業中: red on white, like a real noren sign. */
@@ -25,8 +25,8 @@ export const badgeVariants = cva('notch-sm inline-flex items-center gap-1 px-[0.
       closed: 'bg-ink-3 text-paper-dim',
       gold: 'bg-kin text-ink',
       shu: 'bg-shu text-paper',
-      outline: 'shadow-[inset_0_0_0_2px_currentColor]',
-      neon: 'text-sora shadow-[inset_0_0_0_2px_var(--color-sora),0_0_8px_var(--color-sora)]',
+      outline: 'shadow-[inset_0_0_0_1px_currentColor]',
+      neon: 'text-sora shadow-[inset_0_0_0_1.5px_var(--color-sora),0_0_8px_rgb(95_211_230/0.5)]',
     },
   },
   defaultVariants: { variant: 'outline' },
@@ -53,7 +53,7 @@ const JLPT: Record<number, string> = { 5: '#2f855a', 4: '#2b6cb0', 3: '#b7791f',
 /** JLPT level chip, N5 (easiest) to N1. */
 export function JlptBadge({ level, className }: { level: 1 | 2 | 3 | 4 | 5; className?: string }) {
   return (
-    <span className={cn('notch-sm inline-block px-[0.45em] py-[0.15em] font-arcade text-[0.6em] text-white', className)} style={{ background: JLPT[level] }}>
+    <span className={cn('corner-sm inline-block px-[0.45em] py-[0.15em] font-arcade text-[0.6em] text-white', className)} style={{ background: JLPT[level] }}>
       N{level}
     </span>
   )

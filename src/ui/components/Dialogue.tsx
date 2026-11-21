@@ -89,14 +89,14 @@ export function DialogueBox({
     <div className={cn('relative drop-hard', className)} style={{ opacity: overhear ? 0.55 + 0.45 * clarity : 1 }}>
             {speaker && !overhear && !faint && (
               <div
-                className="notch-sm absolute -top-3 left-4 z-10 px-2 py-0.5 text-[0.85em] text-ink drop-hard-sm"
+                className="corner-sm absolute -top-3 left-4 z-10 px-2.5 py-0.5 font-pixel text-[0.9em] text-ink drop-hard-sm"
                 style={{ background: SPEAKER_COLORS[speakerIndex % SPEAKER_COLORS.length] }}
               >
                 {speaker}
               </div>
             )}
       <div
-        className={cn('notch relative px-5 pt-3 pb-4', overhear ? 'bg-ink/80 [box-shadow:inset_0_0_0_2px_rgb(244_236_216/0.5)]' : 'bg-ink frame')}
+        className={cn('corner relative px-5 pt-3 pb-4', overhear ? 'bg-ink/80 [box-shadow:inset_0_0_0_1px_rgb(244_236_216/0.3)]' : 'bg-ink frame')}
         onClick={() => (done ? onNext?.() : skip())}
         role={onNext ? 'button' : undefined}
       >
@@ -104,7 +104,7 @@ export function DialogueBox({
           <div className="mb-2 flex items-center gap-2 text-[0.8em] text-paper-dim">
             {overhear && (
               <>
-                <span className="notch-sm bg-sora px-1.5 text-ink">👂 立ち聞き</span>
+                <span className="rounded-full bg-sora px-2 text-ink">👂 立ち聞き</span>
                 {place}
               </>
             )}
@@ -118,7 +118,7 @@ export function DialogueBox({
         ) : (
           <>
             {speaker && overhear && (
-              <span className="mr-2 text-[0.85em]" style={{ color: SPEAKER_COLORS[speakerIndex % SPEAKER_COLORS.length] }}>
+              <span className="mr-2 font-pixel text-[0.9em]" style={{ color: SPEAKER_COLORS[speakerIndex % SPEAKER_COLORS.length] }}>
                 {speaker}：
               </span>
             )}
@@ -139,7 +139,7 @@ export function DialogueBox({
 export function NoteBox({ children, english, className }: { children: ReactNode; english?: ReactNode; className?: string }) {
   return (
     <div className={cn('drop-hard', className)}>
-      <div className="notch bg-kin px-4 py-3 text-ink [&_rt]:text-ink/60">
+      <div className="corner bg-kin px-4 py-3 text-ink [&_rt]:text-ink/60">
         <span className="mr-2 font-arcade text-[0.6em]">TIP</span>
         {children}
         {english && <p className="mt-1 text-[0.85em] opacity-75">{english}</p>}

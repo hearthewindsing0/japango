@@ -196,8 +196,8 @@ Everything drawn over the 3D world (HUD boxes, cards, dialogue, menus,
 buttons) has a component in `src/ui/`, built the shadcn/ui way: Radix
 primitives for behaviour and focus, Tailwind v4 for looks, `cva` for
 variants, and the source lives in the repo so it can be changed freely.
-The look is retro arcade: DotGothic16 and Press Start 2P pixel fonts,
-ink-black panels with a clean pixel frame, cut corners, soft hard-edged shadows and
+The look is retro arcade kept readable: M PLUS 1 for text, DotGothic16 and Press Start 2P pixel fonts for titles and labels,
+ink-black rounded panels with a thin frame line, short hard shadows and
 vermilion / gold accents.
 
 - `import './ui/theme.css'` once, wrap UI in `<UiRoot scale={…}>`, then

@@ -65,8 +65,8 @@ export function MinimapFrame({
   const px = big ? size * 2.4 : size
   return (
     <div className={cn('relative drop-hard', className)} style={{ width: px }}>
-      <div className="notch bg-ink p-[4px] frame">
-        <div className="relative aspect-square overflow-hidden bg-[#1d2a22]">
+      <div className="corner bg-ink p-[4px] frame">
+        <div className="relative aspect-square overflow-hidden rounded-lg bg-[#1d2a22]">
           {children}
           <span className="pointer-events-none absolute inset-0 [box-shadow:inset_0_0_24px_rgb(0_0_0/0.6)]" />
           <span className="pointer-events-none absolute top-1/2 left-1/2 size-2.5 -translate-1/2 bg-shu [box-shadow:0_0_0_2px_var(--color-paper)] [clip-path:polygon(50%_0,100%_100%,50%_75%,0_100%)]" />
@@ -82,7 +82,7 @@ export function MinimapFrame({
           <span className="min-w-0 flex-1 truncate">{label}</span>
           {coords && <span className="font-arcade text-[0.65em] text-paper-dim">{coords}</span>}
           {onToggleBig && (
-            <button className="notch-sm bg-ink-3 px-1.5 text-paper hover:bg-paper hover:text-ink" onClick={onToggleBig} aria-label={big ? 'Small map' : 'Big map'} title="Map (M)">
+            <button className="corner-sm bg-ink-3 px-1.5 text-paper hover:bg-paper hover:text-ink" onClick={onToggleBig} aria-label={big ? 'Small map' : 'Big map'} title="Map (M)">
               {big ? '⤡' : '⤢'}
             </button>
           )}
@@ -128,7 +128,7 @@ export function Stamp({ spot, size = 88 }: { spot: StampSpot; size?: number }) {
     <div className="flex flex-col items-center gap-1 text-center" style={{ width: size + 8 }}>
       <div
         className={cn(
-          'grid place-items-center text-[2em] leading-none',
+          'grid place-items-center font-pixel text-[2em] leading-none',
           spot.got
             ? 'animate-stamp rotate-[-8deg] text-shu [box-shadow:inset_0_0_0_4px_var(--color-shu),inset_0_0_0_7px_transparent,inset_0_0_0_9px_var(--color-shu)] [clip-path:circle(50%)]'
             : 'text-ink/30 [box-shadow:inset_0_0_0_3px_rgb(13_12_18/0.25)] [clip-path:circle(50%)] ',
@@ -226,7 +226,7 @@ export function DPad({
   const btn = (d: PadDir, label: string, col: number, row: number) => (
     <button
       aria-label={d}
-      className="absolute grid place-items-center bg-ink-3 text-paper shadow-[inset_0_-4px_0_var(--color-ink),inset_0_2px_0_rgb(255_255_255/0.12)] active:translate-y-[2px] active:bg-shu active:shadow-none"
+      className="absolute grid place-items-center rounded-md bg-ink-3 text-paper shadow-[inset_0_-3px_0_var(--color-ink)] active:translate-y-[2px] active:bg-shu active:shadow-none"
       style={{ left: col * cell, top: row * cell, width: cell, height: cell }}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId)
@@ -240,8 +240,8 @@ export function DPad({
   )
   return (
     <div className={cn('relative touch-none select-none drop-hard', className)} style={{ width: size, height: size }}>
-      <span className="absolute bg-ink" style={{ left: cell - 4, top: -4, width: cell + 8, height: size + 8 }} />
-      <span className="absolute bg-ink" style={{ left: -4, top: cell - 4, width: size + 8, height: cell + 8 }} />
+      <span className="absolute rounded-lg bg-ink" style={{ left: cell - 4, top: -4, width: cell + 8, height: size + 8 }} />
+      <span className="absolute rounded-lg bg-ink" style={{ left: -4, top: cell - 4, width: size + 8, height: cell + 8 }} />
       {btn('up', '▲', 1, 0)}
       {btn('left', '◀', 0, 1)}
       {btn('right', '▶', 2, 1)}
@@ -251,10 +251,10 @@ export function DPad({
       </span>
       {onTurn && (
         <>
-          <button className="notch-sm absolute -top-1 -left-1 size-9 bg-ink text-paper hover:bg-shu" style={{ fontSize: 18 }} aria-label="Turn view left" onClick={() => onTurn(-1)}>
+          <button className="corner-sm absolute -top-1 -left-1 size-9 bg-ink text-paper hover:bg-shu" style={{ fontSize: 18 }} aria-label="Turn view left" onClick={() => onTurn(-1)}>
             ⟲
           </button>
-          <button className="notch-sm absolute -top-1 -right-1 size-9 bg-ink text-paper hover:bg-shu" style={{ fontSize: 18 }} aria-label="Turn view right" onClick={() => onTurn(1)}>
+          <button className="corner-sm absolute -top-1 -right-1 size-9 bg-ink text-paper hover:bg-shu" style={{ fontSize: 18 }} aria-label="Turn view right" onClick={() => onTurn(1)}>
             ⟳
           </button>
         </>
@@ -281,7 +281,7 @@ export interface HotbarSlot {
 export function Hotbar({ slots, className }: { slots: HotbarSlot[]; className?: string }) {
   return (
     <nav className={cn('inline-block drop-hard', className)}>
-      <div className="notch flex gap-1 bg-ink p-[6px] frame">
+      <div className="corner flex gap-1 bg-ink p-[6px] frame">
         {slots.map((s) => (
           <button
             key={s.id}
@@ -289,7 +289,7 @@ export function Hotbar({ slots, className }: { slots: HotbarSlot[]; className?: 
             aria-pressed={s.active}
             title={s.shortcut ? `${s.label} (${s.shortcut})` : s.label}
             className={cn(
-              'notch-sm relative flex w-16 flex-col items-center gap-0.5 bg-ink-3 px-1 pt-2 pb-1 text-paper shadow-[inset_0_-3px_0_var(--color-ink)] hover:bg-[#2f2b3d]',
+              'corner-sm relative flex w-16 flex-col items-center gap-0.5 bg-ink-3 px-1 pt-2 pb-1 text-paper shadow-[inset_0_-2px_0_var(--color-ink)] hover:bg-[#2f2b3d]',
               'aria-pressed:bg-kin aria-pressed:text-ink aria-pressed:shadow-none',
             )}
           >
@@ -316,7 +316,7 @@ export function LoadingScreen({ progress, label = 'Loading map', tip }: { progre
     <div className="scanlines grid size-full place-items-center bg-ink p-6">
       <div className="w-full max-w-md text-center">
         <div className="font-arcade text-xs tracking-widest text-kin">NOW LOADING</div>
-        <div className="mt-1 text-3xl">
+        <div className="mt-1 font-pixel text-3xl">
           ロード中<span className="animate-blink">…</span>
         </div>
         <Meter value={progress} className="mt-5" segments={16} color="var(--color-shu)" />

@@ -6,7 +6,7 @@ import { cn } from '../lib/cn'
 /** Arcade button: chamfered corners and a pressed-in bottom edge. */
 export const buttonVariants = cva(
   [
-    'notch-sm relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-pixel leading-none',
+    'corner-sm relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-semibold leading-none',
     'transition-[transform,filter] duration-75 active:translate-y-[2px] active:shadow-[inset_0_-1px_0_rgb(0_0_0/0.45)]',
     'disabled:opacity-40 disabled:saturate-0 disabled:active:translate-y-0',
     'aria-pressed:translate-y-[2px] aria-pressed:shadow-[inset_0_-1px_0_rgb(0_0_0/0.45),inset_0_0_0_2px_var(--color-kin)]',
@@ -14,11 +14,11 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-shu text-paper shadow-[inset_0_-3px_0_var(--color-shu-dark)] hover:brightness-110',
+        primary: 'bg-shu text-white shadow-[inset_0_-3px_0_var(--color-shu-dark)] hover:brightness-110',
         gold: 'bg-kin text-ink shadow-[inset_0_-3px_0_var(--color-kin-dark)] hover:brightness-105',
         secondary: 'bg-ink-3 text-paper shadow-[inset_0_-3px_0_var(--color-ink)] hover:bg-[#2f2b3d]',
         ghost: 'text-paper hover:bg-white/10',
-        outline: 'text-paper shadow-[inset_0_0_0_2px_var(--color-paper)] hover:bg-paper hover:text-ink',
+        outline: 'bg-ink/50 text-paper shadow-[inset_0_0_0_1.5px_rgb(244_236_216/0.7)] hover:bg-paper hover:text-ink',
       },
       size: {
         sm: 'h-8 px-3 text-sm',

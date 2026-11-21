@@ -129,7 +129,7 @@ export function Playground() {
       <div className="jg-ui flex h-dvh flex-col bg-ink text-paper">
         {/* Top bar */}
         <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b-4 border-shu bg-ink-2 px-4 py-2">
-          <button className="notch-sm bg-ink-3 px-2 py-1 md:hidden" onClick={() => setMenu((m) => !m)} aria-label="Components">
+          <button className="corner-sm bg-ink-3 px-2 py-1 md:hidden" onClick={() => setMenu((m) => !m)} aria-label="Components">
             ☰
           </button>
           <a href={BASE} className="font-arcade text-sm text-paper [text-shadow:2px_2px_0_var(--color-shu)]">
@@ -142,7 +142,7 @@ export function Playground() {
               <select
                 value={backdrop}
                 onChange={(e) => setBackdrop(e.target.value as Backdrop)}
-                className="notch-sm bg-ink-3 px-2 py-1 text-paper outline-none"
+                className="corner-sm bg-ink-3 px-2 py-1 text-paper outline-none"
               >
                 {Object.entries(BACKDROPS).map(([k, v]) => (
                   <option key={k} value={k}>
@@ -175,7 +175,7 @@ export function Playground() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search…"
-              className="notch-sm mb-3 w-full bg-ink px-2 py-1.5 text-sm text-paper outline-none placeholder:text-paper-dim/60 focus:bg-ink-3"
+              className="corner-sm mb-3 w-full bg-ink px-2 py-1.5 text-sm text-paper outline-none placeholder:text-paper-dim/60 focus:bg-ink-3"
             />
             {groups.map(([g, list]) => (
               <div key={g} className="mb-4">
@@ -291,7 +291,7 @@ export function Playground() {
 
 function ControlField({ name, control, value, onChange }: { name: string; control: Control; value: unknown; onChange: (v: unknown) => void }) {
   const label = <span className="text-xs text-paper-dim">{name}</span>
-  const input = 'notch-sm w-full bg-ink px-2 py-1.5 text-sm text-paper outline-none focus:bg-ink-3'
+  const input = 'corner-sm w-full bg-ink px-2 py-1.5 text-sm text-paper outline-none focus:bg-ink-3'
   switch (control.type) {
     case 'boolean':
       return (

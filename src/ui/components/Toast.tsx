@@ -56,7 +56,7 @@ export function Toaster({ position = 'top' }: { position?: 'top' | 'bottom' }) {
           onOpenChange={(open) => !open && dismiss(t.id)}
           className="animate-pop drop-hard data-[state=closed]:opacity-0 data-[swipe=end]:-translate-y-[var(--radix-toast-swipe-end-y)]"
         >
-          <div className={cn('notch flex items-center gap-3 px-5 py-3', TONE[t.kind])}>
+          <div className={cn('corner flex items-center gap-3 px-5 py-3', TONE[t.kind])}>
             <span className={cn('text-2xl', t.kind === 'stamp' && 'animate-stamp')}>{ICON[t.kind]}</span>
             <div className="min-w-0">
               <RxToast.Title className="text-xl leading-tight">{t.title}</RxToast.Title>

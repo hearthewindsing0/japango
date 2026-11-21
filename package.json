@@ -24,6 +24,7 @@
     "cf:dev": "vite build && wrangler d1 migrations apply japango --local && wrangler dev"
   },
   "dependencies": {
+    "@fontsource-variable/m-plus-1": "^5.3.1",
     "@fontsource/dotgothic16": "^5.3.1",
     "@fontsource/press-start-2p": "^5.3.0",
     "@react-three/drei": "^10.7.9",

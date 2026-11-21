@@ -46,22 +46,22 @@ export function Window({
         >
           <div
             className={cn(
-              'notch flex max-h-[inherit] flex-col overflow-hidden frame',
+              'corner flex max-h-[inherit] flex-col overflow-hidden frame',
               tone === 'ink' ? 'bg-ink text-paper' : 'bg-paper text-ink [&_rt]:text-ink/60',
             )}
           >
-            <div className="flex items-center gap-3 bg-shu px-4 py-2 text-paper m-[2px] mb-0">
-              <Dialog.Title className="flex min-w-0 flex-1 items-baseline gap-2 text-lg leading-tight">
+            <div className="flex items-center gap-3 bg-shu px-4 py-2.5 text-white">
+              <Dialog.Title className="flex min-w-0 flex-1 items-baseline gap-2 font-pixel text-lg leading-tight">
                 <span className="truncate">{title}</span>
-                {subtitle && <span className="truncate text-[0.75em] text-paper/75">{subtitle}</span>}
+                {subtitle && <span className="truncate text-[0.75em] text-white/80">{subtitle}</span>}
               </Dialog.Title>
-              <Dialog.Close className="notch-sm grid size-7 place-items-center bg-ink text-paper hover:bg-paper hover:text-ink" aria-label="Close">
+              <Dialog.Close className="grid size-7 place-items-center rounded-full bg-black/25 text-white hover:bg-white hover:text-shu" aria-label="Close">
                 ✕
               </Dialog.Close>
             </div>
-            <div className="min-h-0 overflow-auto px-5 py-4 mx-[2px]">{children}</div>
-            {footer && <div className="mx-[2px] mb-[2px] flex justify-end gap-2 border-t border-current/15 px-5 py-3">{footer}</div>}
-            {!footer && <div className="h-[2px]" />}
+            <div className="min-h-0 overflow-auto px-5 py-4">{children}</div>
+            {footer && <div className="flex justify-end gap-2 border-t border-current/15 px-5 py-3">{footer}</div>}
+            
           </div>
         </Dialog.Content>
       </Dialog.Portal>

@@ -14,7 +14,7 @@ export interface MenuItem {
 }
 
 const itemClass = cn(
-  'group relative flex cursor-pointer items-center gap-3 py-1.5 pr-3 pl-7 outline-none select-none',
+  'group relative flex cursor-pointer items-center gap-3 rounded-md py-1.5 pr-3 pl-7 outline-none select-none',
   'data-[highlighted]:bg-paper data-[highlighted]:text-ink data-[disabled]:cursor-default data-[disabled]:opacity-40',
 )
 
@@ -31,8 +31,8 @@ export function Menu({ trigger, items, label }: { trigger: ReactNode; items: Men
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content sideOffset={6} align="start" className="jg-ui z-50 min-w-48 animate-pop drop-hard" style={{ zoom: scale }}>
-          <div className="notch bg-ink py-1.5 frame">
-            <div className="px-[2px]">
+          <div className="corner bg-ink py-1.5 frame">
+            <div className="px-1.5">
               {label && <DropdownMenu.Label className="px-3 pb-1 font-arcade text-[0.6em] text-kin">{label}</DropdownMenu.Label>}
               {items.map((it, i) => (
                 <DropdownMenu.Item key={i} disabled={it.disabled} onSelect={it.onSelect} className={cn(itemClass, it.danger && 'text-shu')}>
