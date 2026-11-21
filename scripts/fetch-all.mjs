@@ -2,7 +2,7 @@
 // builds the map and cuts it into tiles. Pick the area with AREA=<id>
 // (default roppongi); make one with scripts/add-area.mjs.
 //
-//   AREA=shibuya node scripts/fetch-all.mjs [--only osm,wiki] [--skip mapillary]
+//   AREA=shibuya bun scripts/fetch-all.mjs [--only osm,wiki] [--skip mapillary]
 //
 // Mapillary needs MAPILLARY_TOKEN and is skipped without one. (City sounds
 // aren't per area; they come from fetch-sounds.mjs.)

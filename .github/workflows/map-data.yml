@@ -93,11 +93,10 @@ jobs:
       WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
+          bun-version: 1.4.x
+      - run: bun install --frozen-lockfile
       - name: Add or change the area
         if: ${{ github.event.inputs.center != '' || github.event.inputs.corners != '' || github.event.inputs.name != '' || github.event.inputs.rotation != '' || github.event.inputs.spawn != '' }}
         env:
@@ -117,16 +116,16 @@ jobs:
           [ -n "$IN_CORNERS" ] && args+=(--corners "$IN_CORNERS")
           [ -n "$IN_ROTATION" ] && args+=(--rotation "$IN_ROTATION")
           [ -n "$IN_SPAWN" ] && args+=(--spawn "$IN_SPAWN")
-          node scripts/add-area.mjs "${args[@]}"
+          bun scripts/add-area.mjs "${args[@]}"
       - name: Check the area exists
         run: test -f "areas/$AREA.json" || { echo "::error::No areas/$AREA.json. Give a center and size (or corners) to add it."; exit 1; }
       - name: Download every source at once, build the map and tiles
-        run: node scripts/fetch-all.mjs
+        run: bun scripts/fetch-all.mjs
       - name: Japanese dictionary for the map's text (JMdict, Tatoeba, KANJIDIC2, KanjiVG)
         run: bash scripts/build-dict.sh
       - name: Upload the nightly refresh to R2
         if: ${{ github.event_name == 'schedule' && env.CF_READY == 'true' }}
-        run: node scripts/upload-r2.mjs
+        run: bun scripts/upload-r2.mjs
       - name: Keep the result for the commit job
         if: ${{ github.event_name != 'schedule' || env.CF_READY != 'true' }}
         uses: actions/upload-artifact@v4
@@ -150,13 +149,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         if: ${{ env.FREESOUND_TOKEN != '' }}
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         if: ${{ env.FREESOUND_TOKEN != '' }}
         with:
-          node-version: 22
+          bun-version: 1.4.x
       - name: City sounds from Freesound
         if: ${{ env.FREESOUND_TOKEN != '' }}
-        run: node scripts/fetch-sounds.mjs
+        run: bun scripts/fetch-sounds.mjs
       - uses: actions/upload-artifact@v4
         if: ${{ env.FREESOUND_TOKEN != '' }}
         with:

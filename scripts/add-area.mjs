@@ -2,9 +2,9 @@
 // script then reads (pick it with AREA=<id>). Give either a center and a
 // size, or the corners of a box to cover:
 //
-//   node scripts/add-area.mjs --id shibuya --name 渋谷 --name-en Shibuya \
+//   bun scripts/add-area.mjs --id shibuya --name 渋谷 --name-en Shibuya \
 //     --center 35.6595,139.7005 --size 1500x1200 [--rotation 0] [--spawn lat,lon]
-//   node scripts/add-area.mjs --id akasaka --name 赤坂 --name-en Akasaka \
+//   bun scripts/add-area.mjs --id akasaka --name 赤坂 --name-en Akasaka \
 //     --corners 35.668,139.730,35.680,139.742
 //
 // --corners is south,west,north,east. With a --rotation, the map is the

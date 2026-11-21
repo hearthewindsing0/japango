@@ -8,7 +8,7 @@ import { AREA } from './area.mjs'
 
 const BUCKET = 'japango-tiles'
 const put = (key, file) =>
-  execFileSync('npx', ['wrangler', 'r2', 'object', 'put', `${BUCKET}/${key}`, '--file', file, '--content-type', 'application/json', '--remote'], {
+  execFileSync('bunx', ['wrangler', 'r2', 'object', 'put', `${BUCKET}/${key}`, '--file', file, '--content-type', 'application/json', '--remote'], {
     stdio: ['ignore', 'ignore', 'inherit'],
   })
 
