@@ -30,6 +30,22 @@ export interface Poi {
   /** What a restaurant serves, in Japanese and English (和食, Japanese food). */
   cu?: string
   cuEn?: string
+  /** Curated place id (data/places/<area>.json): always labelled, starred
+   *  on the minimap. */
+  fav?: string
+  /** It has closed since; it's shown where it used to be. */
+  gone?: 1
+}
+
+/** A curated place, as the manifest lists them for the minimap. */
+export interface Place {
+  id: string
+  x: number
+  y: number
+  ja: string
+  en: string
+  kind: PoiKind
+  gone?: 1
 }
 
 export interface Street {
@@ -73,7 +89,8 @@ export interface MapFile {
   slopes?: Slope[]
   /** Shop signs on walls: t = text, k = shop kind, r = facing, w = max
    *  width, b = index of the building it hangs on. */
-  signs?: { x: number; y: number; r: number; w: number; b: number; t: string; k: PoiKind; oh?: Week }[]
+  signs?: { x: number; y: number; r: number; w: number; b: number; t: string; k: PoiKind; oh?: Week; fav?: 1 }[]
+  places?: Place[]
   /** Places with a Wikipedia article; stamp = part of the stamp rally. */
   discoveries?: Discovery[]
   /** Bridge surfaces: rings of [x, y, height] in game meters. */
@@ -191,6 +208,8 @@ export interface Manifest {
   streets: Street[]
   slopes: Slope[]
   discoveries: Discovery[]
+  /** Curated places (data/places/<area>.json), starred on the minimap. */
+  places?: Place[]
   /** Stations you can walk into (see station.ts). */
   stations?: Station[]
   /** Front doors of places you can walk into (see interior.ts). */
@@ -366,7 +385,7 @@ export function poisNear(map: GameMap, x: number, y: number, radius: number, lim
   return [...map.tiles.values()]
     .flatMap((t) => t.pois)
     .filter((p) => Math.abs(p.x - x) <= radius && Math.abs(p.y - y) <= radius * 0.8)
-    .sort((a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind])
+    .sort((a, b) => (a.fav ? -1 : KIND_RANK[a.kind]) - (b.fav ? -1 : KIND_RANK[b.kind]))
     .slice(0, limit)
 }
 

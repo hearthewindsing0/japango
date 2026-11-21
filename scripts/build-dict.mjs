@@ -58,6 +58,15 @@ for (const f of ['antnbee']) {
   for (const s of Object.values(it.signs)) add(s.t)
 }
 for (const t of ['営業中', '準備中', '本日', '本日定休日', '24時間営業']) add(t)
+// What people say at the talking spots (scripts/fetch-conversations.mjs).
+const talkFile = `public/talk/${AREA.id}.json`
+if (existsSync(talkFile)) {
+  const talk = JSON.parse(await readFile(talkFile, 'utf8'))
+  for (const c of talk.conversations ?? []) {
+    for (const s of c.speakers ?? []) add(s.name)
+    for (const l of c.lines ?? []) add(l.ja)
+  }
+}
 console.log(`${texts.size} Japanese texts in the map`)
 
 const tokenizer = await new Promise((res, rej) =>

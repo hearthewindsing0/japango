@@ -23,6 +23,9 @@ import { buildInteriors } from './game/interior'
 import { Interiors, type Glass } from './game/Interiors'
 import { BarMenu } from './game/BarMenu'
 import { ANTNBEE, ORDER_SPOT, toLocal } from './game/interiors/antnbee'
+import { Talkers } from './game/Talkers'
+import { TalkCaption } from './game/TalkCaption'
+import { loadTalk, useTalk, type Talk } from './game/talk'
 import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoClock, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
 
 const MIN_DIST = 10
@@ -96,6 +99,25 @@ export default function App() {
   useEffect(() => {
     loadDict(AREA_ID).then(setDict)
   }, [])
+  // People talking at the talking spots, and English under what they say.
+  const [talk, setTalk] = useState<Talk | null>(null)
+  useEffect(() => {
+    loadTalk('roppongi').then(setTalk)
+  }, [])
+  const [english, setEnglish] = useState(() => {
+    try {
+      return localStorage.getItem('japango.english') === '1'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem('japango.english', english ? '1' : '0')
+    } catch {
+      // Not saved; fine for this visit.
+    }
+  }, [english])
   // Background sound, on unless the player turned it off.
   const [muted, setMuted] = useState(() => {
     try {
@@ -175,6 +197,7 @@ export default function App() {
       if (e.key === 'b' || e.key === 'B') setBook((b) => !b)
       if (e.key === 'f' || e.key === 'F') setFurigana((f) => !f)
       if (e.key === 'n' || e.key === 'N') setMuted((m) => !m)
+      if (e.key === 't' || e.key === 'T') setEnglish((v) => !v)
       if (e.key === 'h' || e.key === 'H') setHelp((h) => !h)
       if (e.key === ']') hudStep.current(1)
       if (e.key === '[') hudStep.current(-1)
@@ -263,6 +286,15 @@ export default function App() {
     return map?.stations?.length || interiors.length ? new Underground(map?.stations ?? [], interiors) : null
   }, [map])
   useAmbience({ map, focus, under, hour, month: tokyoMonth(now), night: sky.night, rain: sky.rain, muted, credits: soundCredits })
+  const caption = useTalk({ map, talk, focus, hour, rain: sky.rain, muted })
+  // Each spot's people look like the voices of their latest conversation.
+  const [voices, setVoices] = useState<Record<string, [string, string]>>({})
+  const talkingConv = caption?.conv
+  useEffect(() => {
+    if (!talkingConv) return
+    const v: [string, string] = [talkingConv.speakers[0]?.voice ?? '', talkingConv.speakers[1]?.voice ?? '']
+    setVoices((old) => (old[talkingConv.spot]?.join() === v.join() ? old : { ...old, [talkingConv.spot]: v }))
+  }, [talkingConv])
 
   if (error)
     return (
@@ -317,6 +349,7 @@ export default function App() {
         {!under && <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />}
         {ug && <Stations ug={ug} focus={focus} under={under} />}
         {ug && ug.interiors.length > 0 && <Interiors interiors={ug.interiors} focus={focus} under={under} night={sky.night > 0.5} glasses={glasses} />}
+        {talk && !under && <Talkers talk={talk} voices={voices} rain={sky.rain > 0.2} />}
         <Player
           map={map}
           ug={ug}
@@ -384,6 +417,14 @@ export default function App() {
           {place && (
             <div className="hud-near">
               近く: <JaText text={place.name} dict={dict} furigana={furigana} onWord={setWord} /> {place.nameEn && <span>{place.nameEn}</span>}
+              {place.gone && (
+                <div className="hud-near-info">
+                  <span className="hud-open closed">
+                    <JaText text="閉店" dict={dict} furigana={furigana} onWord={setWord} />
+                  </span>
+                  <span className="hud-near-en">closed now, shown where it used to be</span>
+                </div>
+              )}
               {(place.cu || place.oh) && (
                 <div className="hud-near-info">
                   {place.oh && (
@@ -473,6 +514,10 @@ export default function App() {
           </div>
         )}
 
+        <div className="hud-stack">
+        {caption && !book && (
+          <TalkCaption caption={caption} dict={dict} furigana={furigana} english={english} onWord={setWord} onEnglish={() => setEnglish((v) => !v)} />
+        )}
         {here && !book && (
           <div className="hud-discovery">
             <div className="hud-discovery-name">
@@ -554,6 +599,7 @@ export default function App() {
             </div>
           </div>
         )}
+        </div>
 
         {word && dict && <WordPopup key={word.key} pick={word} dict={dict} furigana={furigana} onWord={setWord} onClose={() => setWord(null)} />}
 
@@ -657,6 +703,12 @@ export default function App() {
                   ))}
                 </>
               )}
+              {talk && (
+                <>
+                  {' · '}
+                  {talk.attribution}
+                </>
+              )}
               {map.credits?.some((c) => c.includes('PLATEAU')) && (
                 <>
                   {' · '}Buildings and terrain:{' '}
@@ -700,6 +752,7 @@ const HELP: [string, string][] = [
   ['B', 'Stamp book'],
   ['F', 'Furigana'],
   ['N', 'Sound on/off'],
+  ['T', 'English for overheard talk'],
   ['[ / ]', 'Smaller / bigger boxes'],
   ['H', 'Show/hide this list'],
   ['Tap a word', 'Word card'],

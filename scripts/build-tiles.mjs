@@ -167,6 +167,7 @@ const manifest = {
   streets: map.streets,
   slopes: map.slopes ?? [],
   discoveries: map.discoveries ?? [],
+  places: map.places ?? [],
   stations: map.stations ?? [],
   interiors: map.interiors ?? [],
 }
