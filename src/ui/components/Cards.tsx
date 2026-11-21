@@ -77,22 +77,22 @@ export function WordCard({
       {kanji.length > 0 && (
         <div className="mt-3 grid gap-2">
           {kanji.map((k) => (
-            <div key={k.char} className="flex items-center gap-3 bg-ink/5 p-2 [box-shadow:inset_0_0_0_2px_rgb(13_12_18/0.12)]">
-              <span className="grid size-12 shrink-0 place-items-center bg-paper text-3xl [box-shadow:inset_0_0_0_2px_var(--color-ink)] [background-image:linear-gradient(rgb(232_67_46/0.25)_1px,transparent_1px),linear-gradient(90deg,rgb(232_67_46/0.25)_1px,transparent_1px)] [background-position:center] [background-size:50%_50%]">
+            <div key={k.char} className="flex items-center gap-3 bg-ink/5 p-2">
+              <span className="grid size-10 shrink-0 place-items-center bg-paper text-2xl [box-shadow:inset_0_0_0_2px_var(--color-ink)] [background-image:linear-gradient(rgb(232_67_46/0.25)_1px,transparent_1px),linear-gradient(90deg,rgb(232_67_46/0.25)_1px,transparent_1px)] [background-position:center] [background-size:50%_50%]">
                 {k.char}
               </span>
               <div className="min-w-0 text-sm leading-snug">
                 <div className="font-bold">{k.meanings.join(', ')}</div>
-                {k.on?.length ? <div className="text-ink/70">音 {k.on.join('・')}</div> : null}
-                {k.kun?.length ? <div className="text-ink/70">訓 {k.kun.join('・')}</div> : null}
-                {k.strokes ? <div className="text-ink/50">{k.strokes} strokes</div> : null}
+                <div className="text-ink/65">
+                  {[k.on?.length && `音 ${k.on.join('・')}`, k.kun?.length && `訓 ${k.kun.join('・')}`, k.strokes && `${k.strokes}画`].filter(Boolean).join('　')}
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
       {example && (
-        <div className="mt-3 border-t-2 border-dashed border-ink/20 pt-2">
+        <div className="mt-3 border-t border-ink/15 pt-2">
           <div className="text-lg leading-[1.9]">
             <Furigana text={example} furigana={furigana} onWord={onWord} />
           </div>
@@ -176,7 +176,7 @@ export function SignCard({
   const plate = kind === 'station' ? 'bg-paper text-ink' : kind === 'door' ? 'bg-shu text-paper' : 'bg-[#2c5e3f] text-paper'
   return (
     <div className={cn('w-80 max-w-full drop-hard', className)}>
-      <div className={cn('notch px-4 py-3 [box-shadow:inset_0_0_0_3px_rgb(255_255_255/0.85),inset_0_0_0_5px_rgb(0_0_0/0.35)]', plate)}>
+      <div className={cn('notch px-4 py-3 [box-shadow:inset_0_0_0_2px_rgb(255_255_255/0.6)]', plate)}>
         <div className="flex items-baseline gap-2 text-3xl leading-tight">
           <Furigana text={title} furigana={furigana} />
           {kana && <span className="text-base opacity-75">{kana}</span>}

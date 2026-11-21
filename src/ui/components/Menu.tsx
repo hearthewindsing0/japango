@@ -31,8 +31,8 @@ export function Menu({ trigger, items, label }: { trigger: ReactNode; items: Men
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content sideOffset={6} align="start" className="jg-ui z-50 min-w-48 animate-pop drop-hard" style={{ zoom: scale }}>
-          <div className="notch bg-ink py-2 frame scanlines">
-            <div className="px-[6px]">
+          <div className="notch bg-ink py-1.5 frame">
+            <div className="px-[2px]">
               {label && <DropdownMenu.Label className="px-3 pb-1 font-arcade text-[0.6em] text-kin">{label}</DropdownMenu.Label>}
               {items.map((it, i) => (
                 <DropdownMenu.Item key={i} disabled={it.disabled} onSelect={it.onSelect} className={cn(itemClass, it.danger && 'text-shu')}>

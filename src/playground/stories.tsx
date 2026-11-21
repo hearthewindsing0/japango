@@ -143,7 +143,7 @@ export const STORIES: Story[] = [
     group: 'Basics',
     name: 'Panel',
     component: 'Panel',
-    description: 'The basic HUD box. Double pixel frame, chamfered corners, hard shadow, faint scanlines. Every card is built on it.',
+    description: 'The basic HUD box. Clean pixel frame, cut corners and a hard shadow. Every card is built on it.',
     controls: {
       tone: { type: 'select', default: 'ink', options: ['ink', 'paper', 'gold', 'alert', 'glass'] },
       size: { type: 'select', default: 'md', options: ['sm', 'md', 'lg'] },
@@ -752,7 +752,8 @@ export const STORIES: Story[] = [
     layout: 'fill',
     controls: {
       overhear: { type: 'boolean', default: true },
-      place: { type: 'boolean', default: true },
+      place: { type: 'boolean', default: false },
+      dpad: { type: 'boolean', default: false },
     },
     render: (p, log) => (
       <div className="relative size-full overflow-hidden">
@@ -778,9 +779,11 @@ export const STORIES: Story[] = [
             ]}
           />
         </div>
-        <div className="absolute right-3 bottom-3 hidden sm:block">
-          <DPad size={120} />
-        </div>
+        {p.dpad && (
+          <div className="absolute right-3 bottom-3">
+            <DPad size={120} />
+          </div>
+        )}
       </div>
     ),
   }),

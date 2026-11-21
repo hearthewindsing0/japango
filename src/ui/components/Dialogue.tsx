@@ -96,7 +96,7 @@ export function DialogueBox({
               </div>
             )}
       <div
-        className={cn('notch scanlines relative px-5 pt-3 pb-4', overhear ? 'bg-ink/80 [box-shadow:inset_0_0_0_2px_rgb(244_236_216/0.5)]' : 'bg-ink frame')}
+        className={cn('notch relative px-5 pt-3 pb-4', overhear ? 'bg-ink/80 [box-shadow:inset_0_0_0_2px_rgb(244_236_216/0.5)]' : 'bg-ink frame')}
         onClick={() => (done ? onNext?.() : skip())}
         role={onNext ? 'button' : undefined}
       >
@@ -139,7 +139,7 @@ export function DialogueBox({
 export function NoteBox({ children, english, className }: { children: ReactNode; english?: ReactNode; className?: string }) {
   return (
     <div className={cn('drop-hard', className)}>
-      <div className="notch bg-kin px-4 py-3 text-ink [box-shadow:inset_0_0_0_2px_var(--color-ink)] [&_rt]:text-ink/60">
+      <div className="notch bg-kin px-4 py-3 text-ink [&_rt]:text-ink/60">
         <span className="mr-2 font-arcade text-[0.6em]">TIP</span>
         {children}
         {english && <p className="mt-1 text-[0.85em] opacity-75">{english}</p>}

@@ -197,7 +197,7 @@ buttons) has a component in `src/ui/`, built the shadcn/ui way: Radix
 primitives for behaviour and focus, Tailwind v4 for looks, `cva` for
 variants, and the source lives in the repo so it can be changed freely.
 The look is retro arcade: DotGothic16 and Press Start 2P pixel fonts,
-ink-black panels with double pixel frames, cut corners, hard shadows and
+ink-black panels with a clean pixel frame, cut corners, soft hard-edged shadows and
 vermilion / gold accents.
 
 - `import './ui/theme.css'` once, wrap UI in `<UiRoot scale={…}>`, then

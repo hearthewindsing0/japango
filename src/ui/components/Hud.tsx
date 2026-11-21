@@ -65,7 +65,7 @@ export function MinimapFrame({
   const px = big ? size * 2.4 : size
   return (
     <div className={cn('relative drop-hard', className)} style={{ width: px }}>
-      <div className="notch bg-ink p-[6px] frame">
+      <div className="notch bg-ink p-[4px] frame">
         <div className="relative aspect-square overflow-hidden bg-[#1d2a22]">
           {children}
           <span className="pointer-events-none absolute inset-0 [box-shadow:inset_0_0_24px_rgb(0_0_0/0.6)]" />
@@ -131,7 +131,7 @@ export function Stamp({ spot, size = 88 }: { spot: StampSpot; size?: number }) {
           'grid place-items-center text-[2em] leading-none',
           spot.got
             ? 'animate-stamp rotate-[-8deg] text-shu [box-shadow:inset_0_0_0_4px_var(--color-shu),inset_0_0_0_7px_transparent,inset_0_0_0_9px_var(--color-shu)] [clip-path:circle(50%)]'
-            : 'text-ink/30 [box-shadow:inset_0_0_0_3px_rgb(13_12_18/0.25)] [clip-path:circle(50%)] bg-[repeating-linear-gradient(45deg,transparent_0_5px,rgb(13_12_18/0.06)_5px_7px)]',
+            : 'text-ink/30 [box-shadow:inset_0_0_0_3px_rgb(13_12_18/0.25)] [clip-path:circle(50%)] ',
         )}
         style={{ width: size, height: size }}
       >
@@ -149,7 +149,7 @@ export function StampBook({ spots, found, total }: { spots: StampSpot[]; found?:
   return (
     <div className="text-ink">
       <p className="mb-3 text-sm text-ink/70">Find each place and walk up to its red marker.</p>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] justify-items-center gap-3 bg-[#efe3c4] p-3 [box-shadow:inset_0_0_0_2px_rgb(13_12_18/0.15)]">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] justify-items-center gap-3 bg-[#efe3c4] p-3">
         {spots.map((s) => (
           <Stamp key={s.id} spot={s} />
         ))}
@@ -281,7 +281,7 @@ export interface HotbarSlot {
 export function Hotbar({ slots, className }: { slots: HotbarSlot[]; className?: string }) {
   return (
     <nav className={cn('inline-block drop-hard', className)}>
-      <div className="notch flex gap-1 bg-ink p-[8px] frame">
+      <div className="notch flex gap-1 bg-ink p-[6px] frame">
         {slots.map((s) => (
           <button
             key={s.id}

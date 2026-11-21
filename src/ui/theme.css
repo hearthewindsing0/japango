@@ -70,8 +70,6 @@
     font-family: var(--font-pixel);
     color: var(--color-paper);
     line-height: 1.45;
-    -webkit-font-smoothing: none;
-    font-smooth: never;
   }
   .jg-ui button,
   .jg-ui input,
@@ -100,38 +98,29 @@
 
 /* Chamfered (cut) corners: the "edgy" bit. */
 @utility notch {
-  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
+  clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
 }
 @utility notch-sm {
   clip-path: polygon(3px 0, calc(100% - 3px) 0, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) 100%, 3px 100%, 0 calc(100% - 3px), 0 3px);
 }
 
-/* Classic two-tone pixel frame: dark outer line, light inner line. */
+/* One clean pixel line just inside the edge. */
 @utility frame {
-  box-shadow:
-    inset 0 0 0 2px var(--color-ink),
-    inset 0 0 0 4px var(--color-paper),
-    inset 0 0 0 6px var(--color-ink);
+  box-shadow: inset 0 0 0 2px rgb(244 236 216 / 0.7);
 }
 @utility frame-gold {
-  box-shadow:
-    inset 0 0 0 2px var(--color-ink),
-    inset 0 0 0 4px var(--color-kin),
-    inset 0 0 0 6px var(--color-ink);
+  box-shadow: inset 0 0 0 2px var(--color-kin);
 }
 @utility frame-shu {
-  box-shadow:
-    inset 0 0 0 2px var(--color-ink),
-    inset 0 0 0 4px var(--color-shu),
-    inset 0 0 0 6px var(--color-ink);
+  box-shadow: inset 0 0 0 2px var(--color-shu);
 }
 
 /* Hard drop shadow, no blur. Uses filter so it follows the notched shape. */
 @utility drop-hard {
-  filter: drop-shadow(4px 4px 0 rgb(0 0 0 / 0.85));
+  filter: drop-shadow(3px 3px 0 rgb(0 0 0 / 0.55));
 }
 @utility drop-hard-sm {
-  filter: drop-shadow(2px 2px 0 rgb(0 0 0 / 0.85));
+  filter: drop-shadow(2px 2px 0 rgb(0 0 0 / 0.5));
 }
 
 /* Faint CRT scanlines over a surface. */

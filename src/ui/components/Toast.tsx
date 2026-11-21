@@ -34,10 +34,10 @@ function dismiss(id: number) {
 
 const ICON: Record<ToastKind, string> = { stamp: '🎴', info: '✦', discovery: '★', warn: '!' }
 const TONE: Record<ToastKind, string> = {
-  stamp: 'bg-shu text-paper frame',
+  stamp: 'bg-shu text-paper',
   info: 'bg-ink text-paper frame',
   discovery: 'bg-ink text-paper frame-gold',
-  warn: 'bg-kin text-ink frame',
+  warn: 'bg-kin text-ink',
 }
 
 /** Renders toasts. Put one inside your UiRoot. */

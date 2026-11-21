@@ -14,9 +14,9 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-shu text-paper shadow-[inset_0_-4px_0_var(--color-shu-dark),inset_0_2px_0_rgb(255_255_255/0.25)] hover:brightness-110',
-        gold: 'bg-kin text-ink shadow-[inset_0_-4px_0_var(--color-kin-dark),inset_0_2px_0_rgb(255_255_255/0.4)] hover:brightness-105',
-        secondary: 'bg-ink-3 text-paper shadow-[inset_0_-4px_0_var(--color-ink),inset_0_2px_0_rgb(255_255_255/0.12)] hover:bg-[#2f2b3d]',
+        primary: 'bg-shu text-paper shadow-[inset_0_-3px_0_var(--color-shu-dark)] hover:brightness-110',
+        gold: 'bg-kin text-ink shadow-[inset_0_-3px_0_var(--color-kin-dark)] hover:brightness-105',
+        secondary: 'bg-ink-3 text-paper shadow-[inset_0_-3px_0_var(--color-ink)] hover:bg-[#2f2b3d]',
         ghost: 'text-paper hover:bg-white/10',
         outline: 'text-paper shadow-[inset_0_0_0_2px_var(--color-paper)] hover:bg-paper hover:text-ink',
       },

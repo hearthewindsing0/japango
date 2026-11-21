@@ -47,10 +47,10 @@ export function Window({
           <div
             className={cn(
               'notch flex max-h-[inherit] flex-col overflow-hidden frame',
-              tone === 'ink' ? 'bg-ink text-paper scanlines' : 'bg-paper text-ink [&_rt]:text-ink/60',
+              tone === 'ink' ? 'bg-ink text-paper' : 'bg-paper text-ink [&_rt]:text-ink/60',
             )}
           >
-            <div className="flex items-center gap-3 bg-shu px-4 py-2 text-paper shadow-[inset_0_-2px_0_var(--color-ink)] m-[6px] mb-0">
+            <div className="flex items-center gap-3 bg-shu px-4 py-2 text-paper m-[2px] mb-0">
               <Dialog.Title className="flex min-w-0 flex-1 items-baseline gap-2 text-lg leading-tight">
                 <span className="truncate">{title}</span>
                 {subtitle && <span className="truncate text-[0.75em] text-paper/75">{subtitle}</span>}
@@ -59,9 +59,9 @@ export function Window({
                 ✕
               </Dialog.Close>
             </div>
-            <div className="min-h-0 overflow-auto px-5 py-4 mx-[6px]">{children}</div>
-            {footer && <div className="mx-[6px] mb-[6px] flex justify-end gap-2 border-t-2 border-dashed border-current/25 px-5 py-3">{footer}</div>}
-            {!footer && <div className="h-[6px]" />}
+            <div className="min-h-0 overflow-auto px-5 py-4 mx-[2px]">{children}</div>
+            {footer && <div className="mx-[2px] mb-[2px] flex justify-end gap-2 border-t border-current/15 px-5 py-3">{footer}</div>}
+            {!footer && <div className="h-[2px]" />}
           </div>
         </Dialog.Content>
       </Dialog.Portal>
