@@ -61,7 +61,7 @@ for (const b of sparql.results.bindings) {
   })
 }
 // The best-known places first; keep a sensible number.
-const places = [...byId.values()].sort((a, b) => b.links - a.links).slice(0, 160)
+const places = [...byId.values()].sort((a, b) => b.links - a.links).slice(0, 400)
 console.log(`Wikidata: ${byId.size} places with a Japanese article; keeping ${places.length}`)
 
 /** The first one or two sentences of an article's summary. */
@@ -75,18 +75,39 @@ const opening = (text, lang, max = lang === 'ja' ? 140 : 280) => {
   }
   return out.trim() || undefined
 }
-const summary = async (lang, title) => {
-  if (!title) return undefined
-  const j = await get(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replaceAll(' ', '_'))}`)
-  return opening(j?.extract, lang)
+/** Intro text of up to 20 articles per request (the action API batches
+ *  them, which keeps us well under Wikipedia's rate limits). */
+async function intros(lang, titles) {
+  const out = new Map()
+  for (let i = 0; i < titles.length; i += 20) {
+    const batch = titles.slice(i, i + 20)
+    const url =
+      `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&prop=extracts` +
+      `&exintro=1&explaintext=1&exlimit=20&redirects=1&titles=${encodeURIComponent(batch.join('|'))}`
+    const j = await get(url)
+    const q = j?.query ?? {}
+    // Follow the API's title fixes and redirects back to what we asked for.
+    const to = new Map()
+    for (const m of [...(q.normalized ?? []), ...(q.redirects ?? [])]) to.set(m.from, m.to)
+    const text = new Map((q.pages ?? []).map((pg) => [pg.title, pg.extract]))
+    for (const t of batch) {
+      let k = t
+      for (let n = 0; n < 3 && to.has(k); n++) k = to.get(k)
+      const o = opening(text.get(k)?.replace(/\s*\n+\s*/g, lang === 'ja' ? '' : ' '), lang)
+      if (o) out.set(t, o)
+    }
+    await new Promise((r) => setTimeout(r, 300))
+  }
+  return out
 }
 
-for (const [i, p] of places.entries()) {
-  p.jaText = await summary('ja', p.jaTitle)
-  p.enText = await summary('en', p.enTitle)
-  if (i % 20 === 0) console.log(`  ${i + 1}/${places.length} ${p.ja}`)
-  await new Promise((r) => setTimeout(r, 120))
+const ja = await intros('ja', places.map((p) => p.jaTitle))
+const en = await intros('en', places.filter((p) => p.enTitle).map((p) => p.enTitle))
+for (const p of places) {
+  p.jaText = ja.get(p.jaTitle)
+  p.enText = p.enTitle ? en.get(p.enTitle) : undefined
 }
+console.log(`Intros: ${ja.size} Japanese, ${en.size} English`)
 
 const file = `data/${AREA.id}.wiki.json`
 await writeFile(

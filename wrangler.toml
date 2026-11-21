@@ -4,6 +4,11 @@ name = "japango"
 main = "worker/index.ts"
 compatibility_date = "2026-11-01"
 
+# Build the site before every deploy, so Cloudflare's own Git builds work
+# too (they only run `wrangler deploy` / `wrangler versions upload`).
+[build]
+command = "npm run build"
+
 [assets]
 directory = "./dist"
 binding = "ASSETS"
@@ -17,6 +22,7 @@ bucket_name = "japango-tiles"
 [[d1_databases]]
 binding = "DB"
 database_name = "japango"
-# Filled in by scripts/cf-setup.mjs, which creates the database if needed.
-database_id = "00000000-0000-0000-0000-000000000000"
+# The live database. scripts/cf-setup.mjs creates it if it is missing and
+# fills in its id for the deploy Action.
+database_id = "f8849de2-e8c7-424c-9a42-b7ae822f5105"
 migrations_dir = "migrations"
