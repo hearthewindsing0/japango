@@ -1,0 +1,145 @@
+/*
+ * JapanGo UI theme: "neon-noir arcade meets Showa signage".
+ * Ink-black panels, washi-cream text, vermilion (朱) and gold accents,
+ * hard pixel borders, chamfered corners and a faint scanline.
+ *
+ * Tailwind v4 without its preflight, so this sheet can sit next to the
+ * game's own CSS without resetting it. Components are scoped by .jg-ui
+ * (added by <UiRoot>).
+ */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme' layer(theme);
+@import 'tailwindcss/utilities' layer(utilities);
+@import '@fontsource/dotgothic16/400.css';
+@import '@fontsource/press-start-2p/400.css';
+
+@source '../';
+
+@theme {
+  --font-pixel: 'DotGothic16', 'Hiragino Sans', 'Noto Sans JP', monospace;
+  --font-arcade: 'Press Start 2P', 'DotGothic16', monospace;
+
+  --color-ink: #0d0c12;
+  --color-ink-2: #17151f;
+  --color-ink-3: #252231;
+  --color-paper: #f4ecd8;
+  --color-paper-dim: #b8ae98;
+  --color-shu: #e8432e; /* vermilion, torii and hanko red */
+  --color-shu-dark: #9e2416;
+  --color-kin: #f5c542; /* gold */
+  --color-kin-dark: #a77d10;
+  --color-ai: #3b5bdb; /* indigo */
+  --color-sora: #5fd3e6; /* neon sky */
+  --color-matcha: #7cc25c;
+  --color-sakura: #f39ab8;
+
+  --animate-blink: blink 1s steps(1) infinite;
+  --animate-pop: pop 0.18s steps(3) both;
+  --animate-stamp: stamp 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes pop {
+    from {
+      transform: scale(0.92);
+      opacity: 0;
+    }
+  }
+  @keyframes stamp {
+    from {
+      transform: scale(2.2) rotate(-24deg);
+      opacity: 0;
+    }
+  }
+}
+
+@layer base {
+  .jg-ui,
+  .jg-ui *,
+  .jg-ui ::before,
+  .jg-ui ::after {
+    box-sizing: border-box;
+    border: 0 solid;
+    margin: 0;
+    padding: 0;
+  }
+  .jg-ui {
+    font-family: var(--font-pixel);
+    color: var(--color-paper);
+    line-height: 1.45;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+  }
+  .jg-ui button,
+  .jg-ui input,
+  .jg-ui select {
+    font: inherit;
+    color: inherit;
+    background: none;
+  }
+  .jg-ui button:not(:disabled) {
+    cursor: pointer;
+  }
+  .jg-ui a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+  .jg-ui :focus-visible {
+    outline: 2px dashed var(--color-kin);
+    outline-offset: 3px;
+  }
+  .jg-ui rt {
+    font-size: 0.55em;
+    color: var(--color-paper-dim);
+    letter-spacing: 0;
+  }
+}
+
+/* Chamfered (cut) corners: the "edgy" bit. */
+@utility notch {
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
+}
+@utility notch-sm {
+  clip-path: polygon(3px 0, calc(100% - 3px) 0, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) 100%, 3px 100%, 0 calc(100% - 3px), 0 3px);
+}
+
+/* Classic two-tone pixel frame: dark outer line, light inner line. */
+@utility frame {
+  box-shadow:
+    inset 0 0 0 2px var(--color-ink),
+    inset 0 0 0 4px var(--color-paper),
+    inset 0 0 0 6px var(--color-ink);
+}
+@utility frame-gold {
+  box-shadow:
+    inset 0 0 0 2px var(--color-ink),
+    inset 0 0 0 4px var(--color-kin),
+    inset 0 0 0 6px var(--color-ink);
+}
+@utility frame-shu {
+  box-shadow:
+    inset 0 0 0 2px var(--color-ink),
+    inset 0 0 0 4px var(--color-shu),
+    inset 0 0 0 6px var(--color-ink);
+}
+
+/* Hard drop shadow, no blur. Uses filter so it follows the notched shape. */
+@utility drop-hard {
+  filter: drop-shadow(4px 4px 0 rgb(0 0 0 / 0.85));
+}
+@utility drop-hard-sm {
+  filter: drop-shadow(2px 2px 0 rgb(0 0 0 / 0.85));
+}
+
+/* Faint CRT scanlines over a surface. */
+@utility scanlines {
+  background-image: repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 3px);
+}
+
+/* Pixel-rendered images (sprites, minimaps). */
+@utility pixelated {
+  image-rendering: pixelated;
+}

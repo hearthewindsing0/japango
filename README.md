@@ -190,8 +190,37 @@ set up, it uploads the fresh tiles to R2 instead of committing them.
 Run it all locally with `npm run cf:dev`, which uses wrangler's local D1
 and R2.
 
+## UI kit and playground
+
+Everything drawn over the 3D world (HUD boxes, cards, dialogue, menus,
+buttons) has a component in `src/ui/`, built the shadcn/ui way: Radix
+primitives for behaviour and focus, Tailwind v4 for looks, `cva` for
+variants, and the source lives in the repo so it can be changed freely.
+The look is retro arcade: DotGothic16 and Press Start 2P pixel fonts,
+ink-black panels with double pixel frames, cut corners, hard shadows and
+vermilion / gold accents.
+
+- `import './ui/theme.css'` once, wrap UI in `<UiRoot scale={…}>`, then
+  `import { Button, Panel, DialogueBox, … } from './ui'`.
+- `UiRoot` scales everything inside it as one (CSS zoom), which is what
+  `A−`/`A+` drive. Popups, windows and toasts follow the same scale.
+- The theme skips Tailwind's preflight reset, so it can sit next to the
+  game's own CSS (`src/index.css`) without changing it.
+- Furigana in hand-written text: `六本木[ろっぽんぎ]`; `<Furigana>` turns
+  each `word[reading]` into ruby text that can be tapped for a word card.
+
+**Playground**: `npm run dev` and open `/playground/`, or the deployed
+site at `/playground/`. Each component has a story in
+`src/playground/stories.tsx`: pick it on the left, tweak its props on the
+right, see the JSX for those props, and watch its callbacks in the
+Actions log. The stage can show a game screenshot behind the component
+(day, night, rain) and follows `A−`/`A+`. Adding a story is one entry in
+that file with its controls (`text`, `boolean`, `select`, `number`,
+`color`).
+
 ## Code layout
 
+- `src/ui/`: the UI kit (components, theme). `src/playground/`: its playground.
 - `src/game/World.tsx`: ground, roads, buildings, trees, sun and shadows.
 - `src/game/geometry.ts`: turns the map's shapes into Three.js geometry.
 - `src/game/Props.tsx`: street lights, utility poles, signs and other street furniture.

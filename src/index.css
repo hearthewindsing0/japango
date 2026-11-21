@@ -915,6 +915,7 @@ rt {
   font-style: normal;
   font-size: 11px;
   color: #b8b2a4;
+}
 /* Boxes at the bottom middle (overheard talk, a discovery, a slope or
    station sign), stacked so they never overlap. */
 .hud-stack {
