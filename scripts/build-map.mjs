@@ -12,6 +12,8 @@ import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { AREA } from './area.mjs'
 import { buildStations } from './stations.mjs'
+import { cuisineLabel } from './cuisine.mjs'
+import { parseOpeningHours } from './opening-hours.mjs'
 
 // Grid cell types. Must match src/game/tiles.ts
 export const T = {
@@ -634,6 +636,12 @@ for (const e of elements) {
   if (en && en !== name) poi.nameEn = en
   if (e.tags['name:ja-Hira']) poi.kana = e.tags['name:ja-Hira']
   if (e.tags.ref && kind === 'exit') poi.ref = e.tags.ref
+  // Real opening hours as a weekly schedule (see opening-hours.mjs), and
+  // what a restaurant serves, in Japanese.
+  const oh = kind !== 'building' && kind !== 'park' ? parseOpeningHours(e.tags.opening_hours) : null
+  if (oh) poi.oh = oh
+  const cu = cuisineLabel(e.tags.cuisine)
+  if (cu) [poi.cu, poi.cuEn] = cu
   pois.push(poi)
 }
 
@@ -710,8 +718,10 @@ if (mly) {
       b: sg.bi,
       t: poi.name,
       k: poi.kind,
+      ...(poi.oh ? { oh: poi.oh } : {}),
     })
   }
+  console.log(`Opening hours: ${pois.filter((p) => p.oh).length} places, ${signs.filter((s) => s.oh).length} with a sign`)
   console.log(`Shop signs: ${signs.length} (${signs.slice(0, 8).map((s) => s.t).join('、')}…)`)
 }
 

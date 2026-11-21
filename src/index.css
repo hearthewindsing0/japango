@@ -55,6 +55,41 @@ code {
 .hud-near {
   font-size: 14px;
 }
+.hud-near-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 3px;
+  font-size: 13px;
+}
+.hud-location .hud-open {
+  margin-left: 0;
+  font-size: 13px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+.hud-location .hud-open.open {
+  background: #fdfaf2;
+  color: #c81e1e;
+}
+.hud-location .hud-open.closed {
+  background: #2d2a26;
+  color: #f4efe4;
+}
+.hud-location .hud-cuisine,
+.hud-location .hud-hours {
+  margin-left: 0;
+  color: #fff;
+  font-size: 13px;
+}
+.hud-location .hud-cuisine {
+  font-weight: 700;
+}
+.hud-location .hud-near-en {
+  margin-left: 0;
+}
 
 .minimap {
   position: absolute;
@@ -401,8 +436,10 @@ rt {
 .word-popup {
   position: fixed;
   transform: translate(-50%, calc(-100% - 8px));
-  min-width: 160px;
-  max-width: 300px;
+  min-width: 180px;
+  max-width: min(330px, calc(100vw - 24px));
+  max-height: calc(50vh - 24px);
+  overflow-y: auto;
   padding: 10px 12px;
   border-radius: 10px;
   background: #fffdf7;
@@ -410,6 +447,9 @@ rt {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
   font-size: 13px;
   z-index: 10;
+}
+.word-popup.below {
+  transform: translate(-50%, 0);
 }
 .word-popup-head {
   font-size: 20px;
@@ -421,14 +461,102 @@ rt {
   color: #666;
   margin-left: 8px;
 }
+.word-popup-head .word-jlpt {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: 3px;
+}
 .word-popup ol {
   margin: 4px 0 0;
   padding-left: 18px;
 }
+.word-example {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-left: 3px solid #e2c48d;
+  background: #f8f1e2;
+  border-radius: 0 6px 6px 0;
+}
+.word-example-ja {
+  font-size: 15px;
+  line-height: 1.9;
+}
+.word-example-en {
+  color: #555;
+  font-size: 12px;
+}
+.word-kanji {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.kanji-card {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+.kanji-strokes,
+.kanji-glyph {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border: 1px solid #e5dccb;
+  border-radius: 6px;
+  background:
+    linear-gradient(#efe6d4, #efe6d4) center / 1px 100% no-repeat,
+    linear-gradient(#efe6d4, #efe6d4) center / 100% 1px no-repeat,
+    #fff;
+}
+.kanji-glyph {
+  display: grid;
+  place-items: center;
+  font-size: 36px;
+}
+.kanji-strokes path {
+  fill: none;
+  stroke: #222;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: kanji-stroke 0.3s ease-out forwards;
+}
+@keyframes kanji-stroke {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kanji-strokes path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+.kanji-info {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.kanji-meaning {
+  font-weight: 700;
+}
+.kanji-meta {
+  color: #888;
+  font-size: 11px;
+}
 .word-popup-src {
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 10px;
   color: #999;
+}
+.word-popup-src a {
+  color: inherit;
 }
 
 /* Sound on/off. */

@@ -432,7 +432,7 @@ function Sun({ map, focus, sky }: { map: GameMap; focus: React.RefObject<Focus>;
 }
 
 /** One square of the map: everything on it, clipped to its edges. */
-function TileView({ map, tile, focus, sky, hour }: { map: GameMap; tile: MapTile; focus: React.RefObject<Focus>; sky: SkyState; hour: number }) {
+function TileView({ map, tile, focus, sky, hour, day, minute }: { map: GameMap; tile: MapTile; focus: React.RefObject<Focus>; sky: SkyState; hour: number; day: number; minute: number }) {
   const clip = useClipPlanes(tile)
   const height = useMemo(() => heightFn(tile), [tile])
   return (
@@ -441,7 +441,7 @@ function TileView({ map, tile, focus, sky, hour }: { map: GameMap; tile: MapTile
       <Buildings map={map} tile={tile} clip={clip} focus={focus} night={sky.night} />
       <Trees tile={tile} clip={clip} />
       <Props tile={tile} slopes={map.slopes} clip={clip} night={sky.night} />
-      <Signs tile={tile} clip={clip} height={height} />
+      <Signs tile={tile} clip={clip} height={height} day={day} minute={minute} night={sky.night} />
       <Crowd tile={tile} clip={clip} hour={hour} rain={sky.rain} />
     </>
   )
@@ -453,6 +453,8 @@ export function World({
   focus,
   sky,
   hour,
+  day,
+  minute,
   surface = true,
 }: {
   map: GameMap
@@ -461,6 +463,9 @@ export function World({
   focus: React.RefObject<Focus>
   sky: SkyState
   hour: number
+  /** Tokyo weekday (0 = Monday) and minute of the day, for shop hours. */
+  day: number
+  minute: number
   /** False while the player is down in a station: the street is hidden. */
   surface?: boolean
 }) {
@@ -469,7 +474,7 @@ export function World({
       <Sun map={map} focus={focus} sky={sky} />
       <group visible={surface}>
         {tiles.map((t) => (
-          <TileView key={t.key} map={map} tile={t} focus={focus} sky={sky} hour={hour} />
+          <TileView key={t.key} map={map} tile={t} focus={focus} sky={sky} hour={hour} day={day} minute={minute} />
         ))}
       </group>
       <WeatherFx focus={focus} rain={sky.rain} snow={sky.snow} />
