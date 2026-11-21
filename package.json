@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "map:area": "node scripts/add-area.mjs",
+    "map:all": "node scripts/fetch-all.mjs",
     "map:fetch": "node scripts/fetch-osm.mjs",
     "map:build": "node scripts/build-map.mjs && node scripts/build-tiles.mjs",
     "map:mapillary": "node scripts/fetch-mapillary.mjs",
