@@ -744,6 +744,177 @@ rt {
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
 }
 
+/* Ordering at the bar (Ant 'n Bee): tap list, sizes, phrases, and the
+   back-and-forth with the bartender. */
+.bar-menu {
+  position: absolute;
+  left: 12px;
+  bottom: 64px;
+  z-index: 2;
+  width: min(400px, calc(var(--hud-w, 100vw) - 24px));
+  max-height: calc(var(--hud-h, 100vh) - 250px);
+  display: flex;
+  flex-direction: column-reverse;
+  pointer-events: none;
+}
+.bar-menu > * {
+  pointer-events: auto;
+}
+.bar-menu-toggle {
+  align-self: flex-start;
+  padding: 7px 14px;
+  border: 1px solid rgba(242, 183, 5, 0.6);
+  border-radius: 999px;
+  background: rgba(21, 21, 21, 0.88);
+  color: #f4f1ea;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bar-menu-toggle span {
+  font-weight: 400;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+.bar-menu-toggle b {
+  color: #f2b705;
+}
+.bar-menu-body {
+  min-height: 0;
+  margin-bottom: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(24, 20, 16, 0.92);
+  border: 1px solid rgba(242, 183, 5, 0.45);
+  overflow-y: auto;
+  line-height: 1.4;
+  font-size: 13px;
+}
+.bar-talk {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.bar-line {
+  display: flex;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.bar-line.you {
+  background: rgba(242, 183, 5, 0.14);
+}
+.bar-who {
+  flex: none;
+  font-size: 11px;
+  color: #f2b705;
+  padding-top: 3px;
+}
+.bar-ja {
+  font-size: 16px;
+  font-weight: 700;
+}
+.bar-kana {
+  font-size: 12px;
+  color: #e2d9c4;
+}
+.bar-en,
+.bar-small {
+  font-size: 11.5px;
+  color: #b8b2a4;
+}
+.bar-hint {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(229, 72, 77, 0.18);
+  font-size: 12px;
+}
+.bar-section {
+  margin: 10px 0 4px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #f2b705;
+}
+.bar-style-name {
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.bar-style-name span {
+  font-weight: 400;
+  color: #b8b2a4;
+}
+.bar-beer {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  column-gap: 8px;
+  align-items: center;
+  width: 100%;
+  margin: 2px 0;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bar-beer i {
+  grid-row: span 2;
+  width: 10px;
+  height: 22px;
+  border-radius: 3px;
+}
+.bar-beer .bar-ja {
+  font-size: 14px;
+}
+.bar-beer.on {
+  border-color: #f2b705;
+  background: rgba(242, 183, 5, 0.12);
+}
+.bar-sizes,
+.bar-phrases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+.bar-sizes button,
+.bar-phrases button {
+  padding: 5px 10px;
+  border: 1px solid rgba(244, 241, 234, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.bar-sizes button span {
+  display: block;
+  font-size: 11px;
+  color: #f2b705;
+}
+.bar-sizes button:disabled,
+.bar-phrases button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.bar-food {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 6px;
+}
+.bar-food em {
+  font-style: normal;
+  font-size: 11px;
+  color: #b8b2a4;
 /* Boxes at the bottom middle (overheard talk, a discovery, a slope or
    station sign), stacked so they never overlap. */
 .hud-stack {

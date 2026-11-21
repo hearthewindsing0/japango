@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { AREA } from './area.mjs'
 import { buildStations } from './stations.mjs'
+import { buildInteriors } from './interiors.mjs'
 import { cuisineLabel } from './cuisine.mjs'
 import { parseOpeningHours } from './opening-hours.mjs'
 
@@ -1130,6 +1131,20 @@ const stations = buildStations({
 })
 console.log(`Stations: ${stations.map((s) => `${s.name} ${s.id} (${s.exits.length} exits, ${s.tracks.length} tracks)`).join(', ') || 'none'}`)
 
+// Places you can walk into (a bar's basement).
+const interiors = buildInteriors({
+  elements,
+  proj,
+  buildings,
+  ground: (x, y) => (terrain ? (terrainAt(x, y) - groundBase) * TERRAIN_SCALE : 0),
+  walkable: (x, y) => {
+    const gx = Math.floor(x / cell)
+    const gy = Math.floor(y / cell)
+    return gx >= 0 && gy >= 0 && gx < GW && gy < GH && !BLOCKED.has(grid[gy * GW + gx])
+  },
+})
+console.log(`Interiors: ${interiors.map((i) => `${i.id} at ${i.x},${i.y}`).join(', ') || 'none'}`)
+
 const rle = []
 for (let i = 0; i < grid.length; ) {
   const v = grid[i]
@@ -1171,6 +1186,7 @@ await writeFile(
     places,
     discoveries,
     stations,
+    interiors,
     bridges,
     viaducts,
     terrain,

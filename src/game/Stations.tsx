@@ -14,7 +14,7 @@ import { patternedMaterial } from './patterns'
 // exits show: a covered stairwell with the line's sign.
 
 const WALL_H = 2.0 // low, so the camera can see over them
-const FONT = '"Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif'
+export const FONT = '"Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif'
 
 /** A box between two points on the map, from height z0 to z1. */
 function wallBox(ax: number, ay: number, bx: number, by: number, z0: number, z1: number, t = 0.25) {

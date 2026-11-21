@@ -1,0 +1,332 @@
+{
+  "id": "antnbee",
+  "name": "アントンビー",
+  "nameEn": "Ant 'n Bee",
+  "kind": "クラフトビアバー",
+  "kindEn": "craft beer bar",
+  "floor": "地下1階",
+  "floorKana": "ちかいっかい",
+  "address": "東京都港区六本木5-1-5 B1F",
+  "hours": "17:00〜翌6:00",
+  "hoursKana": "ごご ごじ から よくあさ ろくじ まで",
+  "hoursEn": "5 pm to 6 am the next morning, as it was in the mid-2010s (翌, よく, means \"the next\")",
+  "listDate": "2015年2月13日",
+  "listNote": "A real day's list (13 Feb 2015) from the bar's printed menu: 20 taps, all Japanese craft beer, changing a little every day. Every beer is the same price by size.",
+  "sizes": [
+    {
+      "id": "s",
+      "ja": "スモール",
+      "kana": "すもーる",
+      "en": "Small, about 250 ml",
+      "yen": 700
+    },
+    {
+      "id": "r",
+      "ja": "レギュラー",
+      "kana": "れぎゅらー",
+      "en": "Regular, about 350 ml",
+      "yen": 900
+    },
+    {
+      "id": "l",
+      "ja": "ラージ",
+      "kana": "らーじ",
+      "en": "Large, a US pint (473 ml)",
+      "yen": 1200
+    },
+    {
+      "id": "m",
+      "ja": "マス",
+      "kana": "ます",
+      "en": "Maß, about a liter",
+      "yen": 2400
+    }
+  ],
+  "styles": [
+    {
+      "id": "lager",
+      "ja": "ラガー",
+      "en": "Lager",
+      "note": "日本の一般的なビール: the everyday Japanese beer style"
+    },
+    {
+      "id": "ale",
+      "ja": "エール",
+      "en": "Ale"
+    },
+    {
+      "id": "fruit",
+      "ja": "フルーツ",
+      "en": "Fruit beer"
+    },
+    {
+      "id": "belgian",
+      "ja": "ベルギースタイル",
+      "en": "Belgian style"
+    },
+    {
+      "id": "black",
+      "ja": "黒ビール",
+      "kana": "くろびーる",
+      "en": "Dark beer"
+    }
+  ],
+  "beers": [
+    {
+      "style": "lager",
+      "ja": "青鬼ピルスナー",
+      "kana": "あおおにぴるすなー",
+      "en": "Aooni Pilsner",
+      "brewery": "鬼伝説",
+      "breweryEn": "Oni Densetsu",
+      "pref": "北海道",
+      "tap": "#4a7fc1"
+    },
+    {
+      "style": "lager",
+      "ja": "ピルスナー",
+      "kana": "ぴるすなー",
+      "en": "Pilsner",
+      "brewery": "箕面ビール",
+      "breweryEn": "Minoh Beer",
+      "pref": "大阪",
+      "tap": "#e3b23c"
+    },
+    {
+      "style": "ale",
+      "ja": "ゴールデンエール",
+      "kana": "ごーるでんえーる",
+      "en": "Golden Ale",
+      "brewery": "サンクトガーレン",
+      "breweryEn": "Sankt Gallen",
+      "pref": "神奈川",
+      "tap": "#d9a21b"
+    },
+    {
+      "style": "ale",
+      "ja": "クラフトレッドハート",
+      "kana": "くらふとれっどはーと",
+      "en": "Craft Red Heart (amber ale)",
+      "brewery": "Y.MARKET",
+      "breweryEn": "Y.Market Brewing",
+      "pref": "愛知",
+      "tap": "#b8432f"
+    },
+    {
+      "style": "ale",
+      "ja": "W-IPA",
+      "kana": "だぶりゅーあいぴーえー",
+      "en": "Double IPA",
+      "brewery": "箕面ビール",
+      "breweryEn": "Minoh Beer",
+      "pref": "大阪",
+      "tap": "#8db33a"
+    },
+    {
+      "style": "fruit",
+      "ja": "アップルホップ",
+      "kana": "あっぷるほっぷ",
+      "en": "Apple Hop",
+      "brewery": "南信州ビール",
+      "breweryEn": "Minami-Shinshu Beer",
+      "pref": "長野",
+      "tap": "#c94f4f"
+    },
+    {
+      "style": "belgian",
+      "ja": "インディアンサマーセゾン",
+      "kana": "いんでぃあんさまーせぞん",
+      "en": "Indian Summer Saison",
+      "brewery": "志賀高原ビール",
+      "breweryEn": "Shiga Kogen Beer",
+      "pref": "長野",
+      "tap": "#e07b39"
+    },
+    {
+      "style": "black",
+      "ja": "オレンジチョコレートスタウト",
+      "kana": "おれんじちょこれーとすたうと",
+      "en": "Orange Chocolate Stout",
+      "brewery": "サンクトガーレン",
+      "breweryEn": "Sankt Gallen",
+      "pref": "神奈川",
+      "tap": "#5a3a22"
+    },
+    {
+      "style": "black",
+      "ja": "インペリアルチョコレートスタウト",
+      "kana": "いんぺりあるちょこれーとすたうと",
+      "en": "Imperial Chocolate Stout",
+      "brewery": "サンクトガーレン",
+      "breweryEn": "Sankt Gallen",
+      "pref": "神奈川",
+      "tap": "#2e1d12"
+    }
+  ],
+  "food": [
+    {
+      "ja": "バッファローウイング",
+      "kana": "ばっふぁろーういんぐ",
+      "en": "Buffalo wings"
+    },
+    {
+      "ja": "オニオンリング",
+      "kana": "おにおんりんぐ",
+      "en": "Onion rings"
+    },
+    {
+      "ja": "フィッシュ&チップス",
+      "kana": "ふぃっしゅあんどちっぷす",
+      "en": "Fish and chips"
+    },
+    {
+      "ja": "自家製コンビーフ",
+      "kana": "じかせいこんびーふ",
+      "en": "Homemade corned beef"
+    },
+    {
+      "ja": "野菜スティック",
+      "kana": "やさいすてぃっく",
+      "en": "Vegetable sticks"
+    }
+  ],
+  "phrases": [
+    {
+      "id": "call",
+      "ja": "すみません！",
+      "kana": "すみません",
+      "en": "Excuse me! (to get the staff's attention)"
+    },
+    {
+      "id": "recommend",
+      "ja": "おすすめは何ですか？",
+      "kana": "おすすめは なんですか",
+      "en": "What do you recommend?"
+    },
+    {
+      "id": "order",
+      "ja": "{beer}を{size}でください。",
+      "kana": "{beerKana}を {sizeKana}で ください",
+      "en": "{beerEn}, {sizeEn}, please."
+    },
+    {
+      "id": "again",
+      "ja": "同じものをもう一つください。",
+      "kana": "おなじものを もうひとつ ください",
+      "en": "Same again, please."
+    },
+    {
+      "id": "cheers",
+      "ja": "乾杯！",
+      "kana": "かんぱい",
+      "en": "Cheers!"
+    },
+    {
+      "id": "tasty",
+      "ja": "おいしい！",
+      "kana": "おいしい",
+      "en": "Tasty!"
+    },
+    {
+      "id": "bill",
+      "ja": "お会計お願いします。",
+      "kana": "おかいけい おねがいします",
+      "en": "The bill, please."
+    },
+    {
+      "id": "thanks",
+      "ja": "ごちそうさまでした。",
+      "kana": "ごちそうさまでした",
+      "en": "Thank you for the meal (said as you leave)."
+    }
+  ],
+  "staff": {
+    "welcome": {
+      "ja": "いらっしゃいませ！お好きな席へどうぞ。",
+      "kana": "いらっしゃいませ おすきな せきへ どうぞ",
+      "en": "Welcome! Sit wherever you like."
+    },
+    "recommend": {
+      "ja": "今日のおすすめは{beer}です。",
+      "kana": "きょうの おすすめは {beerKana}です",
+      "en": "Today's pick is the {beerEn}."
+    },
+    "confirm": {
+      "ja": "{beer}の{size}ですね。少々お待ちください。",
+      "kana": "{beerKana}の {sizeKana}ですね しょうしょう おまちください",
+      "en": "A {sizeEn} {beerEn}? Just a moment."
+    },
+    "serve": {
+      "ja": "お待たせしました！",
+      "kana": "おまたせしました",
+      "en": "Here you go! (literally: sorry to keep you waiting)"
+    },
+    "cheers": {
+      "ja": "乾杯！",
+      "kana": "かんぱい",
+      "en": "Cheers!"
+    },
+    "tasty": {
+      "ja": "ありがとうございます！",
+      "kana": "ありがとうございます",
+      "en": "Thank you!"
+    },
+    "bill": {
+      "ja": "お会計、{total}円になります。",
+      "kana": "おかいけい {totalKana}えんに なります",
+      "en": "That comes to ¥{total}."
+    },
+    "nothing": {
+      "ja": "まだ何も注文されていませんよ。",
+      "kana": "まだ なにも ちゅうもん されていませんよ",
+      "en": "You haven't ordered anything yet!"
+    },
+    "bye": {
+      "ja": "ありがとうございました！またお越しください。",
+      "kana": "ありがとうございました また おこしください",
+      "en": "Thank you! Please come again."
+    }
+  },
+  "signs": {
+    "street": {
+      "t": "クラフトビアバー 地下1階",
+      "en": "Craft beer bar, basement floor 1 (B1)",
+      "n": "地下 (ちか) means underground: 地下1階 (ちかいっかい) is the first basement floor, B1. Lots of Roppongi bars are up or down a narrow staircase."
+    },
+    "stairs": {
+      "t": "足元にご注意ください",
+      "en": "Please watch your step",
+      "n": "足元 (あしもと) is \"at your feet\" and 注意 (ちゅうい) is care. The stairs down to Ant 'n Bee are steep and narrow."
+    },
+    "taps": {
+      "t": "本日のビール",
+      "en": "Today's beers",
+      "n": "本日 (ほんじつ) is the polite way to say today (今日, きょう). 生ビール (なまビール) is draft beer: 20 taps here, all from Japanese breweries."
+    },
+    "counter": {
+      "t": "カウンター席",
+      "en": "Counter seats",
+      "n": "席 (せき) means seat. Sit at the counter to order from the bartender: open the menu below."
+    },
+    "tables": {
+      "t": "テーブル席",
+      "en": "Table seats",
+      "n": "テーブル席 for groups. 何名様ですか？ (なんめいさまですか) means \"How many people?\": answer 二人です (ふたりです), \"two of us\"."
+    },
+    "nosmoking": {
+      "t": "全席禁煙",
+      "en": "No smoking at any seat",
+      "n": "禁煙 (きんえん) means no smoking; 喫煙 (きつえん) is smoking. 全席 (ぜんせき) is every seat."
+    },
+    "toilet": {
+      "t": "お手洗い",
+      "en": "Restroom",
+      "n": "お手洗い (おてあらい), literally \"hand washing\", is the polite word for toilet. トイレ works too."
+    },
+    "exit": {
+      "t": "出口",
+      "en": "Way out, up the stairs to the street",
+      "n": "出口 (でぐち) means exit; 入口 (いりぐち) is the way in."
+    }
+  }
+}

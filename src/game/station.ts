@@ -2,6 +2,7 @@
 // platforms) joined by sloped ramps (stairs, escalators), and exit stairs
 // that start on the street. See scripts/stations.mjs for how they're built.
 import type { Flat } from './map'
+import type { Interior } from './interior'
 
 export interface StationFloor {
   kind: 'concourse' | 'corridor' | 'platform'
@@ -30,7 +31,7 @@ export interface StationSign {
   t: string
   en: string
   c: string
-  k: 'platform' | 'name' | 'gate' | 'exit'
+  k: 'platform' | 'name' | 'gate' | 'exit' | 'info'
   /** A learning note for this sign, instead of the one for its kind. */
   n?: string
 }
@@ -100,7 +101,8 @@ export function rampZ(r: StationRamp, x: number, y: number) {
   return r.za + (r.zb - r.za) * t
 }
 
-/** One map's stations, flattened for quick walking checks. */
+/** One map's stations and walk-in places (a basement bar), flattened for
+ *  quick walking checks. */
 export class Underground {
   /** The street, as one more surface: its height where you can walk, null
    *  inside buildings. Lets you step off the top of exit stairs. */
@@ -109,12 +111,19 @@ export class Underground {
   ramps: StationRamp[] = []
   cabinets: ReturnType<typeof gateBoxes> = []
   readonly stations: Station[]
-  constructor(stations: Station[]) {
+  readonly interiors: Interior[]
+  constructor(stations: Station[], interiors: Interior[] = []) {
     this.stations = stations
+    this.interiors = interiors
     for (const s of stations) {
       this.floors.push(...s.floors)
       this.ramps.push(...s.ramps)
       for (const g of s.gates) this.cabinets.push(...gateBoxes(g))
+    }
+    for (const it of interiors) {
+      this.floors.push(...it.floors)
+      this.ramps.push(...it.ramps)
+      this.cabinets.push(...it.blocks)
     }
   }
 
@@ -219,14 +228,28 @@ export class Underground {
     return null
   }
 
+  /** The walk-in place whose space contains this point, for the HUD. */
+  interiorAt(x: number, y: number, z: number) {
+    for (const it of this.interiors) {
+      for (const f of it.floors) if (Math.abs(f.z - z) < 2 && inPoly(f.p, x, y)) return it
+      for (const r of it.ramps) {
+        const rz = rampZ(r, x, y)
+        if (rz != null && Math.abs(rz - z) < 2) return it
+      }
+    }
+    return null
+  }
+
   /** The nearest sign on this level within `max` meters. */
   signNear(x: number, y: number, z: number, max = 7) {
-    let best: { s: StationSign; st: Station } | null = null
+    let best: { s: StationSign; st: Station | Interior } | null = null
     let bestD = max
-    for (const st of this.stations)
+    for (const st of [...this.stations, ...this.interiors])
       for (const s of st.signs) {
         if (Math.abs(s.z - z) > 2) continue
         const d = Math.hypot(s.x - x, s.y - y)
+        // A room's signs are close together: only the one you're by.
+        if (s.k === 'info' && d > 2.5) continue
         if (d < bestD) {
           bestD = d
           best = { s, st }
