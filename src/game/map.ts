@@ -1,5 +1,6 @@
 import type { Week } from './hours'
 import { BLOCKED, T } from './tiles'
+import type { InteriorPlace } from './interior'
 import type { Station } from './station'
 
 export type PoiKind =
@@ -211,6 +212,8 @@ export interface Manifest {
   places?: Place[]
   /** Stations you can walk into (see station.ts). */
   stations?: Station[]
+  /** Front doors of places you can walk into (see interior.ts). */
+  interiors?: InteriorPlace[]
 }
 
 /** The map as the game sees it: the manifest plus whichever tiles are
