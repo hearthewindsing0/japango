@@ -222,12 +222,15 @@ export function DPad({
   size?: number
   className?: string
 }) {
-  const cell = size / 3
+  // A 3×3 grid with one gap size everywhere, so the four arrows sit the
+  // same distance from the center and from each other.
+  const gap = Math.max(3, Math.round(size / 40))
+  const pad = gap
   const btn = (d: PadDir, label: string, col: number, row: number) => (
     <button
       aria-label={d}
-      className="absolute grid place-items-center rounded-md bg-ink-3 text-paper shadow-[inset_0_-3px_0_var(--color-ink)] active:translate-y-[2px] active:bg-shu active:shadow-none"
-      style={{ left: col * cell, top: row * cell, width: cell, height: cell }}
+      className="grid place-items-center rounded-md bg-ink-3 text-paper shadow-[inset_0_-3px_0_var(--color-ink-4)] active:translate-y-[2px] active:bg-shu active:text-white active:shadow-none"
+      style={{ gridColumn: col + 1, gridRow: row + 1 }}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId)
         onPress?.(d)
@@ -238,17 +241,21 @@ export function DPad({
       {label}
     </button>
   )
+  const cell = (size - 2 * pad - 2 * gap) / 3
   return (
     <div className={cn('relative touch-none select-none drop-hard', className)} style={{ width: size, height: size }}>
-      <span className="absolute rounded-lg bg-ink" style={{ left: cell - 4, top: -4, width: cell + 8, height: size + 8 }} />
-      <span className="absolute rounded-lg bg-ink" style={{ left: -4, top: cell - 4, width: size + 8, height: cell + 8 }} />
-      {btn('up', '▲', 1, 0)}
-      {btn('left', '◀', 0, 1)}
-      {btn('right', '▶', 2, 1)}
-      {btn('down', '▼', 1, 2)}
-      <span className="absolute bg-ink-3" style={{ left: cell, top: cell, width: cell, height: cell }}>
-        <span className="absolute inset-[30%] rounded-full bg-ink" />
-      </span>
+      {/* The cross behind the buttons, with the same padding on every side. */}
+      <span className="absolute rounded-lg bg-ink" style={{ left: pad + cell + gap - pad, top: 0, width: cell + 2 * pad, height: size }} />
+      <span className="absolute rounded-lg bg-ink" style={{ left: 0, top: pad + cell + gap - pad, width: size, height: cell + 2 * pad }} />
+      <div className="absolute grid" style={{ inset: pad, gap, gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(3, 1fr)' }}>
+        {btn('up', '▲', 1, 0)}
+        {btn('left', '◀', 0, 1)}
+        {btn('right', '▶', 2, 1)}
+        {btn('down', '▼', 1, 2)}
+        <span className="relative rounded-md bg-ink-3" style={{ gridColumn: 2, gridRow: 2 }}>
+          <span className="absolute inset-[30%] rounded-full bg-ink" />
+        </span>
+      </div>
       {onTurn && (
         <>
           <button className="corner-sm absolute -top-1 -left-1 size-9 bg-ink text-paper hover:bg-shu" style={{ fontSize: 18 }} aria-label="Turn view left" onClick={() => onTurn(-1)}>
