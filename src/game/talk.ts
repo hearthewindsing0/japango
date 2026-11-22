@@ -38,6 +38,8 @@ export interface Spot {
 
 export interface Talk {
   attribution: string
+  /** Credits for the voices used, e.g. "VOICEVOX:冥鳴ひまり". */
+  voices?: string[]
   spots: Spot[]
   conversations: Conversation[]
 }
