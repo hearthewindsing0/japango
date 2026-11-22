@@ -707,6 +707,14 @@ export default function App() {
                 <>
                   {' · '}
                   {talk.attribution}
+                  {talk.voices?.length ? (
+                    <>
+                      {'; voices: '}
+                      <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noreferrer">
+                        {talk.voices.join(', ')}
+                      </a>
+                    </>
+                  ) : null}
                 </>
               )}
               {map.credits?.some((c) => c.includes('PLATEAU')) && (

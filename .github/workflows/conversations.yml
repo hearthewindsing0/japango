@@ -1,9 +1,9 @@
-# Writes the conversations people have at the talking spots (Claude) and
-# voices them (Azure AI Speech), then rebuilds the dictionary so their words
-# get furigana and word cards, and commits the result. Run it by hand from
-# the Actions tab; it also runs when the conversation script changes.
-# Needs the ANTHROPIC_API_KEY repository secret; AZURE_SPEECH_KEY and
-# AZURE_SPEECH_REGION add the voices.
+# Writes the conversations people have at the talking spots (Claude),
+# voices them with VOICEVOX (run here as a service container, nothing to
+# sign up for), then rebuilds the dictionary so their words get furigana and
+# word cards, and commits the result. Run it by hand from the Actions tab;
+# it also runs when the conversation scripts change.
+# Needs the ANTHROPIC_API_KEY repository secret.
 name: Conversations
 
 on:
@@ -16,6 +16,8 @@ on:
   push:
     paths:
       - scripts/fetch-conversations.mjs
+      - scripts/voice-conversations.mjs
+      - scripts/voices.mjs
       - .github/workflows/conversations.yml
 
 permissions:
@@ -30,12 +32,16 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
-      AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
+      VOICEVOX_URL: http://localhost:50021
+    services:
+      voicevox:
+        image: voicevox/voicevox_engine:cpu-latest
+        ports:
+          - 50021:50021
     steps:
       - name: Waiting for the Anthropic key
         if: ${{ env.ANTHROPIC_API_KEY == '' }}
-        run: echo "::notice::Set the ANTHROPIC_API_KEY repository secret (and AZURE_SPEECH_KEY + AZURE_SPEECH_REGION for voices) to write conversations."
+        run: echo "::notice::Set the ANTHROPIC_API_KEY repository secret to write conversations."
       - uses: actions/checkout@v4
         if: ${{ env.ANTHROPIC_API_KEY != '' }}
       - uses: actions/setup-node@v4
@@ -44,10 +50,15 @@ jobs:
           node-version: 22
       - name: Install
         if: ${{ env.ANTHROPIC_API_KEY != '' }}
-        run: npm ci
-      - name: Write and voice the conversations
+        run: |
+          npm ci
+          command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
+      - name: Write the conversations
         if: ${{ env.ANTHROPIC_API_KEY != '' }}
         run: node scripts/fetch-conversations.mjs ${{ inputs.redo && '--redo' || '' }}
+      - name: Voice them with VOICEVOX
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        run: node scripts/voice-conversations.mjs
       - name: Dictionary for the new words
         if: ${{ env.ANTHROPIC_API_KEY != '' }}
         run: bash scripts/build-dict.sh

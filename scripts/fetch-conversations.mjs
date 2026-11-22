@@ -1,12 +1,10 @@
 // Conversations people have at the game's talking spots, written ahead of
-// time by Claude and voiced once by Azure AI Speech. Writes
-// public/talk/<area>.json (the scripts, with English) and
-// public/talk/<area>/<conversation>-<line>.mp3 (one clip per line). The
-// game plays them from where the speakers stand; scripts/build-dict.mjs
-// splits the lines into words for furigana and word cards.
+// time by Claude. Writes public/talk/<area>.json (the scripts, with
+// English); scripts/voice-conversations.mjs then voices each line with
+// VOICEVOX, and scripts/build-dict.mjs splits the lines into words for
+// furigana and word cards.
 //
-// Needs ANTHROPIC_API_KEY. With AZURE_SPEECH_KEY and AZURE_SPEECH_REGION the
-// lines are voiced too; without them the game shows subtitles only.
+// Needs ANTHROPIC_API_KEY.
 //
 // Usage: node scripts/fetch-conversations.mjs [--redo] [--only=<scene id>]
 // Scenes already written are kept; --redo writes them all again.
@@ -14,26 +12,12 @@ import Anthropic from '@anthropic-ai/sdk'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { AREA } from './area.mjs'
+import { VOICES } from './voices.mjs'
 
 const MODEL = 'claude-haiku-5-5'
 const REDO = process.argv.includes('--redo')
 const ONLY = process.argv.find((a) => a.startsWith('--only='))?.slice(7)
-const AZURE_KEY = process.env.AZURE_SPEECH_KEY
-const AZURE_REGION = process.env.AZURE_SPEECH_REGION
 if (!process.env.ANTHROPIC_API_KEY) throw new Error('Set ANTHROPIC_API_KEY')
-if (!AZURE_KEY || !AZURE_REGION) console.warn('No AZURE_SPEECH_KEY / AZURE_SPEECH_REGION: writing scripts without voices.')
-
-// Azure's Japanese neural voices, as the writer sees them. Each speaker gets
-// one, and the two people in a conversation never share a voice.
-const VOICES = {
-  'ja-JP-NanamiNeural': 'woman, 20s-30s, warm and friendly',
-  'ja-JP-AoiNeural': 'young woman, late teens to early 20s, bright',
-  'ja-JP-MayuNeural': 'woman, 20s, lively and casual',
-  'ja-JP-ShioriNeural': 'woman, 30s-50s, calm and composed',
-  'ja-JP-KeitaNeural': 'man, 20s-30s, relaxed',
-  'ja-JP-DaichiNeural': 'man, 30s-40s, steady office worker',
-  'ja-JP-NaokiNeural': 'man, 40s-60s, calm and low',
-}
 
 // Where people stop and talk. The crossing spot is the pavement outside
 // ALMOND, Roppongi's classic meeting point, on the corner of the crossing.
@@ -131,7 +115,7 @@ Time of day: ${scene.when.join(' or ')}. Weather: ${scene.weather === 'rain' ? '
 
 Voices:
 ${Object.entries(VOICES)
-  .map(([v, d]) => `- ${v}: ${d}`)
+  .map(([v, d]) => `- ${v}: ${d.about}`)
   .join('\n')}
 
 Scene: ${scene.seed}`
@@ -173,30 +157,6 @@ function check(c) {
   return null
 }
 
-const esc = (s) => s.replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c])
-
-/** One line as an MP3, from Azure AI Speech. */
-async function speak(voice, text) {
-  // A touch slower than normal speech, for learners.
-  const ssml = `<speak version="1.0" xml:lang="ja-JP"><voice name="${voice}"><prosody rate="-8%">${esc(text)}</prosody></voice></speak>`
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const res = await fetch(`https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`, {
-      method: 'POST',
-      headers: {
-        'Ocp-Apim-Subscription-Key': AZURE_KEY,
-        'Content-Type': 'application/ssml+xml',
-        'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
-        'User-Agent': 'japango-builder',
-      },
-      body: ssml,
-    })
-    if (res.ok) return Buffer.from(await res.arrayBuffer())
-    if (res.status === 401 || res.status === 403) throw new Error(`Azure refused the key (${res.status}); check AZURE_SPEECH_KEY and AZURE_SPEECH_REGION`)
-    await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)))
-  }
-  throw new Error(`Azure could not voice "${text}"`)
-}
-
 const file = `public/talk/${AREA.id}.json`
 const dir = `public/talk/${AREA.id}`
 await mkdir(dir, { recursive: true })
@@ -228,17 +188,6 @@ for (const scene of SCENES) {
     }
     byId.set(scene.id, conv)
   }
-  if (AZURE_KEY && AZURE_REGION) {
-    let n = 0
-    for (const [i, l] of conv.lines.entries()) {
-      const path = `talk/${AREA.id}/${conv.id}-${i}.mp3`
-      if (l.audio === path && existsSync(`public/${path}`)) continue
-      await writeFile(`public/${path}`, await speak(conv.speakers[l.s].voice, l.ja))
-      l.audio = path
-      n++
-    }
-    if (n) console.log(`  ${conv.id}: voiced ${n} lines`)
-  }
 }
 
 // Keep the scene order, and drop conversations whose scene is gone.
@@ -247,7 +196,9 @@ await writeFile(
   file,
   JSON.stringify(
     {
-      attribution: `Conversations written by Claude (${MODEL}, Anthropic)${conversations.some((c) => c.lines.some((l) => l.audio)) ? '; voices by Azure AI Speech' : ''}`,
+      attribution: `Conversations written by Claude (${MODEL}, Anthropic)`,
+      // Credits for the voices, kept up to date by voice-conversations.mjs.
+      voices: old.voices ?? [],
       spots: SPOTS.map(({ about: _about, ...s }) => s),
       conversations,
     },

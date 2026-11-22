@@ -8,8 +8,9 @@ import { talkLive, type Talk } from './talk'
 // facing each other, the one speaking gesturing a little. Their looks follow
 // the voices of the conversation going on (or the last one).
 
-const FEMALE = /Nanami|Aoi|Mayu|Shiori/
-const OLDER = /Naoki|Shiori/
+// VOICEVOX voices (scripts/voices.mjs).
+const FEMALE = /冥鳴ひまり|春日部つむぎ|九州そら|東北イタコ/
+const OLDER = /東北イタコ|麒ヶ島宗麟/
 
 /** A look that fits a voice: same voice, same person. */
 function lookFor(voice: string): Look {
@@ -19,7 +20,7 @@ function lookFor(voice: string): Look {
   const look = randomLook(rand)
   const female = FEMALE.test(voice)
   look.longHair = female
-  look.backpack = /Aoi|Keita/.test(voice)
+  look.backpack = /春日部つむぎ|玄野武宏/.test(voice)
   look.height = female ? 0.92 + rand() * 0.06 : 1 + rand() * 0.06
   if (OLDER.test(voice)) look.hair = female ? '#3b2a20' : '#8f8a84'
   else if (look.hair === '#b8b2a8') look.hair = '#2a211c' // grey hair only for the older voices
@@ -38,7 +39,7 @@ export function Talkers({ talk, voices, rain }: { talk: Talk; voices: Record<str
 
 function defaultVoices(talk: Talk, spot: string): [string, string] {
   const c = talk.conversations.find((c) => c.spot === spot)
-  return [c?.speakers[0]?.voice ?? 'ja-JP-KeitaNeural', c?.speakers[1]?.voice ?? 'ja-JP-NanamiNeural']
+  return [c?.speakers[0]?.voice ?? '玄野武宏', c?.speakers[1]?.voice ?? '冥鳴ひまり']
 }
 
 function SpotPair({ spot, voices, rain }: { spot: string; voices: [string, string]; rain: boolean }) {
