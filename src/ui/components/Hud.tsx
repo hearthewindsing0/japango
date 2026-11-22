@@ -258,15 +258,25 @@ export function DPad({
       </div>
       {onTurn && (
         <>
-          <button className="corner-sm absolute -top-1 -left-1 size-9 bg-ink text-paper hover:bg-shu" style={{ fontSize: 18 }} aria-label="Turn view left" onClick={() => onTurn(-1)}>
-            ⟲
+          <button className="corner-sm absolute -top-1 -left-1 grid size-9 place-items-center bg-ink text-paper hover:bg-shu hover:text-white" aria-label="Turn view left" onClick={() => onTurn(-1)}>
+            <TurnIcon dir={-1} />
           </button>
-          <button className="corner-sm absolute -top-1 -right-1 size-9 bg-ink text-paper hover:bg-shu" style={{ fontSize: 18 }} aria-label="Turn view right" onClick={() => onTurn(1)}>
-            ⟳
+          <button className="corner-sm absolute -top-1 -right-1 grid size-9 place-items-center bg-ink text-paper hover:bg-shu hover:text-white" aria-label="Turn view right" onClick={() => onTurn(1)}>
+            <TurnIcon dir={1} />
           </button>
         </>
       )}
     </div>
+  )
+}
+
+/** A circular arrow, drawn so it sits exactly in the middle of its button. */
+function TurnIcon({ dir }: { dir: -1 | 1 }) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={dir < 0 ? { transform: 'scaleX(-1)' } : undefined}>
+      <path d="M19 12a7 7 0 1 1-2.05-4.95" />
+      <path d="M19.5 3.5v4.5H15" />
+    </svg>
   )
 }
 
