@@ -1,5 +1,5 @@
 {
-  "about": "Hand-picked places that get a storefront sign, a map label and a star on the minimap, even if OpenStreetMap doesn't have them (or they've since closed). Placed where they were around 2014-2016. Position comes from `osm` (an OpenStreetMap node id in data/<area>.osm.json) if given, else `lat`/`lon`. A place with neither is listed but not drawn. `precision`: 'building' = the exact spot, 'block' = the centre of the address block (GSI address search), so it may be off by up to ~50 m. Add more by appending to `places` and running `npm run map:build`.",
+  "about": "Hand-picked places that get a storefront sign, a map label and a star on the minimap, even if OpenStreetMap doesn't have them (or they've since closed). Placed where they were around 2014-2016. Position comes from `osm` (an OpenStreetMap node id in data/<area>.osm.json) if given, else `lat`/`lon`. A place with neither is listed but not drawn. `precision`: 'building' = the exact spot, 'street' = placed along the right stretch of street from someone's memory, 'block' = the centre of the address block (GSI address search), so it may be off by up to ~50 m. Add more by appending to `places` and running `npm run map:build`.",
   "places": [
     {
       "id": "ant-n-bee",
@@ -14,7 +14,10 @@
       "years": "2010-",
       "status": "open",
       "note": "Craft beer bar in a basement on Gaien-Higashi-dori (外苑東通り), a minute from the crossing toward Tokyo Tower.",
-      "sources": ["https://www.timeout.com/tokyo/bars-and-pubs/ant-n-bee", "https://ssl.tabelog.com/en/tokyo/A1307/A130701/13118677/"]
+      "sources": [
+        "https://www.timeout.com/tokyo/bars-and-pubs/ant-n-bee",
+        "https://ssl.tabelog.com/en/tokyo/A1307/A130701/13118677/"
+      ]
     },
     {
       "id": "ant-n-bee-ryudocho",
@@ -26,9 +29,31 @@
       "precision": "block",
       "address": "港区六本木7-9-2 岡野ビル 1F",
       "years": "2019-",
+      "status": "open",
+      "note": "Second branch, on the Ryudocho side of Roppongi 7-chome (Henry confirmed this is the one).",
+      "sources": [
+        "https://ssl.tabelog.com/en/tokyo/A1307/A130701/13237631/",
+        "https://bento.com/rev/5423.html"
+      ]
+    },
+    {
+      "id": "brewdog",
+      "ja": "ブリュードッグ 六本木",
+      "en": "BrewDog Roppongi",
+      "sign": "BREWDOG",
+      "kind": "bar",
+      "osm": 4164174389,
+      "lat": 35.6621225,
+      "lon": 139.7334482,
+      "precision": "building",
+      "address": "港区六本木5-3-2",
+      "years": "2014-",
       "status": "unknown",
-      "note": "Second branch. Tabelog lists it as opening in July 2019, after Henry's time, so this may not be the second location he means.",
-      "sources": ["https://ssl.tabelog.com/en/tokyo/A1307/A130701/13237631/", "https://bento.com/rev/5423.html"]
+      "note": "Scottish craft brewery's first Japan bar, opened March 2014, a short walk down Gaien-Higashi-dori from the crossing.",
+      "sources": [
+        "https://www.timeout.com/tokyo/bars-and-pubs/brewdog-roppongi",
+        "https://www.phileweb.com/news/hobby/201403/03/1365.html"
+      ]
     },
     {
       "id": "feria",
@@ -45,7 +70,10 @@
       "years": "-2010s",
       "status": "closed",
       "note": "Five-floor nightclub with a vertical garden on the front.",
-      "sources": ["https://www.timeout.com/tokyo/clubs/feria", "https://www.yonder.fr/cityguides/tokyo/night-life/feria"]
+      "sources": [
+        "https://www.timeout.com/tokyo/clubs/feria",
+        "https://www.yonder.fr/cityguides/tokyo/night-life/feria"
+      ]
     },
     {
       "id": "color",
@@ -61,7 +89,9 @@
       "years": "2014",
       "status": "unknown",
       "note": "Café by day, club and 'entertainment restaurant' at night (Time Out, 2014).",
-      "sources": ["https://www.timeout.com/tokyo/clubs/color"]
+      "sources": [
+        "https://www.timeout.com/tokyo/clubs/color"
+      ]
     },
     {
       "id": "gonpachi",
@@ -77,7 +107,9 @@
       "years": "2001-",
       "status": "open",
       "note": "The big wooden izakaya at the Nishi-Azabu crossing, the 'Kill Bill restaurant'.",
-      "sources": ["https://www.openstreetmap.org/node/1655440324"]
+      "sources": [
+        "https://www.openstreetmap.org/node/1655440324"
+      ]
     },
     {
       "id": "freys",
@@ -92,7 +124,10 @@
       "years": "2011-",
       "status": "open",
       "note": "American-style pizza on a backstreet near Tokyo Midtown.",
-      "sources": ["https://ssl.tabelog.com/en/tokyo/A1307/A130701/13124749/", "https://tokyocheapo.com/restaurant/freys-famous-pizzeria"]
+      "sources": [
+        "https://ssl.tabelog.com/en/tokyo/A1307/A130701/13124749/",
+        "https://tokyocheapo.com/restaurant/freys-famous-pizzeria"
+      ]
     },
     {
       "id": "starbucks-midtown",
@@ -107,7 +142,26 @@
       "years": "-2012-",
       "status": "open",
       "note": "On the ground floor of Midtown Plaza, by the Gaien-Higashi-dori entrance.",
-      "sources": ["https://www.timeout.jp/tokyo/ja/レストラン/スターバックスコーヒー-東京ミッドタウン-コンプレックス-スタジオ店"]
+      "sources": [
+        "https://www.timeout.jp/tokyo/ja/レストラン/スターバックスコーヒー-東京ミッドタウン-コンプレックス-スタジオ店"
+      ]
+    },
+    {
+      "id": "roppongi-koban",
+      "ja": "六本木交番",
+      "en": "Roppongi Kōban (police box)",
+      "sign": "交番 KOBAN",
+      "kind": "amenity",
+      "osm": 1420800586,
+      "lat": 35.663544,
+      "lon": 139.73217,
+      "precision": "building",
+      "address": "港区六本木 (六本木交差点)",
+      "status": "open",
+      "note": "The police box on the corner of Roppongi Crossing, a classic meeting spot.",
+      "sources": [
+        "https://www.openstreetmap.org/node/1420800586"
+      ]
     },
     {
       "id": "seven-eleven-crossing-north",
@@ -121,8 +175,10 @@
       "precision": "building",
       "address": "港区六本木7-14-23",
       "status": "open",
-      "note": "One of the two 7-Elevens closest to Roppongi Crossing. Not sure which one Henry means.",
-      "sources": ["https://www.openstreetmap.org/node/3751579431"]
+      "note": "One of the two 7-Elevens by Roppongi Crossing (Henry: both).",
+      "sources": [
+        "https://www.openstreetmap.org/node/3751579431"
+      ]
     },
     {
       "id": "seven-eleven-crossing-south",
@@ -137,7 +193,9 @@
       "address": "港区六本木5-2-1",
       "status": "open",
       "note": "The other 7-Eleven by the crossing, on the Tokyo Tower side.",
-      "sources": ["https://www.openstreetmap.org/node/3752301026"]
+      "sources": [
+        "https://www.openstreetmap.org/node/3752301026"
+      ]
     },
     {
       "id": "frijoles",
@@ -152,7 +210,10 @@
       "years": "2011-",
       "status": "open",
       "note": "Burritos and tacos in the Piramide building courtyard, next to Roppongi Hills.",
-      "sources": ["https://tabelog.com/en/tokyo/A1307/A130701/13123514/", "https://happycow.net/reviews/frijoles-roppongi-tokyo-46376"]
+      "sources": [
+        "https://tabelog.com/en/tokyo/A1307/A130701/13123514/",
+        "https://happycow.net/reviews/frijoles-roppongi-tokyo-46376"
+      ]
     },
     {
       "id": "kamasutra",
@@ -160,8 +221,17 @@
       "en": "Kamasutra",
       "kind": "bar",
       "club": true,
-      "status": "unknown",
-      "note": "Couldn't find where this was. Needs a street, a nearby landmark or an address from Henry."
+      "status": "closed",
+      "note": "Buy-me-a-drink / hostess bar for foreigners, up an elevator (about the 4th floor). On Gaien-Higashi-dori toward Tokyo Tower, same side as Gas Panic (3-15-24) but further down. Placed from Henry's memory, so the exact building is a guess.",
+      "sign": "KAMASUTRA",
+      "lat": 35.66195,
+      "lon": 139.7366,
+      "precision": "street",
+      "floor": "4F",
+      "sources": [
+        "Henry (2026-11-21)",
+        "https://www.timeout.com/tokyo/bars-and-pubs/closed-gas-panic"
+      ]
     },
     {
       "id": "vibration",
@@ -175,8 +245,10 @@
       "precision": "block",
       "address": "港区六本木3-11-6 海上ビル B1F",
       "status": "unknown",
-      "note": "'Vibration Bar' in a basement just northeast of the crossing. The earliest review found is from 2017, so it may not be the club Henry remembers.",
-      "sources": ["https://www.tripadvisor.com/Restaurant_Review-g14129735-d9890895-Reviews-Vibration_Bar-Roppongi_Minato_Tokyo_Tokyo_Prefecture_Kanto.html"]
+      "note": "'Vibration Bar' in a basement just northeast of the crossing (Henry: probably the one).",
+      "sources": [
+        "https://www.tripadvisor.com/Restaurant_Review-g14129735-d9890895-Reviews-Vibration_Bar-Roppongi_Minato_Tokyo_Tokyo_Prefecture_Kanto.html"
+      ]
     },
     {
       "id": "aoyama-book-center",
@@ -184,14 +256,17 @@
       "en": "Aoyama Book Center Roppongi",
       "sign": "青山ブックセンター",
       "kind": "shop",
-      "lat": 35.66280,
+      "lat": 35.6628,
       "lon": 139.73176,
       "precision": "building",
       "address": "港区六本木6-1-20 六本木電気ビル 1F",
       "years": "-2018",
       "status": "closed",
       "note": "A few steps from Hibiya line exit 3 on Roppongi-dori. Closed in 2018; the bookshop café Bunkitsu (文喫) opened in the same spot.",
-      "sources": ["https://en.jal.japantravel.com/tokyo/aoyama-book-center-roppongi/13646", "https://www.timeout.com/tokyo/restaurants/bunkitsu"]
+      "sources": [
+        "https://en.jal.japantravel.com/tokyo/aoyama-book-center-roppongi/13646",
+        "https://www.timeout.com/tokyo/restaurants/bunkitsu"
+      ]
     },
     {
       "id": "roppongi-wan",
@@ -207,7 +282,10 @@
       "years": "2007-",
       "status": "open",
       "note": "Puppies and kittens in the window on Gaien-Higashi-dori, on the way from the crossing to Midtown. The only pet shop on that stretch.",
-      "sources": ["https://www.ekiten.jp/shop_776528/", "https://media.inudia.com/petshop-roppongi"]
+      "sources": [
+        "https://www.ekiten.jp/shop_776528/",
+        "https://media.inudia.com/petshop-roppongi"
+      ]
     }
   ]
 }

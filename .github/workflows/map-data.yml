@@ -3,10 +3,11 @@
 # aerial roof colors, Mapillary, Wikipedia), builds the map, cuts it into
 # tiles and the dictionary, then commits the result to the same branch.
 #
-# To add or change an area, run this from the Actions tab ("Run workflow")
-# with an area id plus a center and size, or a box of corners. It writes
-# areas/<id>.json and builds it. With just an id it rebuilds that area;
-# "all" rebuilds every area.
+# It only runs when started by hand: Actions tab → Map data → "Run workflow".
+# Give an area id plus a center and size, or a box of corners, to add or
+# change an area (it writes areas/<id>.json). With just an id it rebuilds
+# that area; "all" rebuilds every area. Run on main, the Deploy workflow then
+# uploads the new tiles to R2 and publishes them.
 name: Map data
 
 on:
@@ -36,15 +37,10 @@ on:
       spawn:
         description: 'Where players start, "lat,lon" (default: the center)'
         required: false
-  # Nightly refresh at 3 AM in Tokyo. With Cloudflare set up, the fresh
-  # tiles go straight to R2 instead of into the repo.
-  schedule:
-    - cron: '0 18 * * *'
-  push:
-    paths:
-      - areas/**
-      - scripts/**
-      - .github/workflows/map-data.yml
+      sounds:
+        description: 'Also download the city sounds again (Freesound)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -52,9 +48,6 @@ permissions:
 concurrency:
   group: map-data-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  CF_READY: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
 
 jobs:
   plan:
@@ -88,9 +81,6 @@ jobs:
     env:
       AREA: ${{ matrix.area }}
       MAPILLARY_TOKEN: ${{ secrets.MAPILLARY_TOKEN }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -123,11 +113,7 @@ jobs:
         run: bun scripts/fetch-all.mjs
       - name: Japanese dictionary for the map's text (JMdict, Tatoeba, KANJIDIC2, KanjiVG)
         run: bash scripts/build-dict.sh
-      - name: Upload the nightly refresh to R2
-        if: ${{ github.event_name == 'schedule' && env.CF_READY == 'true' }}
-        run: bun scripts/upload-r2.mjs
       - name: Keep the result for the commit job
-        if: ${{ github.event_name != 'schedule' || env.CF_READY != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: area-${{ matrix.area }}
@@ -140,10 +126,10 @@ jobs:
             public/dict/${{ matrix.area }}.*.json
 
   sounds:
-    # City sounds are shared by every area. Skipped until the FREESOUND_TOKEN
-    # repository secret is set, and on nightly runs.
+    # City sounds are shared by every area. Only when asked for, and once
+    # the FREESOUND_TOKEN repository secret is set.
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'schedule' }}
+    if: ${{ inputs.sounds }}
     env:
       FREESOUND_TOKEN: ${{ secrets.FREESOUND_TOKEN }}
     steps:
@@ -165,15 +151,14 @@ jobs:
 
   commit:
     # One commit for all areas. Areas that built are committed even if
-    # another failed. Nightly runs only commit while there's no Cloudflare
-    # to upload to.
+    # another failed.
     needs: [build, sounds]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.build.result != 'skipped' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-        # Nothing to download when everything went to R2.
+        # Nothing to download if every area failed.
         continue-on-error: true
         with:
           path: /tmp/built

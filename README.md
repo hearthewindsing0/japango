@@ -31,7 +31,7 @@ crossings, paths, parks, low buildings with windows, and trees.
 - `AREA=<id> bun run map:all` downloads every source below for that area at
   the same time, then builds the map and tiles. The Map data Action does the
   same on GitHub: "Run workflow" with an id plus a center and size (or
-  corners) adds an area and builds it; nightly it rebuilds every area.
+  corners) adds an area and builds it. It only runs when started by hand.
 - `bun run map:fetch` downloads the area from the Overpass API into `data/`.
 - `bun run map:build` converts it into `data/<area>.map.json`: vector shapes
   for drawing, plus a 1 m grid for collisions and the minimap. It then cuts
@@ -189,8 +189,10 @@ uploads the tiles and a snapshot of the raw source data to R2
 needs the `CLOUDFLARE_API_TOKEN` (Workers, R2 and D1 edit rights) and
 `CLOUDFLARE_ACCOUNT_ID` repository secrets.
 
-The Map data Action also runs nightly at 3 AM Tokyo time. With Cloudflare
-set up, it uploads the fresh tiles to R2 instead of committing them.
+Map data is refreshed only on demand: run the Map data Action by hand. On
+main, Deploy then uploads the new tiles to R2. A plain code deploy skips the
+tile upload unless the push changed `public/tiles/`; tick "Upload map
+tiles" when running Deploy by hand to force it.
 
 Run it all locally with `bun run cf:dev`, which uses wrangler's local D1
 and R2.
