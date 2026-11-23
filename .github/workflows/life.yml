@@ -1,0 +1,85 @@
+# Writes the people of the area and their days (Claude), checks every
+# person's day makes sense, works out their walks on the map, and commits
+# the result to public/life/<area>/. Run it by hand from the Actions tab:
+# "circles" is how many new circles of 4 to 8 people to write this run.
+# Signs in to the Claude API the same way as conversations.yml (see there).
+name: Life
+
+on:
+  workflow_dispatch:
+    inputs:
+      circles:
+        description: New circles of people to write
+        type: number
+        default: 1
+      redo:
+        description: Write the first circles again instead of adding new ones
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write # for the identity token
+
+concurrency:
+  group: life-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  write:
+    runs-on: ubuntu-latest
+    env:
+      FEDERATION_RULE: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID || 'fdrl_01T5XFwJ7McLYY82fDczBjWb' }}
+      ORGANIZATION: ${{ vars.ANTHROPIC_ORGANIZATION_ID || '1a3e9e83-d269-4efb-a5c2-45d2526e4aa2' }}
+      SERVICE_ACCOUNT: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID || 'svac_015WB58YXMX7QY8Y1r1VUrqB' }}
+      WORKSPACE: ${{ vars.ANTHROPIC_WORKSPACE_ID || 'wrkspc_01HZPyjjTo7hpoCcPfiRnSC8' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.x
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Sign in to the Claude API
+        env:
+          RULE: ${{ env.FEDERATION_RULE }}
+          ORG: ${{ env.ORGANIZATION }}
+          ACCOUNT: ${{ env.SERVICE_ACCOUNT }}
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        # Variables are only set when they have a value: the SDK treats an
+        # empty one as set, and an API key would win over federation.
+        run: |
+          if [ -z "$KEY" ]; then
+            # GitHub's identity token lasts about 5 minutes and can be
+            # exchanged once, so fetch it right before writing.
+            jwt="$RUNNER_TEMP/anthropic-identity-token"
+            curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://api.anthropic.com" | jq -r .value > "$jwt"
+            {
+              echo "ANTHROPIC_FEDERATION_RULE_ID=$RULE"
+              echo "ANTHROPIC_ORGANIZATION_ID=$ORG"
+              echo "ANTHROPIC_IDENTITY_TOKEN_FILE=$jwt"
+              echo "ANTHROPIC_SERVICE_ACCOUNT_ID=$ACCOUNT"
+              echo "ANTHROPIC_WORKSPACE_ID=$WORKSPACE"
+            } >> "$GITHUB_ENV"
+            echo "Using workload identity federation (rule $RULE)."
+          else
+            echo "ANTHROPIC_API_KEY=$KEY" >> "$GITHUB_ENV"
+            echo "Using the ANTHROPIC_API_KEY secret."
+          fi
+      - name: Write the people and their days
+        run: bun scripts/life/write-life.mjs --circles=${{ inputs.circles }} ${{ inputs.redo && '--redo' || '' }}
+      - name: Check their days and work out their walks
+        run: bun scripts/life/plan.mjs
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data/life public/life
+          if git diff --cached --quiet; then
+            echo "Nothing new."
+          else
+            git commit -m "Update the people of the area and their days"
+            git pull --rebase
+            git push
+          fi

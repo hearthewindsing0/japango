@@ -15,7 +15,7 @@ import { cuisineLabel } from '../cuisine.mjs'
 import { loadWalkGrid, nearestCell, PAVED } from './walk.mjs'
 
 const grid = await loadWalkGrid(AREA_ID)
-const { W, H, cells, cost, main, map } = grid
+const { W, H, cells, main, map } = grid
 const osm = JSON.parse(await readFile(`data/${AREA_ID}.osm.json`, 'utf8'))
 
 /** What kind of place this is for people's days, or null to skip it. */
