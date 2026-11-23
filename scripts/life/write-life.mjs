@@ -69,7 +69,9 @@ const client = new Anthropic()
 async function ask(system, prompt, schema, check, tag) {
   let feedback = ''
   for (let attempt = 0; attempt < 4; attempt++) {
-    const res = await client.messages.create({
+    // Streamed: the SDK won't wait this long for a reply in one piece.
+    const res = await client.messages
+      .stream({
       model: MODEL,
       max_tokens: 32000,
       system: [
@@ -78,7 +80,8 @@ async function ask(system, prompt, schema, check, tag) {
       ],
       output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
       messages: [{ role: 'user', content: prompt + feedback }],
-    })
+      })
+      .finalMessage()
     if (res.stop_reason === 'refusal') {
       console.warn(`  ${tag}: declined`)
       return null
