@@ -15,7 +15,9 @@ import {
   type HeightFn,
 } from './geometry'
 import { Crowd } from './Crowd'
+import { Cars } from './Cars'
 import type { FlowTime } from './people-flow'
+import { cutAtZebras, laneLines } from './traffic'
 import { groundAt, tileGroundAt, type GameMap, type MapTile } from './map'
 import { COLORS, T } from './tiles'
 import type { SkyState } from './sky'
@@ -183,9 +185,11 @@ function Ground({ tile, clip, night }: { tile: MapTile; clip: THREE.Plane[]; nig
   const geos = useMemo(() => {
     const roads = tile.roads
     const sidewalks = roads.filter((r) => r.s > 0).map((r) => ({ p: r.p, w: r.w + r.s * 2 }))
-    const centerLines = roads.filter((r) => r.w >= 9).map((r) => r.p)
     const footways = tile.paths.filter((p) => p.t !== 'crossing')
     const crossings = crossingsOnRoad(tile)
+    // Lane lines where the cars drive (see traffic.ts), stopping at the
+    // crosswalks.
+    const centerLines = cutAtZebras(laneLines(roads), crossings)
     const h = heightFn(tile)
     const c = cellOf(tile)
     return {
@@ -518,6 +522,7 @@ export function World({
   day,
   minute,
   surface = true,
+  distance = 32,
 }: {
   map: GameMap
   /** The loaded tiles; a new array whenever one loads or unloads. */
@@ -531,6 +536,8 @@ export function World({
   minute: number
   /** False while the player is down in a station: the street is hidden. */
   surface?: boolean
+  /** Camera distance, for how far around the player cars drive. */
+  distance?: number
 }) {
   return (
     <>
@@ -539,6 +546,7 @@ export function World({
         {tiles.map((t) => (
           <TileView key={t.key} map={map} tile={t} focus={focus} sky={sky} when={when} day={day} minute={minute} />
         ))}
+        <Cars map={map} tiles={tiles} focus={focus} hour={when.hour} night={sky.night} distance={distance} />
       </group>
       <WeatherFx focus={focus} rain={sky.rain} snow={sky.snow} />
     </>

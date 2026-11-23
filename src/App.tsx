@@ -384,7 +384,7 @@ export default function App() {
       >
         <color attach="background" args={[bg]} />
         <fog attach="fog" args={[bg, under ? distance * 2 : distance * 2.5 * sky.fogScale, under ? distance * 4 : distance * 6 * sky.fogScale]} />
-        <World map={map} tiles={tiles} focus={focus} sky={sky} when={when} day={week.day} minute={week.minute} surface={!under} />
+        <World map={map} tiles={tiles} focus={focus} sky={sky} when={when} day={week.day} minute={week.minute} surface={!under} distance={distance} />
         {!under && <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />}
         {ug && <Stations ug={ug} focus={focus} under={under} />}
         {ug && ug.interiors.length > 0 && <Interiors interiors={ug.interiors} focus={focus} under={under} night={sky.night > 0.5} glasses={glasses} />}
