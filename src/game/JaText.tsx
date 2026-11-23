@@ -85,7 +85,7 @@ export function WordPopup({
   const left = Math.min(Math.max(px, half + 12), hudW - half - 12)
   return (
     <div
-      className="hud-scroll pointer-events-auto absolute z-10 overflow-y-auto"
+      className="hud-scroll pointer-events-auto absolute z-10 overflow-y-auto rounded-[12px]"
       style={{
         left,
         width: half * 2,
