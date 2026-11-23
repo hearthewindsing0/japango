@@ -43,6 +43,33 @@ function openAt(place, m) {
   return week[prev]?.some(([s, e]) => e > 1440 && t + 1440 >= s && t + 1440 < e) ?? false
 }
 
+const detourOk = (extra, direct) => extra <= Math.max(6, direct * 0.5)
+
+/**
+ * Moves a group's meeting spot when it sends someone the long way round:
+ * to the spot (one of the places they're going, a station exit, a
+ * konbini, a park, ALMOND) that keeps everyone's detour smallest. Claude
+ * picks plausible spots but doesn't know how far apart things are.
+ */
+export function fixMeets(outings, places, walk = roughWalk) {
+  const spots = [...places.values()].filter((p) => p.kind === 'exit' || p.kind === 'konbini' || p.kind === 'park' || p.name === 'ALMOND')
+  for (const o of outings) {
+    if (o.people.length < 2 || !Array.isArray(o.from) || !Array.isArray(o.to)) continue
+    const legs = o.people.map((k) => [places.get(o.from.find((w) => w.key === k)?.place), places.get(o.to.find((w) => w.key === k)?.place)])
+    if (legs.some(([a, b]) => !a || !b)) continue
+    const worst = (m) => Math.max(...legs.map(([a, b]) => (a === b ? 0 : walk(a, m) + walk(m, b) - walk(a, b) - Math.max(6, walk(a, b) * 0.5))))
+    const now = places.get(o.meet)
+    if (now && worst(now) <= 0) continue
+    let best = null
+    let bw = Infinity
+    for (const m of [...new Set(legs.map(([, b]) => b))].concat(spots)) {
+      const w = worst(m)
+      if (w < bw) [bw, best] = [w, m]
+    }
+    if (best && bw <= 0) o.meet = best.id
+  }
+}
+
 /**
  * Everything wrong with a circle's day (empty when it all makes sense):
  * outings follow on from each other for each person, nobody is in two
@@ -88,7 +115,7 @@ export function checkCircle({ people, outings, places, walk = roughWalk }) {
         // Meet on the way, not across town and back.
         const direct = walk(places.get(from), places.get(to))
         const via = walk(places.get(from), places.get(o.meet)) + walk(places.get(o.meet), places.get(to))
-        if (via - direct > Math.max(6, direct * 0.5))
+        if (!detourOk(via - direct, direct))
           p.push(`${person.key}: meeting at ${o.meet} in "${o.key}" is ${via - direct} minutes out of their way; meet near where they are going (outside it is fine)`)
       }
       const arrive = o.meet && o.people.length > 1 ? at + TALK_MIN + (o.meet === to ? 0 : walk(places.get(o.meet), places.get(to))) : at
