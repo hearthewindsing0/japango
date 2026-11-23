@@ -9,8 +9,11 @@
 # token through workload identity federation. One-time setup in the Claude
 # Console (Settings > Workload identity > Connect workload > GitHub Actions):
 #   - issuer https://token.actions.githubusercontent.com (discovery)
-#   - rule matching subject repo:hearthewindsing0/japango:ref:refs/heads/main,
-#     audience https://api.anthropic.com, scope workspace:developer
+#   - rule with subject prefix
+#     repo:hearthewindsing0@268776739/japango@1464781344:ref:refs/heads/main
+#     (GitHub now puts the owner and repo IDs in the subject), audience
+#     https://api.anthropic.com, scope workspace:developer, and no
+#     event_name claim, so both pushes and manual runs can sign in
 # The rule, organization, service account and workspace IDs below are that
 # setup's (they aren't secret). Repository variables of the same names
 # override them.
