@@ -71,7 +71,7 @@ async function ask(system, prompt, schema, check, tag) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await client.messages.create({
       model: MODEL,
-      max_tokens: 16000,
+      max_tokens: 32000,
       system: [
         { type: 'text', text: system },
         { type: 'text', text: PLACE_LIST, cache_control: { type: 'ephemeral' } },
@@ -175,6 +175,9 @@ const PEOPLE_SCHEMA = {
   },
 }
 
+// The voices' given names, which characters mustn't take.
+const VOICE_NAMES = ['ひまり', 'つむぎ', 'そら', 'イタコ', '武宏', '朱司', '龍星', '宗麟']
+
 function checkPeople(out) {
   const p = []
   const keys = new Set(out.people.map((x) => x.key))
@@ -188,7 +191,7 @@ function checkPeople(out) {
     if (x.work && !byId.has(x.work)) p.push(`${x.key}: work "${x.work}" is not a place id`)
     for (const k of x.approach.knows) if (!byId.has(k)) p.push(`${x.key}: knows "${k}" is not a place id`)
     for (const r of x.relations) if (!keys.has(r.key)) p.push(`${x.key}: relation to unknown "${r.key}"`)
-    if (Object.keys(VOICES).some((v) => v.includes(x.name))) p.push(`${x.key}: named after a voice`)
+    if (VOICE_NAMES.includes(x.name) || VOICES[`${x.family}${x.name}`]) p.push(`${x.key}: named after a voice (${x.family}${x.name})`)
     for (const [k, ls] of Object.entries(x.approach.lines)) if (!ls.length) p.push(`${x.key}: no ${k} lines`)
   }
   return p
@@ -310,7 +313,7 @@ Write their weekday as outings, from when each person first leaves home in the m
 
 Rules, which are checked:
 - Each person's outings follow on: an outing starts where their last one ended ("to"), the first starts at their home, the last ends at their home.
-- Times don't overlap: after arriving somewhere they stay "stay" minutes, plus a fair walk (about 1 minute per 80 m), before their next outing.
+- Times don't overlap: leave time for the walk (about 1 minute per 80 m) and for a meeting (about 5 minutes) between arriving somewhere and the next outing. "stay" is how long they plan to stay; it may run up to their next outing.
 - Places are open when they're there.
 - 3 to 6 outings per person. Use real places from the list, mostly within Roppongi.
 - Every key in from/to is on the outing, and every person on the outing appears in both.`,
