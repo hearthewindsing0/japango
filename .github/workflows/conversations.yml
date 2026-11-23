@@ -2,8 +2,19 @@
 # voices them with VOICEVOX (run here as a service container, nothing to
 # sign up for), then rebuilds the dictionary so their words get furigana and
 # word cards, and commits the result. Run it by hand from the Actions tab;
-# it also runs when the conversation scripts change.
-# Needs the ANTHROPIC_API_KEY repository secret.
+# it also runs when the conversation scripts change on main.
+#
+# Signing in to the Claude API, without a stored key: GitHub gives each run a
+# short-lived identity token, and the Anthropic SDK trades it for an access
+# token through workload identity federation. One-time setup in the Claude
+# Console (Settings > Workload identity > Connect workload > GitHub Actions):
+#   - issuer https://token.actions.githubusercontent.com (discovery)
+#   - rule matching subject repo:hearthewindsing0/japango:ref:refs/heads/main,
+#     audience https://api.anthropic.com, scope workspace:developer
+# The rule and organization IDs below are that setup's (they aren't secret).
+# Repository variables of the same names override them; set
+# ANTHROPIC_WORKSPACE_ID too if the rule ever covers several workspaces.
+# An ANTHROPIC_API_KEY repository secret is used instead, if set.
 name: Conversations
 
 on:
@@ -14,6 +25,7 @@ on:
         type: boolean
         default: false
   push:
+    branches: [main]
     paths:
       - scripts/fetch-conversations.mjs
       - scripts/voice-conversations.mjs
@@ -22,6 +34,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write # for the identity token
 
 concurrency:
   group: conversations-${{ github.ref }}
@@ -31,39 +44,57 @@ jobs:
   write:
     runs-on: ubuntu-latest
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       VOICEVOX_URL: http://localhost:50021
+      FEDERATION_RULE: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID || 'fdrl_01T5XFwJ7McLYY82fDczBjWb' }}
+      ORGANIZATION: ${{ vars.ANTHROPIC_ORGANIZATION_ID || '1a3e9e83-d269-4efb-a5c2-45d2526e4aa2' }}
     services:
       voicevox:
         image: voicevox/voicevox_engine:cpu-latest
         ports:
           - 50021:50021
     steps:
-      - name: Waiting for the Anthropic key
-        if: ${{ env.ANTHROPIC_API_KEY == '' }}
-        run: echo "::notice::Set the ANTHROPIC_API_KEY repository secret to write conversations."
       - uses: actions/checkout@v4
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
       - uses: actions/setup-node@v4
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
         with:
           node-version: 22
       - name: Install
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
         run: |
           npm ci
           command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
+      - name: Sign in to the Claude API
+        env:
+          RULE: ${{ env.FEDERATION_RULE }}
+          ORG: ${{ env.ORGANIZATION }}
+          WORKSPACE: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
+          KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        # Variables are only set when they have a value: the SDK treats an
+        # empty one as set, and an API key would win over federation.
+        run: |
+          if [ -z "$KEY" ]; then
+            # GitHub's identity token lasts about 5 minutes and can be
+            # exchanged once, so fetch it right before writing.
+            jwt="$RUNNER_TEMP/anthropic-identity-token"
+            curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://api.anthropic.com" | jq -r .value > "$jwt"
+            {
+              echo "ANTHROPIC_FEDERATION_RULE_ID=$RULE"
+              echo "ANTHROPIC_ORGANIZATION_ID=$ORG"
+              echo "ANTHROPIC_IDENTITY_TOKEN_FILE=$jwt"
+              [ -n "$WORKSPACE" ] && echo "ANTHROPIC_WORKSPACE_ID=$WORKSPACE"
+              true
+            } >> "$GITHUB_ENV"
+            echo "Using workload identity federation (rule $RULE)."
+          else
+            echo "ANTHROPIC_API_KEY=$KEY" >> "$GITHUB_ENV"
+            echo "Using the ANTHROPIC_API_KEY secret."
+          fi
       - name: Write the conversations
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
         run: node scripts/fetch-conversations.mjs ${{ inputs.redo && '--redo' || '' }}
       - name: Voice them with VOICEVOX
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
         run: node scripts/voice-conversations.mjs
       - name: Dictionary for the new words
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
         run: bash scripts/build-dict.sh
       - name: Commit
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
