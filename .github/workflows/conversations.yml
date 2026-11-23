@@ -59,12 +59,12 @@ jobs:
           - 50021:50021
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
+          bun-version: 1.4.x
       - name: Install
         run: |
-          npm ci
+          bun install --frozen-lockfile
           command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
       - name: Sign in to the Claude API
         env:
@@ -94,9 +94,9 @@ jobs:
             echo "Using the ANTHROPIC_API_KEY secret."
           fi
       - name: Write the conversations
-        run: node scripts/fetch-conversations.mjs ${{ inputs.redo && '--redo' || '' }}
+        run: bun scripts/fetch-conversations.mjs ${{ inputs.redo && '--redo' || '' }}
       - name: Voice them with VOICEVOX
-        run: node scripts/voice-conversations.mjs
+        run: bun scripts/voice-conversations.mjs
       - name: Dictionary for the new words
         run: bash scripts/build-dict.sh
       - name: Commit

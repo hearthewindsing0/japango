@@ -8,7 +8,7 @@
 //   docker run --rm -p 50021:50021 voicevox/voicevox_engine:cpu-latest
 // and ffmpeg for the MP3s.
 //
-// Usage: node scripts/voice-conversations.mjs [--redo]
+// Usage: bun scripts/voice-conversations.mjs [--redo]
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'

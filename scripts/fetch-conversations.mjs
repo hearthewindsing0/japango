@@ -9,7 +9,7 @@
 // ANTHROPIC_IDENTITY_TOKEN_FILE variables the Conversations workflow sets)
 // or, failing that, an ANTHROPIC_API_KEY.
 //
-// Usage: node scripts/fetch-conversations.mjs [--redo] [--only=<scene id>]
+// Usage: bun scripts/fetch-conversations.mjs [--redo] [--only=<scene id>]
 // Scenes already written are kept; --redo writes them all again.
 import Anthropic from '@anthropic-ai/sdk'
 import { existsSync } from 'node:fs'

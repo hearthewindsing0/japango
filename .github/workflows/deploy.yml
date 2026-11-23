@@ -42,16 +42,16 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
         with:
-          node-version: 22
+          bun-version: 1.4.x
       - name: Install
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
-        run: npm ci
+        run: bun install --frozen-lockfile
       - name: Make sure the D1 database and R2 bucket exist
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
-        run: node scripts/cf-setup.mjs
+        run: bun scripts/cf-setup.mjs
       - name: Did the map tiles change?
         id: tiles
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
@@ -71,11 +71,11 @@ jobs:
           echo "Upload tiles: $up"
       - name: Upload map tiles to R2
         if: ${{ steps.tiles.outputs.upload == 'true' }}
-        run: for f in areas/*.json; do AREA=$(basename "$f" .json) node scripts/upload-r2.mjs; done
+        run: for f in areas/*.json; do AREA=$(basename "$f" .json) bun scripts/upload-r2.mjs; done
       - name: Update the database
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
-        run: npx wrangler d1 migrations apply japango --remote
+        run: bunx wrangler d1 migrations apply japango --remote
       - name: Build and deploy the Worker
         # wrangler.toml's [build] command builds the site first.
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
-        run: npx wrangler deploy
+        run: bunx wrangler deploy

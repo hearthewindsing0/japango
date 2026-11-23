@@ -13,4 +13,4 @@ echo "KANJIDIC2: $kd"
 mkdir -p /tmp/jmdict /tmp/kanjidic
 curl -fsSL "$url" | tar xz -C /tmp/jmdict
 [ -n "$kd" ] && curl -fsSL "$kd" | tar xz -C /tmp/kanjidic
-node --max-old-space-size=8192 scripts/build-dict.mjs /tmp/jmdict/*.json $(ls /tmp/kanjidic/*.json 2>/dev/null | head -1)
+bun scripts/build-dict.mjs /tmp/jmdict/*.json $(ls /tmp/kanjidic/*.json 2>/dev/null | head -1)

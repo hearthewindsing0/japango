@@ -7,7 +7,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 
 const DB = 'japango'
 const BUCKET = 'japango-tiles'
-const wrangler = (...args) => execFileSync('npx', ['wrangler', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+const wrangler = (...args) => execFileSync('bunx', ['wrangler', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 
 const findDb = () => JSON.parse(wrangler('d1', 'list', '--json')).find((d) => d.name === DB)
 let db = findDb()
