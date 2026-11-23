@@ -120,6 +120,7 @@ Dictionary: JMdict © EDRDG (CC BY-SA 4.0).
 Place text from Wikipedia (CC BY-SA 4.0) and Wikidata (CC0).
 Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
 Sounds from Freesound, credited per recording in `public/sounds/credits.json`.
+Ōedo Line timetable: 東京都交通局・公共交通オープンデータ協議会 (CC BY 4.0).
 
 ## Stations
 
@@ -144,8 +145,46 @@ The corridors from each exit are generated along the station's axes, so
 their routes are approximate. The gates have lanes in the middle and fare
 fence to the walls; the only way to the platforms is through them. Signs
 (出口, 改札, 番線, のりば, のりかえ, the station name boards) explain their
-Japanese when you stand near them. Trains arrive every two and a half
-minutes on a made-up schedule; real timetables would need an ODPT key.
+Japanese when you stand near them.
+
+### Trains
+
+Trains run at the real times of day in Tokyo (the game clock, so `?time=`
+moves them too): each one pulls in, stands with its doors open, and leaves
+at its timetabled departure. A departure board (発車案内) over each platform
+shows the next two trains (先発, 次発) and where they're going (〜行);
+stand under it for the words. After the last train it says
+本日の運転は終了しました and shows the first train (始発).
+
+- **Ōedo Line (E23)**: Toei's published static timetable, from the
+  [GTFS feed](https://ckan.odpt.org/dataset/train-toei) on the Public
+  Transportation Open Data Center (ODPT), which is public (no key) under
+  CC BY 4.0. Credit: 東京都交通局・公共交通オープンデータ協議会.
+- **Hibiya Line (H04)**: Tokyo Metro's
+  [GTFS feed](https://ckan.odpt.org/dataset/train-tokyometro) needs an
+  ODPT developer key, so until there is one the Hibiya Line runs on an
+  approximate schedule (`src/game/trains.ts`): real first and last trains
+  and roughly the real gaps for each hour, weekday or weekend/holiday. The
+  board says "approx." while it does.
+
+`bun scripts/trains/build-timetables.mjs` downloads the feeds and writes
+`public/trains/<area>.json` (each platform's trains, keyed by the next
+stop, plus the service calendar, so holidays run the 土休日 timetable). The
+**Train timetables** Action runs it and commits the result; it runs by hand
+and when the script changes on main. Timetables change a few times a year,
+so run it after each ダイヤ改正.
+
+**To do when ODPT access is approved (move to live data):**
+
+1. Add the key as the `ODPT_TOKEN` repository secret and run the Train
+   timetables Action: the Hibiya Line then uses Tokyo Metro's real
+   timetable instead of the approximate one.
+2. Move to live data: add a Worker endpoint that reads ODPT's live train
+   data (`odpt:Train` for positions and delays, `odpt:TrainInformation` for
+   service status, or the GTFS-RT feeds) with the key kept on the server,
+   and have `src/game/trains.ts` shift each train by its delay and show
+   status (遅延, 運転見合わせ) on the boards. The planned timetable stays as
+   the fallback.
 
 Start underground with `?at=x,y,z`, e.g. `?at=495,408.8,6.14` (Hibiya
 west gates) or `?at=662,350,-12.08` (Ōedo B7).
@@ -237,6 +276,7 @@ that file with its controls (`text`, `boolean`, `select`, `number`,
 - `src/game/patterns.ts`: procedural paving, asphalt and grass textures.
 - `src/game/Player.tsx`: free movement with collisions, the walking character and the follow camera.
 - `src/game/station.ts`, `src/game/Stations.tsx`: walking and drawing the subway stations.
+- `src/game/trains.ts`, `scripts/trains/build-timetables.mjs`: train timetables.
 - `src/game/interior.ts`, `src/game/Interiors.tsx`, `src/game/BarMenu.tsx`: walk-in places (Ant 'n Bee) and ordering at the bar.
 - `src/game/Labels.tsx`: Japanese/English name tags for nearby places.
 - `src/game/Minimap.tsx`, `src/game/DPad.tsx`: overview map and touch controls.
