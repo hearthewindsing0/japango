@@ -11,9 +11,9 @@
 #   - issuer https://token.actions.githubusercontent.com (discovery)
 #   - rule matching subject repo:hearthewindsing0/japango:ref:refs/heads/main,
 #     audience https://api.anthropic.com, scope workspace:developer
-# The rule and organization IDs below are that setup's (they aren't secret).
-# Repository variables of the same names override them; set
-# ANTHROPIC_WORKSPACE_ID too if the rule ever covers several workspaces.
+# The rule, organization, service account and workspace IDs below are that
+# setup's (they aren't secret). Repository variables of the same names
+# override them.
 # An ANTHROPIC_API_KEY repository secret is used instead, if set.
 name: Conversations
 
@@ -47,6 +47,8 @@ jobs:
       VOICEVOX_URL: http://localhost:50021
       FEDERATION_RULE: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID || 'fdrl_01T5XFwJ7McLYY82fDczBjWb' }}
       ORGANIZATION: ${{ vars.ANTHROPIC_ORGANIZATION_ID || '1a3e9e83-d269-4efb-a5c2-45d2526e4aa2' }}
+      SERVICE_ACCOUNT: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID || 'svac_015WB58YXMX7QY8Y1r1VUrqB' }}
+      WORKSPACE: ${{ vars.ANTHROPIC_WORKSPACE_ID || 'wrkspc_01HZPyjjTo7hpoCcPfiRnSC8' }}
     services:
       voicevox:
         image: voicevox/voicevox_engine:cpu-latest
@@ -65,7 +67,7 @@ jobs:
         env:
           RULE: ${{ env.FEDERATION_RULE }}
           ORG: ${{ env.ORGANIZATION }}
-          WORKSPACE: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
+          ACCOUNT: ${{ env.SERVICE_ACCOUNT }}
           KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         # Variables are only set when they have a value: the SDK treats an
         # empty one as set, and an API key would win over federation.
@@ -80,8 +82,8 @@ jobs:
               echo "ANTHROPIC_FEDERATION_RULE_ID=$RULE"
               echo "ANTHROPIC_ORGANIZATION_ID=$ORG"
               echo "ANTHROPIC_IDENTITY_TOKEN_FILE=$jwt"
-              [ -n "$WORKSPACE" ] && echo "ANTHROPIC_WORKSPACE_ID=$WORKSPACE"
-              true
+              echo "ANTHROPIC_SERVICE_ACCOUNT_ID=$ACCOUNT"
+              echo "ANTHROPIC_WORKSPACE_ID=$WORKSPACE"
             } >> "$GITHUB_ENV"
             echo "Using workload identity federation (rule $RULE)."
           else
