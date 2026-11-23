@@ -23,6 +23,8 @@
     "map:sounds": "bun scripts/fetch-sounds.mjs",
     "map:tiles": "bun scripts/build-tiles.mjs",
     "life:places": "bun scripts/life/places.mjs",
+    "life:write": "bun scripts/life/write-life.mjs",
+    "life:plan": "bun scripts/life/plan.mjs",
     "cf:dev": "vite build && wrangler d1 migrations apply japango --local && wrangler dev"
   },
   "dependencies": {
