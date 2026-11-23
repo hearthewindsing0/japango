@@ -15,6 +15,7 @@ import {
   type HeightFn,
 } from './geometry'
 import { Crowd } from './Crowd'
+import type { FlowTime } from './people-flow'
 import { groundAt, tileGroundAt, type GameMap, type MapTile } from './map'
 import { COLORS, T } from './tiles'
 import type { SkyState } from './sky'
@@ -493,7 +494,7 @@ function Sun({ map, focus, sky }: { map: GameMap; focus: React.RefObject<Focus>;
 }
 
 /** One square of the map: everything on it, clipped to its edges. */
-function TileView({ map, tile, focus, sky, hour, day, minute }: { map: GameMap; tile: MapTile; focus: React.RefObject<Focus>; sky: SkyState; hour: number; day: number; minute: number }) {
+function TileView({ map, tile, focus, sky, when, day, minute }: { map: GameMap; tile: MapTile; focus: React.RefObject<Focus>; sky: SkyState; when: FlowTime; day: number; minute: number }) {
   const clip = useClipPlanes(tile)
   const height = useMemo(() => heightFn(tile), [tile])
   return (
@@ -503,7 +504,7 @@ function TileView({ map, tile, focus, sky, hour, day, minute }: { map: GameMap; 
       <Trees tile={tile} clip={clip} />
       <Props tile={tile} slopes={map.slopes} clip={clip} night={sky.night} />
       <Signs tile={tile} clip={clip} height={height} day={day} minute={minute} night={sky.night} />
-      <Crowd tile={tile} clip={clip} hour={hour} rain={sky.rain} />
+      <Crowd tile={tile} clip={clip} flow={map.peopleFlow} when={when} rain={sky.rain} />
     </>
   )
 }
@@ -513,7 +514,7 @@ export function World({
   tiles,
   focus,
   sky,
-  hour,
+  when,
   day,
   minute,
   surface = true,
@@ -523,7 +524,8 @@ export function World({
   tiles: MapTile[]
   focus: React.RefObject<Focus>
   sky: SkyState
-  hour: number
+  /** Tokyo month, hour and whether it's a holiday, for how many people are out. */
+  when: FlowTime
   /** Tokyo weekday (0 = Monday) and minute of the day, for shop hours. */
   day: number
   minute: number
@@ -535,7 +537,7 @@ export function World({
       <Sun map={map} focus={focus} sky={sky} />
       <group visible={surface}>
         {tiles.map((t) => (
-          <TileView key={t.key} map={map} tile={t} focus={focus} sky={sky} hour={hour} day={day} minute={minute} />
+          <TileView key={t.key} map={map} tile={t} focus={focus} sky={sky} when={when} day={day} minute={minute} />
         ))}
       </group>
       <WeatherFx focus={focus} rain={sky.rain} snow={sky.snow} />

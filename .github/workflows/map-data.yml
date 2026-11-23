@@ -1,6 +1,6 @@
 # Builds the game map for each area in areas/: downloads every data source
 # for it at once (OpenStreetMap, PLATEAU buildings/terrain/bridges, GSI
-# aerial roof colors, Mapillary, Wikipedia), builds the map, cuts it into
+# aerial roof colors, Mapillary, Wikipedia, MLIT people flow), builds the map, cuts it into
 # tiles and the dictionary, then commits the result to the same branch.
 #
 # It only runs when started by hand: Actions tab → Map data → "Run workflow".

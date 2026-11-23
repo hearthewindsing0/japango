@@ -4,6 +4,7 @@
 // scripts/fetch-sounds.mjs); any that are missing are simply silent.
 import { useEffect, useRef, useState } from 'react'
 import { crowdLevel } from './Crowd'
+import { streetLevel, type FlowTime } from './people-flow'
 import { cellAt, type GameMap, type MapTile } from './map'
 import { T } from './tiles'
 
@@ -34,8 +35,8 @@ interface Inputs {
   focus: { current: { x: number; y: number } }
   /** Down in a station: the street goes quiet and muffled. */
   under: boolean
-  hour: number
-  month: number // 1-12, Tokyo
+  /** Tokyo month, hour and whether it's a holiday. */
+  when: FlowTime
   night: number
   rain: number
   muted: boolean
@@ -116,10 +117,11 @@ export function useAmbience(inputs: Inputs) {
 
     const update = () => {
       if (!ctx || !master) return
-      const { focus, hour, month, night, rain, muted, under } = live.current
+      const { focus, when, night, rain, muted, under } = live.current
+      const { month } = when
       const { x, y } = focus.current
       const day = 1 - night
-      const crowd = crowdLevel(hour)
+      const crowd = streetLevel(m.peopleFlow, x, y, when) ?? crowdLevel(when.hour)
       const green = greenAround(m, x, y)
       let near = Infinity
       for (const tile of m.tiles.values()) {
