@@ -11,12 +11,10 @@
 #   - issuer https://token.actions.githubusercontent.com (discovery)
 #   - rule matching subject repo:hearthewindsing0/japango:ref:refs/heads/main,
 #     audience https://api.anthropic.com, scope workspace:developer
-# then set these repository variables (Settings > Secrets and variables >
-# Actions > Variables; they aren't secret):
-#   ANTHROPIC_FEDERATION_RULE_ID  fdrl_...
-#   ANTHROPIC_ORGANIZATION_ID     the organization's UUID
-#   ANTHROPIC_WORKSPACE_ID        wrkspc_... (only if the rule covers several workspaces)
-# An ANTHROPIC_API_KEY repository secret still works instead, if set.
+# The rule and organization IDs below are that setup's (they aren't secret).
+# Repository variables of the same names override them; set
+# ANTHROPIC_WORKSPACE_ID too if the rule ever covers several workspaces.
+# An ANTHROPIC_API_KEY repository secret is used instead, if set.
 name: Conversations
 
 on:
@@ -47,38 +45,32 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VOICEVOX_URL: http://localhost:50021
-      READY: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' || secrets.ANTHROPIC_API_KEY != '' }}
+      FEDERATION_RULE: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID || 'fdrl_01T5XFwJ7McLYY82fDczBjWb' }}
+      ORGANIZATION: ${{ vars.ANTHROPIC_ORGANIZATION_ID || '1a3e9e83-d269-4efb-a5c2-45d2526e4aa2' }}
     services:
       voicevox:
         image: voicevox/voicevox_engine:cpu-latest
         ports:
           - 50021:50021
     steps:
-      - name: Waiting for Claude API access
-        if: ${{ env.READY != 'true' }}
-        run: echo "::notice::Set up workload identity federation (see the top of conversations.yml) or an ANTHROPIC_API_KEY secret to write conversations."
       - uses: actions/checkout@v4
-        if: ${{ env.READY == 'true' }}
       - uses: actions/setup-node@v4
-        if: ${{ env.READY == 'true' }}
         with:
           node-version: 22
       - name: Install
-        if: ${{ env.READY == 'true' }}
         run: |
           npm ci
           command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
       - name: Sign in to the Claude API
-        if: ${{ env.READY == 'true' }}
         env:
-          RULE: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
-          ORG: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          RULE: ${{ env.FEDERATION_RULE }}
+          ORG: ${{ env.ORGANIZATION }}
           WORKSPACE: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
           KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         # Variables are only set when they have a value: the SDK treats an
         # empty one as set, and an API key would win over federation.
         run: |
-          if [ -n "$RULE" ] && [ -n "$ORG" ]; then
+          if [ -z "$KEY" ]; then
             # GitHub's identity token lasts about 5 minutes and can be
             # exchanged once, so fetch it right before writing.
             jwt="$RUNNER_TEMP/anthropic-identity-token"
@@ -91,22 +83,18 @@ jobs:
               [ -n "$WORKSPACE" ] && echo "ANTHROPIC_WORKSPACE_ID=$WORKSPACE"
               true
             } >> "$GITHUB_ENV"
-            echo "Using workload identity federation."
+            echo "Using workload identity federation (rule $RULE)."
           else
             echo "ANTHROPIC_API_KEY=$KEY" >> "$GITHUB_ENV"
             echo "Using the ANTHROPIC_API_KEY secret."
           fi
       - name: Write the conversations
-        if: ${{ env.READY == 'true' }}
         run: node scripts/fetch-conversations.mjs ${{ inputs.redo && '--redo' || '' }}
       - name: Voice them with VOICEVOX
-        if: ${{ env.READY == 'true' }}
         run: node scripts/voice-conversations.mjs
       - name: Dictionary for the new words
-        if: ${{ env.READY == 'true' }}
         run: bash scripts/build-dict.sh
       - name: Commit
-        if: ${{ env.READY == 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
