@@ -170,7 +170,7 @@ stand under it for the words. After the last train it says
 `bun scripts/trains/build-timetables.mjs` downloads the feeds and writes
 `public/trains/<area>.json` (each platform's trains, keyed by the next
 stop, plus the service calendar, so holidays run the 土休日 timetable). The
-**Train timetables** Action runs it and commits the result; it runs by hand
+**Train timetables** Action runs it and uploads the result to the server (the `trains` set of `scripts/data.mjs`); it runs by hand
 and when the script changes on main. Timetables change a few times a year,
 so run it after each ダイヤ改正.
 
