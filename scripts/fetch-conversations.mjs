@@ -4,7 +4,10 @@
 // VOICEVOX, and scripts/build-dict.mjs splits the lines into words for
 // furigana and word cards.
 //
-// Needs ANTHROPIC_API_KEY.
+// Signs in to the Claude API with workload identity federation (the
+// ANTHROPIC_FEDERATION_RULE_ID, ANTHROPIC_ORGANIZATION_ID and
+// ANTHROPIC_IDENTITY_TOKEN_FILE variables the Conversations workflow sets)
+// or, failing that, an ANTHROPIC_API_KEY.
 //
 // Usage: node scripts/fetch-conversations.mjs [--redo] [--only=<scene id>]
 // Scenes already written are kept; --redo writes them all again.
@@ -17,7 +20,10 @@ import { VOICES } from './voices.mjs'
 const MODEL = 'claude-haiku-5-5'
 const REDO = process.argv.includes('--redo')
 const ONLY = process.argv.find((a) => a.startsWith('--only='))?.slice(7)
-if (!process.env.ANTHROPIC_API_KEY) throw new Error('Set ANTHROPIC_API_KEY')
+const env = process.env
+const federated = env.ANTHROPIC_FEDERATION_RULE_ID && env.ANTHROPIC_ORGANIZATION_ID && (env.ANTHROPIC_IDENTITY_TOKEN_FILE || env.ANTHROPIC_IDENTITY_TOKEN)
+if (!federated && !env.ANTHROPIC_API_KEY) throw new Error('Set up workload identity federation (see .github/workflows/conversations.yml) or ANTHROPIC_API_KEY')
+console.log(`Claude API: ${env.ANTHROPIC_API_KEY ? 'API key' : 'workload identity federation'}`)
 
 // Where people stop and talk. The crossing spot is the pavement outside
 // ALMOND, Roppongi's classic meeting point, on the corner of the crossing.
