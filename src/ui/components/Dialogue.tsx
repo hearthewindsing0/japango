@@ -117,12 +117,12 @@ export function DialogueBox({
           <p className="text-paper-dim italic">Two people are talking. Walk closer to make out what they say.</p>
         ) : (
           <>
-            {speaker && overhear && (
-              <span className="mr-2 font-pixel text-[0.9em]" style={{ color: SPEAKER_COLORS[speakerIndex % SPEAKER_COLORS.length] }}>
-                {speaker}：
-              </span>
-            )}
             <p className={cn('text-[1.35em] leading-[1.9]', speaker && !overhear && 'mt-2', overhear && 'text-[1.2em]')}>
+              {speaker && overhear && (
+                <span className="mr-2 font-pixel text-[0.75em]" style={{ color: SPEAKER_COLORS[speakerIndex % SPEAKER_COLORS.length] }}>
+                  {speaker}：
+                </span>
+              )}
               <Furigana text={visible} furigana={furigana} onWord={done ? onWord : undefined} />
               {!done && <span className="animate-blink">▌</span>}
             </p>

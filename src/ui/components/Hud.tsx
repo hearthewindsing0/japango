@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { cn } from '../lib/cn'
 import { Kbd } from './Badge'
 import { Button } from './Button'
@@ -49,40 +49,57 @@ export function MinimapFrame({
   label,
   coords,
   onToggleBig,
+  actions,
+  width,
+  aspect = 1,
+  marker = true,
+  northRef,
   children,
   className,
 }: {
   size?: number
+  /** Overrides the width from `size` / `big` (any CSS width). */
+  width?: number | string
+  /** Map width / height. */
+  aspect?: number
+  /** The player arrow in the middle (for maps that follow the player). */
+  marker?: boolean
+  /** For turning the N marker every frame without re-rendering. */
+  northRef?: Ref<HTMLSpanElement>
   big?: boolean
   /** Camera heading in degrees, turns the N marker. */
   heading?: number
   label?: ReactNode
   coords?: string
   onToggleBig?: () => void
+  /** Small buttons in the bottom row, before the big/small toggle. */
+  actions?: ReactNode
   children?: ReactNode
   className?: string
 }) {
-  const px = big ? size * 2.4 : size
+  const px = width ?? (big ? size * 2.4 : size)
   return (
     <div className={cn('relative drop-hard', className)} style={{ width: px }}>
       <div className="corner bg-ink p-[4px] frame">
-        <div className="relative aspect-square overflow-hidden rounded-lg bg-[#1d2a22]">
+        <div className="relative overflow-hidden rounded-lg bg-[#1d2a22]" style={{ aspectRatio: aspect }}>
           {children}
           <span className="pointer-events-none absolute inset-0 [box-shadow:inset_0_0_24px_rgb(0_0_0/0.6)]" />
-          <span className="pointer-events-none absolute top-1/2 left-1/2 size-2.5 -translate-1/2 bg-shu [box-shadow:0_0_0_2px_var(--color-paper)] [clip-path:polygon(50%_0,100%_100%,50%_75%,0_100%)]" />
+          {marker && <span className="pointer-events-none absolute top-1/2 left-1/2 size-2.5 -translate-1/2 bg-shu [box-shadow:0_0_0_2px_var(--color-paper)] [clip-path:polygon(50%_0,100%_100%,50%_75%,0_100%)]" />}
         </div>
         <div className="mt-1 flex items-center gap-2 px-1 text-[0.75em]">
           <span
-            className="grid size-6 place-items-center bg-paper font-arcade text-[0.7em] text-shu [clip-path:circle(50%)]"
+            ref={northRef}
+            className="grid size-6 shrink-0 place-items-center bg-paper font-arcade text-[0.7em] text-shu [clip-path:circle(50%)]"
             style={{ transform: `rotate(${-heading}deg)` }}
             title="North"
           >
             N
           </span>
           <span className="min-w-0 flex-1 truncate">{label}</span>
+          {actions}
           {coords && <span className="font-arcade text-[0.65em] text-paper-dim">{coords}</span>}
           {onToggleBig && (
-            <button className="corner-sm bg-ink-3 px-1.5 text-paper hover:bg-paper hover:text-ink" onClick={onToggleBig} aria-label={big ? 'Small map' : 'Big map'} title="Map (M)">
+            <button className="corner-sm grid h-6 min-w-6 place-items-center bg-ink-3 px-1 text-paper hover:bg-paper hover:text-ink" onClick={onToggleBig} aria-label={big ? 'Small map' : 'Big map'} title="Map (M)">
               {big ? '⤡' : '⤢'}
             </button>
           )}
@@ -144,14 +161,14 @@ export function Stamp({ spot, size = 88 }: { spot: StampSpot; size?: number }) {
 }
 
 /** The stamp rally page: a grid of stamps and a counter. Put it in a Window tone="paper". */
-export function StampBook({ spots, found, total }: { spots: StampSpot[]; found?: number; total?: number }) {
+export function StampBook({ spots, found, total, stampSize = 88 }: { spots: StampSpot[]; found?: number; total?: number; stampSize?: number }) {
   const got = spots.filter((s) => s.got).length
   return (
     <div className="text-ink">
       <p className="mb-3 text-sm text-ink/70">Find each place and walk up to its red marker.</p>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] justify-items-center gap-3 bg-ink/5 p-3">
+      <div className="corner-sm grid justify-items-center gap-3 bg-ink/5 p-3" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${stampSize + 8}px, 1fr))` }}>
         {spots.map((s) => (
-          <Stamp key={s.id} spot={s} />
+          <Stamp key={s.id} spot={s} size={stampSize} />
         ))}
       </div>
       <div className="mt-3 flex items-center gap-3 text-sm [&_span]:text-ink">
@@ -295,10 +312,10 @@ export interface HotbarSlot {
 }
 
 /** The row of actions along the bottom: map, stamps, phrasebook, settings... */
-export function Hotbar({ slots, className }: { slots: HotbarSlot[]; className?: string }) {
+export function Hotbar({ slots, compact = false, className }: { slots: HotbarSlot[]; /** Smaller slots, for over the game. */ compact?: boolean; className?: string }) {
   return (
     <nav className={cn('inline-block drop-hard', className)}>
-      <div className="corner flex gap-1 bg-ink p-[6px] frame">
+      <div className={cn('corner flex gap-1 bg-ink frame', compact ? 'p-[5px]' : 'p-[6px]')}>
         {slots.map((s) => (
           <button
             key={s.id}
@@ -306,15 +323,16 @@ export function Hotbar({ slots, className }: { slots: HotbarSlot[]; className?: 
             aria-pressed={s.active}
             title={s.shortcut ? `${s.label} (${s.shortcut})` : s.label}
             className={cn(
-              'corner-sm relative flex w-16 flex-col items-center gap-0.5 bg-ink-3 px-1 pt-2 pb-1 text-paper shadow-[inset_0_-2px_0_var(--color-ink)] hover:bg-ink-4',
+              'corner-sm relative flex flex-col items-center gap-0.5 bg-ink-3 px-1 pb-1 text-paper shadow-[inset_0_-2px_0_var(--color-ink)] hover:bg-ink-4',
+              compact ? 'w-14 pt-1.5' : 'w-16 pt-2',
               'aria-pressed:bg-kin aria-pressed:text-sumi aria-pressed:shadow-none',
             )}
           >
-            <span className="text-2xl leading-none">{s.icon}</span>
+            <span className={cn('grid h-[1em] place-items-center leading-none', compact ? 'text-xl' : 'text-2xl')}>{s.icon}</span>
             <span className="max-w-full truncate text-[0.7em]">{s.label}</span>
             {s.shortcut && <span className="absolute top-0.5 left-1 font-arcade text-[7px] opacity-60">{s.shortcut}</span>}
             {s.badge !== undefined && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-5 bg-shu px-1 font-arcade text-[8px] leading-5 text-white [clip-path:circle(60%)]">{s.badge}</span>
+              <span className="absolute -top-1.5 -right-1.5 min-w-5 rounded-full bg-shu px-1.5 text-center font-arcade text-[8px] leading-5 text-white">{s.badge}</span>
             )}
           </button>
         ))}

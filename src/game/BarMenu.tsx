@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ANTNBEE } from './interiors/antnbee'
-import { JaText, type WordPick } from './JaText'
+import { Badge, Button, Furigana, Panel, PanelTitle, cn } from '../ui'
+import { JaText, jaSegments, type WordPick } from './JaText'
 import type { Dict } from './dict'
 
 // Ordering at the bar: the day's tap list, sizes and prices, and the
@@ -42,6 +43,8 @@ function fill(t: { ja: string; kana: string; en: string }, v: Record<string, str
 const phrase = (id: string) => ANTNBEE.phrases.find((p) => p.id === id)!
 
 export function BarMenu({
+  open,
+  onOpenChange,
   atCounter,
   dict,
   furigana,
@@ -49,6 +52,8 @@ export function BarMenu({
   onServe,
   onPaid,
 }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
   /** Close enough to the counter to order. */
   atCounter: boolean
   dict: Dict | null
@@ -59,7 +64,6 @@ export function BarMenu({
   /** The tab's settled: clear the glasses. */
   onPaid: () => void
 }) {
-  const [open, setOpen] = useState(false)
   const [beer, setBeer] = useState<Beer>(ANTNBEE.beers[0])
   const [lines, setLines] = useState<Line[]>([{ who: 'staff', ...ANTNBEE.staff.welcome }])
   const [tab, setTab] = useState<{ beer: Beer; size: Size }[]>([])
@@ -111,46 +115,68 @@ export function BarMenu({
   }
 
   const ja = (t: string) => <JaText text={t} dict={dict} furigana={furigana} onWord={onWord} />
+  // Inside a button: furigana, but no word buttons nested in it.
+  const label = (t: string) => <Furigana text={jaSegments(t, dict)} furigana={furigana} />
+
+  const section = (title: ReactNode, aside?: ReactNode) => (
+    <div className="mt-4 mb-1.5 flex flex-wrap items-baseline gap-x-2 border-b border-paper/15 pb-1">
+      <span className="font-pixel text-lg text-gold">{title}</span>
+      {aside && <span className="text-xs text-paper-dim">{aside}</span>}
+    </div>
+  )
 
   return (
-    <div className={`bar-menu ${open ? 'open' : ''}`} onClick={(e) => e.stopPropagation()}>
-      <button className="bar-menu-toggle" onClick={() => setOpen((o) => !o)}>
-        🍺 メニュー <span>{open ? '✕' : 'menu'}</span>
-        {tab.length > 0 && <b> · ¥{total.toLocaleString('en-US')}</b>}
-      </button>
+    <div
+      className="pointer-events-none absolute bottom-[76px] left-3 z-[2] flex w-[min(26rem,calc(100%-24px))] flex-col-reverse gap-2"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <Button variant={open ? 'gold' : 'secondary'} className="pointer-events-auto self-start" onClick={() => onOpenChange(!open)}>
+        🍺 メニュー <span className="text-sm font-normal opacity-75">{open ? '✕ close' : 'menu'}</span>
+        {tab.length > 0 && <Badge variant="shu">¥{total.toLocaleString('en-US')}</Badge>}
+      </Button>
       {open && (
-        <div className="bar-menu-body">
-          <div className="bar-talk">
+        <Panel tone="gold" size="sm" className="hud-scroll pointer-events-auto max-h-[calc(var(--hud-h)-250px)] overflow-y-auto px-3 py-3 leading-snug">
+          <PanelTitle>Ant 'n Bee · Bar</PanelTitle>
+          <div className="flex flex-col gap-1.5">
             {lines.map((l, i) => (
-              <div key={i} className={`bar-line ${l.who}`}>
-                <span className="bar-who">{l.who === 'you' ? 'あなた' : '店員'}</span>
-                <div>
-                  <div className="bar-ja">{ja(l.ja)}</div>
-                  <div className="bar-kana">{l.kana}</div>
-                  <div className="bar-en">{l.en}</div>
+              <div key={i} className={cn('corner-sm flex gap-2.5 px-2.5 py-1.5', l.who === 'you' ? 'bg-kin/15' : 'bg-white/5')}>
+                <span className="w-10 shrink-0 pt-1 font-pixel text-xs text-gold">{l.who === 'you' ? 'あなた' : '店員'}</span>
+                <div className="min-w-0">
+                  <div className="text-base font-bold">{ja(l.ja)}</div>
+                  <div className="text-xs text-paper-dim">{l.kana}</div>
+                  <div className="text-xs text-paper-dim/80 italic">{l.en}</div>
                 </div>
               </div>
             ))}
           </div>
 
-          {!atCounter && <div className="bar-hint">Walk up to the カウンター (counter) to order from the bartender.</div>}
+          {!atCounter && (
+            <div className="corner-sm mt-2 bg-shu/20 px-2.5 py-1.5 text-xs [box-shadow:inset_0_0_0_1px_var(--color-shu)]">
+              Walk up to the カウンター (counter) to order from the bartender.
+            </div>
+          )}
 
-          <div className="bar-section">
-            {ja(ANTNBEE.signs.taps.t)} <span className="bar-small">({ANTNBEE.listDate}) · tap a beer, then a size</span>
-          </div>
-          <div className="bar-beers">
+          {section(ja(ANTNBEE.signs.taps.t), `(${ANTNBEE.listDate}) · tap a beer, then a size`)}
+          <div>
             {ANTNBEE.styles.map((st) => (
-              <div key={st.id} className="bar-style">
-                <div className="bar-style-name">
-                  {ja(st.ja)} <span>{st.en}</span>
+              <div key={st.id} className="mt-1.5">
+                <div className="text-sm font-bold">
+                  {ja(st.ja)} <span className="font-normal text-paper-dim">{st.en}</span>
                 </div>
                 {ANTNBEE.beers
                   .filter((b) => b.style === st.id)
                   .map((b) => (
-                    <button key={b.ja + b.brewery} className={`bar-beer ${b === beer ? 'on' : ''}`} onClick={() => setBeer(b)}>
-                      <i style={{ background: b.tap }} />
-                      <span className="bar-ja">{ja(b.ja)}</span>
-                      <span className="bar-small">
+                    <button
+                      key={b.ja + b.brewery}
+                      className={cn(
+                        'corner-sm my-0.5 grid w-full grid-cols-[10px_1fr] items-center gap-x-2.5 px-2 py-1 text-left hover:bg-white/5',
+                        b === beer && 'bg-kin/15 [box-shadow:inset_0_0_0_1.5px_var(--color-kin)]',
+                      )}
+                      onClick={() => setBeer(b)}
+                    >
+                      <i className="row-span-2 h-6 w-2.5 rounded-[3px]" style={{ background: b.tap }} />
+                      <span className="text-sm font-bold">{label(b.ja)}</span>
+                      <span className="text-xs text-paper-dim">
                         {b.brewery} · {b.breweryEn}, {b.en}
                       </span>
                     </button>
@@ -158,47 +184,45 @@ export function BarMenu({
               </div>
             ))}
           </div>
-          <div className="bar-sizes">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {ANTNBEE.sizes.map((s) => (
-              <button key={s.id} disabled={!atCounter} onClick={() => order(s)} title={s.en}>
-                {ja(s.ja)}
-                <span>¥{s.yen.toLocaleString('en-US')}</span>
-              </button>
+              <Button key={s.id} size="sm" className="h-auto flex-col gap-0.5 py-1.5" disabled={!atCounter} onClick={() => order(s)} title={s.en}>
+                {label(s.ja)}
+                <span className="font-arcade text-[9px] text-gold">¥{s.yen.toLocaleString('en-US')}</span>
+              </Button>
             ))}
           </div>
-          <div className="bar-small">{ANTNBEE.listNote} Prices are before tax.</div>
+          <div className="mt-1 text-xs text-paper-dim">{ANTNBEE.listNote} Prices are before tax.</div>
 
-          <div className="bar-section">Say something</div>
-          <div className="bar-phrases">
-            <button onClick={() => simple('call')}>{ja(phrase('call').ja)}</button>
-            <button disabled={!atCounter} onClick={recommend}>
-              {ja(phrase('recommend').ja)}
-            </button>
-            <button disabled={!atCounter} onClick={again}>
-              {ja(phrase('again').ja)}
-            </button>
-            <button onClick={() => simple('cheers')}>{ja(phrase('cheers').ja)}</button>
-            <button onClick={() => simple('tasty')}>{ja(phrase('tasty').ja)}</button>
-            <button disabled={!atCounter} onClick={bill}>
-              {ja(phrase('bill').ja)}
-            </button>
-            <button onClick={() => simple('thanks')}>{ja(phrase('thanks').ja)}</button>
+          {section('Say something')}
+          <div className="flex flex-wrap gap-1.5">
+            <Button size="sm" onClick={() => simple('call')}>{label(phrase('call').ja)}</Button>
+            <Button size="sm" disabled={!atCounter} onClick={recommend}>
+              {label(phrase('recommend').ja)}
+            </Button>
+            <Button size="sm" disabled={!atCounter} onClick={again}>
+              {label(phrase('again').ja)}
+            </Button>
+            <Button size="sm" onClick={() => simple('cheers')}>{label(phrase('cheers').ja)}</Button>
+            <Button size="sm" onClick={() => simple('tasty')}>{label(phrase('tasty').ja)}</Button>
+            <Button size="sm" disabled={!atCounter} onClick={bill}>
+              {label(phrase('bill').ja)}
+            </Button>
+            <Button size="sm" onClick={() => simple('thanks')}>{label(phrase('thanks').ja)}</Button>
           </div>
 
-          <div className="bar-section">
-            おつまみ <span className="bar-small">(otsumami: snacks to go with your beer)</span>
-          </div>
-          <div className="bar-food">
+          {section('おつまみ', '(otsumami: snacks to go with your beer)')}
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
             {ANTNBEE.food.map((f) => (
               <span key={f.ja}>
-                {ja(f.ja)} <em>{f.en}</em>
+                {ja(f.ja)} <em className="text-xs text-paper-dim not-italic">{f.en}</em>
               </span>
             ))}
           </div>
-          <div className="bar-small">
+          <div className="mt-3 text-xs text-paper-dim">
             {ANTNBEE.address} · {ANTNBEE.hours} ({ANTNBEE.hoursEn})
           </div>
-        </div>
+        </Panel>
       )}
     </div>
   )

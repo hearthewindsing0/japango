@@ -1,4 +1,5 @@
-import { JaText, type WordPick } from './JaText'
+import { DialogueBox, NoteBox, Toggle } from '../ui'
+import { JaText, jaSegments, pickWord, type WordPick } from './JaText'
 import type { Dict } from './dict'
 import type { Caption } from './talk'
 
@@ -23,32 +24,37 @@ export function TalkCaption({
   const { conv, spot, line, clear } = caption
   const l = line >= 0 ? conv.lines[line] : null
   const speaker = l ? conv.speakers[l.s] : null
+  const en = (
+    <Toggle size="sm" className="h-7 px-2.5" pressed={english} onPressedChange={onEnglish} title="English under each line (T)" aria-label="English">
+      EN
+    </Toggle>
+  )
+  if (!l)
+    return (
+      <NoteBox className="pointer-events-auto w-full" english={english ? conv.summary : undefined}>
+        {conv.note}
+      </NoteBox>
+    )
   return (
-    <div className="hud-talk" style={{ opacity: 0.55 + 0.45 * clear }} onClick={(e) => e.stopPropagation()}>
-      <div className="hud-talk-head">
-        <span>👂 立ち聞き</span> {spot.name} · {conv.title}
-        <button className={`hud-talk-en ${english ? 'on' : ''}`} onClick={onEnglish} title="English under each line (T)" aria-pressed={english}>
-          EN
-        </button>
-      </div>
-      {l && speaker && clear > 0.05 && (
-        <div className={`hud-talk-line s${l.s}`}>
-          <span className="hud-talk-name">
-            <JaText text={speaker.name} dict={dict} furigana={furigana} onWord={onWord} />
-          </span>
-          <span className="hud-talk-ja">
-            <JaText text={l.ja} dict={dict} furigana={furigana} onWord={onWord} />
-          </span>
-          {english && <div className="hud-talk-tr">{l.en}</div>}
-        </div>
-      )}
-      {l && clear <= 0.05 && <div className="hud-talk-far">Two people are talking. Walk closer to make out what they say.</div>}
-      {!l && (
-        <div className="hud-talk-note">
-          💡 {conv.note}
-          {english && <div className="hud-talk-tr">{conv.summary}</div>}
-        </div>
-      )}
-    </div>
+    <DialogueBox
+      className="pointer-events-auto w-full"
+      mode="overhear"
+      place={
+        <span className="min-w-0 truncate">
+          {spot.name} · {conv.title}
+        </span>
+      }
+      actions={en}
+      speaker={speaker && <JaText text={speaker.name} dict={dict} furigana={furigana} onWord={onWord} />}
+      speakerIndex={l.s}
+      text={jaSegments(l.ja, dict)}
+      english={l.en}
+      showEnglish={english}
+      furigana={furigana}
+      clarity={clear}
+      typeSpeed={24}
+      more={false}
+      onWord={pickWord(onWord)}
+    />
   )
 }
