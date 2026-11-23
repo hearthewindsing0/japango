@@ -318,6 +318,7 @@ Rules, which are checked:
 - Each person's outings follow on: an outing starts where their last one ended ("to"), the first starts at their home, the last ends at their home.
 - Times don't overlap: leave time for the walk (about 1 minute per 80 m) and for a meeting (about 5 minutes) between arriving somewhere and the next outing. "stay" is how long they plan to stay; it may run up to their next outing.
 - Places are open when they're there.
+- A group meets somewhere on the way for everyone, usually outside the place they end up going to, or a well-known spot nearby (ALMOND at the crossing, a station exit), never across town.
 - 3 to 6 outings per person. Use real places from the list, mostly within Roppongi.
 - Every key in from/to is on the outing, and every person on the outing appears in both.`,
     OUTINGS_SCHEMA,
