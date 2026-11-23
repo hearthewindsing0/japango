@@ -84,6 +84,13 @@ export function checkCircle({ people, outings, places, walk = roughWalk }) {
       const leave = at - (from === first ? 0 : walk(places.get(from), places.get(first)))
       // A stay is "up to": leaving early is fine, leaving before arriving isn't.
       if (leave < free) p.push(`${person.key}: "${o.key}" would mean leaving ${from} at ${hhmm(leave)}, before they even get there at ${hhmm(free)}`)
+      if (o.meet && o.people.length > 1 && from !== to) {
+        // Meet on the way, not across town and back.
+        const direct = walk(places.get(from), places.get(to))
+        const via = walk(places.get(from), places.get(o.meet)) + walk(places.get(o.meet), places.get(to))
+        if (via - direct > Math.max(6, direct * 0.5))
+          p.push(`${person.key}: meeting at ${o.meet} in "${o.key}" is ${via - direct} minutes out of their way; meet near where they are going (outside it is fine)`)
+      }
       const arrive = o.meet && o.people.length > 1 ? at + TALK_MIN + (o.meet === to ? 0 : walk(places.get(o.meet), places.get(to))) : at
       const dest = places.get(to)
       if (!['home', 'office', 'school', 'hotel', 'away', 'exit'].includes(dest.kind)) {
