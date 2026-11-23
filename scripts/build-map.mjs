@@ -277,12 +277,28 @@ const roadWays = highways
   .filter((e) => ROAD_WIDTH_M[e.tags.highway])
   .sort((a, b) => widthOf(b.tags) - widthOf(a.tags))
 const roads = []
+const signalAt = new Set(
+  elements.filter((e) => e.type === 'node' && e.tags?.highway === 'traffic_signals' && e.pos).map((e) => `${e.pos[0]},${e.pos[1]}`),
+)
 for (const e of roadWays) {
   const pts = e.geom.map(proj)
   const w = widthOf(e.tags)
   const sw = SIDEWALK_M[e.tags.highway.replace('_link', '')] ?? 0
   if (sw && !e.tags.highway.endsWith('_link')) drawLine(pts, w + sw * 2, T.SIDEWALK, [T.GROUND, T.PARKING, T.GRASS, T.SHRINE])
-  roads.push({ t: e.tags.highway, w: r1(w), s: sw, p: flat(pts), b: e.tags.bridge === 'yes' ? 1 : 0 })
+  const road = { t: e.tags.highway, w: r1(w), s: sw, p: flat(pts), b: e.tags.bridge === 'yes' ? 1 : 0 }
+  // For the traffic: which way cars go, how many lanes, the speed limit and
+  // the traffic lights along the way (as point indices).
+  const ow = e.tags.oneway ?? (e.tags.junction === 'roundabout' ? 'yes' : '')
+  if (['yes', '1', 'true'].includes(ow)) road.o = 1
+  else if (ow === '-1') road.o = -1
+  const lanes = parseInt(e.tags.lanes)
+  if (lanes > 0 && lanes < 12) road.l = lanes
+  const speed = parseInt(e.tags.maxspeed)
+  if (speed > 0 && speed <= 120) road.v = speed
+  const sg = []
+  e.geom.forEach((g, i) => signalAt.has(`${g[0]},${g[1]}`) && sg.push(i))
+  if (sg.length) road.sg = sg
+  roads.push(road)
 }
 for (const e of roadWays) drawLine(e.geom.map(proj), widthOf(e.tags), T.ROAD)
 
