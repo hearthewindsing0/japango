@@ -1,13 +1,32 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { MinimapFrame } from '../ui'
 import { view } from './input'
 import type { GameMap, MapTile } from './map'
 import { MINIMAP_COLORS } from './tiles'
 
 /** Whole-map overview on a canvas, one pixel per grid cell. Each tile is
  *  painted in as it loads, and stays once seen. */
-export function Minimap({ map, tiles, x, y, big }: { map: GameMap; tiles: MapTile[]; x: number; y: number; big: boolean }) {
+export function Minimap({
+  map,
+  tiles,
+  x,
+  y,
+  big,
+  label,
+  actions,
+  onToggleBig,
+}: {
+  map: GameMap
+  tiles: MapTile[]
+  x: number
+  y: number
+  big: boolean
+  label?: ReactNode
+  actions?: ReactNode
+  onToggleBig: () => void
+}) {
   const canvas = useRef<HTMLCanvasElement>(null)
-  const compass = useRef<SVGSVGElement>(null)
+  const compass = useRef<HTMLSpanElement>(null)
 
   // The compass follows the camera as it turns.
   useEffect(() => {
@@ -43,26 +62,32 @@ export function Minimap({ map, tiles, x, y, big }: { map: GameMap; tiles: MapTil
   const gh = Math.round(map.height / map.cell)
 
   return (
-    <div className={`minimap ${big ? 'minimap-big' : ''}`}>
-      <canvas ref={canvas} width={gw} height={gh} />
+    <MinimapFrame
+      width={big ? 'min(calc(var(--hud-h) * 0.8 - 40px), calc(var(--hud-w) - 24px))' : 172}
+      aspect={gw / gh}
+      marker={false}
+      northRef={compass}
+      label={label}
+      actions={actions}
+      onToggleBig={onToggleBig}
+      big={big}
+      className="pointer-events-auto transition-[width] duration-200"
+    >
+      <canvas ref={canvas} width={gw} height={gh} className="pixelated block size-full" />
       {(map.places ?? []).map((p) => (
         <div
           key={p.id}
-          className={`minimap-star${p.gone ? ' gone' : ''}`}
+          className={`pointer-events-none absolute -translate-1/2 text-[11px] leading-none whitespace-nowrap [text-shadow:0_0_2px_#000,0_0_2px_#000] ${p.gone ? 'text-paper-dim' : 'text-kin'}`}
           style={{ left: `${(p.x / map.width) * 100}%`, top: `${(p.y / map.height) * 100}%` }}
           title={`${p.ja} ${p.en}`}
         >
-          ★{big && <span>{p.en}</span>}
+          ★{big && <span className="ml-[3px] text-white">{p.en}</span>}
         </div>
       ))}
-      <div className="minimap-dot" style={{ left: `${(x / map.width) * 100}%`, top: `${(y / map.height) * 100}%` }} />
-      {/* The map is turned so the main street runs across; this points north. */}
-      <svg ref={compass} className="compass" viewBox="-12 -12 24 24">
-        <title>North</title>
-        <circle r="11" />
-        <path d="M0 -8 L4 2 L0 0 L-4 2 Z" className="compass-n" />
-        <path d="M0 8 L4 2 L0 0 L-4 2 Z" className="compass-s" />
-      </svg>
-    </div>
+      <div
+        className="absolute size-2.5 -translate-1/2 rounded-full bg-shu [box-shadow:0_0_0_2px_var(--color-paper)]"
+        style={{ left: `${(x / map.width) * 100}%`, top: `${(y / map.height) * 100}%` }}
+      />
+    </MinimapFrame>
   )
 }

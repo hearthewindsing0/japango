@@ -1,4 +1,4 @@
-import { Toast as RxToast } from 'radix-ui'
+import { Portal, Toast as RxToast } from 'radix-ui'
 import { useSyncExternalStore, type ReactNode } from 'react'
 import { cn } from '../lib/cn'
 import { useUiScale } from './UiRoot'
@@ -65,14 +65,17 @@ export function Toaster({ position = 'top' }: { position?: 'top' | 'bottom' }) {
           </div>
         </RxToast.Root>
       ))}
-      <RxToast.Viewport
-        className={cn(
-          'jg-ui fixed left-1/2 z-50 flex w-max max-w-[calc(100vw-32px)] -translate-x-1/2 flex-col items-center gap-2 outline-none',
-          position === 'top' ? 'top-[18%]' : 'bottom-[18%]',
-        )}
-        data-theme={theme}
-        style={{ zoom: scale }}
-      />
+      {/* In a portal, so the zoom isn't applied twice inside a UiRoot. */}
+      <Portal.Root>
+        <RxToast.Viewport
+          className={cn(
+            'jg-ui fixed left-1/2 z-50 flex w-max list-none max-w-[calc((100vw-32px)/var(--z))] -translate-x-1/2 flex-col items-center gap-2 outline-none',
+            position === 'top' ? 'top-[18%]' : 'bottom-[18%]',
+          )}
+          data-theme={theme}
+          style={{ zoom: scale, ['--z' as string]: scale }}
+        />
+      </Portal.Root>
     </RxToast.Provider>
   )
 }

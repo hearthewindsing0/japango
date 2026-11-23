@@ -2,15 +2,15 @@ import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AREA_ID } from './game/area'
-import { DPad } from './game/DPad'
 import { hoursToday, isOpen, tokyoWeekMinute } from './game/hours'
-import { view } from './game/input'
+import { input, turnView, view } from './game/input'
 import { LabelLayerSync, Labels } from './game/Labels'
 import { discoveryNear, loadMap, nearestPoi, slopeNear, streetNear, type GameMap } from './game/map'
 import { Discoveries } from './game/Discoveries'
 import { useAmbience, useSoundCredits } from './game/ambience'
 import { loadDict, type Dict } from './game/dict'
-import { JaText, WordPopup, type WordPick } from './game/JaText'
+import { ControlsHelp, DPad, DiscoveryCard, Hotbar, Panel, PanelTitle, PlaceCard, SignCard, StampBook, Toaster, UiRoot, Window, cn, toast } from './ui'
+import { JaText, WordPopup, jaSegments, pickWord, type WordPick } from './game/JaText'
 import { Minimap } from './game/Minimap'
 import { useHudScale } from './game/hud'
 import { Player } from './game/Player'
@@ -72,9 +72,10 @@ export default function App() {
       return next
     })
   }, [])
-  const [toast, setToast] = useState<string | null>(null)
   // Beers you've ordered at the bar, until you pay.
   const [glasses, setGlasses] = useState<Glass[]>([])
+  // The bar's menu is open (it takes the bottom of the screen).
+  const [barOpen, setBarOpen] = useState(false)
   // Dictionary for furigana and tap-for-meaning.
   const [dict, setDict] = useState<Dict | null>(null)
   const [furigana, setFurigana] = useState(false)
@@ -134,6 +135,8 @@ export default function App() {
     }
   }, [muted])
   const soundCredits = useSoundCredits()
+  // Touch screens get the D-pad instead of the keyboard list.
+  const coarse = useMemo(() => matchMedia('(pointer: coarse)').matches, [])
   const hud = useHudScale()
   const hudStep = useRef(hud.step)
   hudStep.current = hud.step
@@ -207,7 +210,7 @@ export default function App() {
     // pinch arrives as a wheel event with ctrlKey set; it has to be stopped
     // in a non-passive listener or the browser zooms the page out.
     const onWheel = (e: WheelEvent) => {
-      if ((e.target as HTMLElement | null)?.closest?.('.stamp-book, .word-popup, .hud-discovery, .bar-menu')) {
+      if ((e.target as HTMLElement | null)?.closest?.('.hud-scroll, [role=dialog]')) {
         if (e.ctrlKey) e.preventDefault()
         else return
       }
@@ -267,14 +270,9 @@ export default function App() {
     if (!found.has(here.id)) setFound((f) => saveSet('japango.found', new Set(f).add(here.id)))
     if (here.stamp && !stamps.has(here.id)) {
       setStamps((st) => saveSet('japango.stamps', new Set(st).add(here.id)))
-      setToast(`スタンプゲット！ ${here.ja}`)
+      toast({ kind: 'stamp', title: 'スタンプゲット！', body: here.ja })
     }
   }, [here, found, stamps])
-  useEffect(() => {
-    if (!toast) return
-    const id = setTimeout(() => setToast(null), 3500)
-    return () => clearTimeout(id)
-  }, [toast])
 
   const sky = useMemo(() => skyState(now, weather, map?.rotationDeg ?? 0), [now, weather, map])
   const tiles = useTileStream(map, focus, distance)
@@ -323,6 +321,43 @@ export default function App() {
   const door = !under && ug ? ug.interiors.find((it) => Math.hypot(it.place.x - pos.x, it.place.y - pos.y) < 7) : null
   const sign = under && ug ? ug.signNear(pos.x, pos.y, z) : null
   const bg = under ? UNDERGROUND_BG : sky.background
+  const ja = (t: string) => <JaText text={t} dict={dict} furigana={furigana} onWord={setWord} />
+  const seg = (t: string) => jaSegments(t, dict)
+  const tap = pickWord(setWord)
+  // Room for the credits in the bottom-left corner, beside the hotbar.
+  const wide = hud.width >= 700
+  const creditsBox = credits ? (
+            <Panel size="sm" className="hud-scroll pointer-events-auto max-h-[calc(var(--hud-h)*0.5)] w-[min(32rem,calc(var(--hud-w)-24px))] overflow-y-auto px-3 py-2.5 text-xs leading-relaxed [&_a]:text-sora [&_a]:underline">
+              <PanelTitle
+                className="mb-2"
+                aside={
+                  <button className="corner-sm grid size-6 place-items-center bg-ink-3 hover:bg-shu" onClick={() => setCredits(false)} aria-label="Hide credits">
+                    ✕
+                  </button>
+                }
+              >
+                Credits
+              </PanelTitle>
+              <Credits map={map} dict={dict} talk={talk} soundCredits={soundCredits} liveWeather={!params.get('weather')} />
+            </Panel>
+          ) : (
+            <div className="corner-sm pointer-events-auto bg-ink/80 px-2 py-0.5 text-[11px] text-paper-dim">
+              ©{' '}
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline">
+                OpenStreetMap
+              </a>{' '}
+              ·{' '}
+              <button
+                className="underline"
+                onClick={() => {
+                  setCredits(true)
+                  setHelp(false)
+                }}
+              >
+                Credits
+              </button>
+            </div>
+          )
 
   return (
     <div
@@ -365,213 +400,166 @@ export default function App() {
 
       {!under && <Labels scale={hud.labelScale} map={map} tiles={tiles} x={pos.x} y={pos.y} distance={distance} layer={labelLayer} />}
 
-      <div
-        className="hud-root"
-        style={
-          {
-            width: hud.width,
-            height: hud.height,
-            transform: `scale(${hud.scale})`,
-            '--hud-w': `${hud.width}px`,
-            '--hud-h': `${hud.height}px`,
-          } as React.CSSProperties
-        }
+      <UiRoot
+        scale={hud.scale}
+        className="pointer-events-none absolute top-0 left-0"
+        style={{ width: hud.width, height: hud.height, '--hud-w': `${hud.width}px`, '--hud-h': `${hud.height}px` } as React.CSSProperties}
       >
-        <div className="hud-location">
-          <div className="hud-area">
-            {map.name} <span>{map.nameEn}</span>
-          </div>
-          <div className="hud-time">
-            {japaneseTime(now)} · {words.icon} {words.ja}
-            <span>
-              {words.kana} ({words.en}){weather.tempC != null && `, ${Math.round(weather.tempC)}°C`}
-            </span>
-          </div>
-          {street && (
-            <div className="hud-street">
-              <JaText text={street.name} dict={dict} furigana={furigana} onWord={setWord} /> {street.nameEn && <span>{street.nameEn}</span>}
+        {/* Top left: where you are, and the place you're next to. */}
+        <div className="absolute top-3 left-3 flex w-[min(22rem,calc(100%-220px))] min-w-[150px] flex-col gap-2">
+          <Panel size="sm" className="pointer-events-auto px-3.5 py-2.5">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className="font-pixel text-2xl leading-tight">{ja(map.name)}</span>
+              <span className="text-sm text-paper-dim">{map.nameEn}</span>
             </div>
-          )}
-          {station && (
-            <div className="hud-street">
-              <span className="hud-line" style={{ background: station.line.colour }}>
-                {station.line.ref}
-              </span>{' '}
-              <JaText text={`${station.name}駅`} dict={dict} furigana={furigana} onWord={setWord} /> <JaText text={station.line.ja} dict={dict} furigana={furigana} onWord={setWord} />{' '}
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2">
+              <span className="font-pixel text-gold">{japaneseTime(now)}</span>
               <span>
-                {station.nameEn} Station, {station.line.en}
+                {words.icon} {ja(words.ja)}
+              </span>
+              <span className="text-[0.85em] text-paper-dim">
+                {words.kana} ({words.en}){weather.tempC != null && `, ${Math.round(weather.tempC)}°C`}
               </span>
             </div>
-          )}
-          {inside && (
-            <div className="hud-street">
-              <span className="hud-line" style={{ background: '#f2b705', color: '#151515' }}>
-                B1
-              </span>{' '}
-              <JaText text={inside.name} dict={dict} furigana={furigana} onWord={setWord} /> <JaText text={inside.kind} dict={dict} furigana={furigana} onWord={setWord} />{' '}
-              <span>
-                {inside.nameEn}, {inside.kindEn} ({inside.floor}, basement 1)
-              </span>
-            </div>
-          )}
+            {street && (
+              <div className="mt-1 border-t border-paper/15 pt-1">
+                {ja(street.name)} {street.nameEn && <span className="text-[0.85em] text-paper-dim">{street.nameEn}</span>}
+              </div>
+            )}
+            {station && (
+              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 border-t border-paper/15 pt-1">
+                <Chip color={station.line.colour}>{station.line.ref}</Chip>
+                {ja(`${station.name}駅`)} {ja(station.line.ja)}
+                <span className="text-[0.85em] text-paper-dim">
+                  {station.nameEn} Station, {station.line.en}
+                </span>
+              </div>
+            )}
+            {inside && (
+              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 border-t border-paper/15 pt-1">
+                <Chip color="var(--color-kin)">
+                  B1
+                </Chip>
+                {ja(inside.name)} {ja(inside.kind)}
+                <span className="text-[0.85em] text-paper-dim">
+                  {inside.nameEn}, {inside.kindEn} ({inside.floor}, basement 1)
+                </span>
+              </div>
+            )}
+          </Panel>
           {place && (
-            <div className="hud-near">
-              近く: <JaText text={place.name} dict={dict} furigana={furigana} onWord={setWord} /> {place.nameEn && <span>{place.nameEn}</span>}
-              {place.gone && (
-                <div className="hud-near-info">
-                  <span className="hud-open closed">
-                    <JaText text="閉店" dict={dict} furigana={furigana} onWord={setWord} />
-                  </span>
-                  <span className="hud-near-en">closed now, shown where it used to be</span>
-                </div>
-              )}
-              {(place.cu || place.oh) && (
-                <div className="hud-near-info">
-                  {place.oh && (
-                    <span className={`hud-open ${isOpen(place.oh, week.day, week.minute) ? 'open' : 'closed'}`}>
-                      <JaText text={isOpen(place.oh, week.day, week.minute) ? '営業中' : '準備中'} dict={dict} furigana={furigana} onWord={setWord} />
-                    </span>
-                  )}
-                  {place.cu && (
-                    <span className="hud-cuisine">
-                      <JaText text={place.cu} dict={dict} furigana={furigana} onWord={setWord} />
-                    </span>
-                  )}
-                  {place.oh && (
-                    <span className="hud-hours">
-                      {/^\d+:/.test(hoursToday(place.oh, week.day)) ? (
-                        <>
-                          <JaText text="本日" dict={dict} furigana={furigana} onWord={setWord} /> {hoursToday(place.oh, week.day)}
-                        </>
-                      ) : (
-                        <JaText text={hoursToday(place.oh, week.day)} dict={dict} furigana={furigana} onWord={setWord} />
-                      )}
-                    </span>
-                  )}
-                  <span className="hud-near-en">
-                    {place.oh && (isOpen(place.oh, week.day, week.minute) ? 'open now' : 'closed now')}
-                    {place.oh && place.cuEn && ' · '}
-                    {place.cuEn}
-                  </span>
-                </div>
-              )}
-            </div>
+            <PlaceCard
+              className="pointer-events-auto w-full p-3"
+              name={seg(place.name)}
+              nameEn={place.nameEn}
+              status={place.gone ? 'gone' : place.oh ? (isOpen(place.oh, week.day, week.minute) ? 'open' : 'closed') : undefined}
+              cuisine={place.cu ? seg(place.cu) : undefined}
+              cuisineEn={place.cuEn}
+              hours={place.oh ? hoursToday(place.oh, week.day) : undefined}
+              furigana={furigana}
+              onWord={tap}
+            />
           )}
           {wordHint && dict && (
-            <div className="hud-word-hint">
+            <div className="corner-sm animate-pulse bg-kin px-3 py-1.5 text-sm text-sumi drop-hard-sm motion-reduce:animate-none">
               👆 Tap an <u>underlined</u> Japanese word for its word card: meaning, kanji and an example.
             </div>
           )}
+          {!wide && <div className="flex flex-col items-start" onClick={(e) => e.stopPropagation()}>{creditsBox}</div>}
         </div>
 
-        <Minimap map={map} tiles={tiles} x={pos.x} y={pos.y} big={bigMap} />
-
-        {rally.length > 0 && (
-          <button className="hud-stamps" onClick={() => setBook((b) => !b)}>
-            🎴 スタンプ {rally.filter((d) => stamps.has(d.id)).length}/{rally.length}
-          </button>
-        )}
-        <div className="hud-size" onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => hud.step(-1)} disabled={hud.size <= 1} aria-label="Smaller map and boxes" title="Smaller map and boxes ([)">
-            A−
-          </button>
-          <button onClick={() => hud.step(1)} disabled={hud.size >= 4} aria-label="Bigger map and boxes" title="Bigger map and boxes (])">
-            A+
-          </button>
+        {/* Top right: the map, with the A−/A+ buttons under it. */}
+        <div className={cn('absolute top-3 right-3 max-w-[calc(100%-24px)]', bigMap && 'z-[5]')} onClick={(e) => e.stopPropagation()}>
+          <Minimap
+            map={map}
+            tiles={tiles}
+            x={pos.x}
+            y={pos.y}
+            big={bigMap}
+            label={bigMap ? (under ? '地下 · underground' : (street?.nameEn ?? map.nameEn)) : null}
+            actions={
+              <>
+                <SizeButton onClick={() => hud.step(-1)} disabled={hud.size <= 1} label="Smaller map and boxes ([)">
+                  A−
+                </SizeButton>
+                <SizeButton onClick={() => hud.step(1)} disabled={hud.size >= 4} label="Bigger map and boxes (])">
+                  A+
+                </SizeButton>
+              </>
+            }
+            onToggleBig={() => setBigMap((b) => !b)}
+          />
         </div>
-        <button
-          className={`hud-sound ${muted ? 'muted' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation()
-            setMuted((m) => !m)
-          }}
-          aria-pressed={muted}
-          title={muted ? 'Sound off. Click (or press N) to turn it on.' : 'Sound on. Click (or press N) to mute.'}
+
+        {/* Bottom middle: overheard talk, a discovery, a sign. Stacked so
+            they never overlap, above the hotbar. */}
+        <div
+          className={cn(
+            'absolute flex flex-col gap-3',
+            coarse && hud.width < 680 ? 'bottom-[228px]' : 'bottom-[76px]',
+            // On a short screen, beside the map instead of under it.
+            hud.height < 430 ? 'left-3 w-[min(34rem,calc(100%-220px))] items-start' : 'left-1/2 w-[min(34rem,calc(100%-24px))] -translate-x-1/2 items-center',
+          )}
         >
-          {muted ? '🔇 消音 Muted' : '🔊 音 Sound'}
-        </button>
-        {toast && <div className="toast">{toast}</div>}
-        {book && (
-          <div className="stamp-book" onClick={() => setBook(false)}>
-            <div className="stamp-book-inner" onClick={(e) => e.stopPropagation()}>
-              <h2>
-                スタンプラリー <span>Stamp rally</span>
-              </h2>
-              <p>Find each place and walk up to its red marker. Press B to close.</p>
-              <div className="stamp-grid">
-                {rally.map((d) => (
-                  <div key={d.id} className={`stamp ${stamps.has(d.id) ? 'got' : ''}`}>
-                    <div className="stamp-seal">{stamps.has(d.id) ? '済' : '？'}</div>
-                    <div className="stamp-name">{d.ja}</div>
-                    {d.en && <div className="stamp-en">{d.en}</div>}
-                  </div>
-                ))}
-              </div>
-              <p className="stamp-found">
-                Places discovered: {found.size} of {map.discoveries?.length ?? 0}
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="hud-stack">
-        {caption && !book && (
-          <TalkCaption caption={caption} dict={dict} furigana={furigana} english={english} onWord={setWord} onEnglish={() => setEnglish((v) => !v)} />
-        )}
-        {here && !book && (
-          <div className="hud-discovery">
-            <div className="hud-discovery-name">
-              {here.stamp ? '🎴' : '✦'} <JaText text={here.ja} dict={dict} furigana={furigana} onWord={setWord} />
-              {here.en && <span>{here.en}</span>}
-            </div>
-            {here.jt && (
-              <p className="hud-discovery-ja">
-                <JaText text={here.jt} dict={dict} furigana={furigana} onWord={setWord} />
-              </p>
-            )}
-            {here.et && <p className="hud-discovery-en">{here.et}</p>}
-            <div className="hud-discovery-links">
-              Wikipedia:{' '}
-              <a href={`https://ja.wikipedia.org/wiki/${encodeURIComponent(here.jw)}`} target="_blank" rel="noreferrer">
-                日本語
-              </a>
-              {here.ew && (
-                <>
-                  {' · '}
-                  <a href={`https://en.wikipedia.org/wiki/${encodeURIComponent(here.ew)}`} target="_blank" rel="noreferrer">
-                    English
-                  </a>
-                </>
-              )}{' '}
-              (CC BY-SA)
-            </div>
-          </div>
-        )}
-
-        {sign && (
-          <div className="hud-slope">
-            <div className="hud-slope-name">
-              <JaText text={sign.s.t} dict={dict} furigana={furigana} onWord={setWord} />
-            </div>
-            <div className="hud-slope-en">{sign.s.en}</div>
-            <div className="hud-slope-note">{sign.s.n ?? SIGN_NOTES[sign.s.k]}</div>
-          </div>
-        )}
-
-        {door && !sign && (
-          <div className="hud-slope">
-            <div className="hud-slope-name">
-              <JaText text={door.name} dict={dict} furigana={furigana} onWord={setWord} /> <JaText text={ANTNBEE.signs.street.t} dict={dict} furigana={furigana} onWord={setWord} />
-            </div>
-            <div className="hud-slope-en">
-              {door.nameEn}: {ANTNBEE.signs.street.en}. Walk down the stairs to go in.
-            </div>
-            <div className="hud-slope-note">{ANTNBEE.signs.street.n}</div>
-          </div>
-        )}
+          {caption && !book && !(barOpen && inside) && (
+            <TalkCaption caption={caption} dict={dict} furigana={furigana} english={english} onWord={setWord} onEnglish={() => setEnglish((v) => !v)} />
+          )}
+          {here && !book && !(barOpen && inside) && (
+            <DiscoveryCard
+              className="pointer-events-auto w-full"
+              name={seg(here.ja)}
+              nameEn={here.en}
+              stamp={!!here.stamp}
+              textJa={here.jt ? seg(here.jt) : undefined}
+              textEn={here.et}
+              links={[
+                { label: `Wikipedia 日本語${here.ew ? '' : ' (CC BY-SA)'}`, href: `https://ja.wikipedia.org/wiki/${encodeURIComponent(here.jw)}` },
+                ...(here.ew ? [{ label: 'English (CC BY-SA)', href: `https://en.wikipedia.org/wiki/${encodeURIComponent(here.ew)}` }] : []),
+              ]}
+              furigana={furigana}
+              onWord={tap}
+            />
+          )}
+          {sign && !(barOpen && inside) && (
+            <SignCard
+              className="pointer-events-auto w-[min(26rem,100%)]"
+              kind="station"
+              title={seg(sign.s.t)}
+              english={sign.s.en}
+              note={sign.s.n ?? SIGN_NOTES[sign.s.k]}
+              furigana={furigana}
+              onWord={tap}
+            />
+          )}
+          {door && !sign && (
+            <SignCard
+              className="pointer-events-auto w-[min(26rem,100%)]"
+              kind="door"
+              title={[...seg(door.name), [' '], ...seg(ANTNBEE.signs.street.t)]}
+              english={`${door.nameEn}: ${ANTNBEE.signs.street.en}. Walk down the stairs to go in.`}
+              note={ANTNBEE.signs.street.n}
+              furigana={furigana}
+              onWord={tap}
+            />
+          )}
+          {slope && !here && !door && !caption && (
+            <SignCard
+              className="pointer-events-auto w-[min(26rem,100%)]"
+              kind="slope"
+              title={seg(slope.slope.name)}
+              kana={slope.slope.kana}
+              english={slope.slope.en && `${slope.slope.en}: “${slope.slope.gloss}”`}
+              note={`坂 (さか) means slope.${slope.slope.rise >= 2 ? ` It ${slope.top ? 'drops' : 'climbs'} about ${Math.round(slope.slope.rise)} m from here.` : ''}`}
+              furigana={furigana}
+              onWord={tap}
+            />
+          )}
+        </div>
 
         {inside && (
           <BarMenu
+            open={barOpen}
+            onOpenChange={setBarOpen}
             atCounter={atCounter}
             dict={dict}
             furigana={furigana}
@@ -581,188 +569,220 @@ export default function App() {
           />
         )}
 
-        {slope && !here && !door && (
-          <div className="hud-slope">
-            <div className="hud-slope-name">
-              <JaText text={slope.slope.name} dict={dict} furigana={furigana} onWord={setWord} />
-              {slope.slope.kana && <span className="hud-slope-kana">{slope.slope.kana}</span>}
-            </div>
-            {slope.slope.en && (
-              <div className="hud-slope-en">
-                {slope.slope.en}: “{slope.slope.gloss}”
-              </div>
-            )}
-            <div className="hud-slope-note">
-              坂 (さか) means slope.
-              {slope.slope.rise >= 2 &&
-                ` It ${slope.top ? 'drops' : 'climbs'} about ${Math.round(slope.slope.rise)} m from here.`}
-            </div>
+        {wide && (
+          <div className="absolute bottom-3 left-3 flex flex-col items-start" onClick={(e) => e.stopPropagation()}>
+            {creditsBox}
           </div>
         )}
+
+        {/* Bottom: the hotbar, and the D-pad on touch screens. */}
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2" onClick={(e) => e.stopPropagation()}>
+          <Hotbar
+            compact
+            className="pointer-events-auto"
+            slots={[
+              { id: 'map', icon: '🗺', label: 'Map', shortcut: 'M', active: bigMap, onClick: () => setBigMap((b) => !b) },
+              ...(rally.length > 0
+                ? [{ id: 'stamps', icon: '🎴', label: 'Stamps', shortcut: 'B', active: book, badge: `${rally.filter((d) => stamps.has(d.id)).length}/${rally.length}`, onClick: () => setBook((b) => !b) }]
+                : []),
+              { id: 'furigana', icon: 'あ', label: 'ふりがな', shortcut: 'F', active: furigana, onClick: () => setFurigana((f) => !f) },
+              { id: 'english', icon: 'EN', label: 'English', shortcut: 'T', active: english, onClick: () => setEnglish((v) => !v) },
+              { id: 'sound', icon: muted ? '🔇' : '🔊', label: muted ? 'Muted' : 'Sound', shortcut: 'N', active: !muted, onClick: () => setMuted((m) => !m) },
+              ...(coarse
+                ? []
+                : [
+                    {
+                      id: 'keys',
+                      icon: '⌨',
+                      label: 'Keys',
+                      shortcut: 'H',
+                      active: help,
+                      onClick: () => {
+                        setHelp((h) => !h)
+                        setCredits(false)
+                      },
+                    },
+                  ]),
+            ]}
+          />
         </div>
+        {coarse && (
+          <div className={`pointer-events-auto absolute right-3 ${hud.width >= 680 ? 'bottom-3' : 'bottom-[76px]'}`} onClick={(e) => e.stopPropagation()}>
+            <DPad size={140} onPress={input.press} onRelease={input.release} onTurn={turnView} />
+          </div>
+        )}
 
         {word && dict && <WordPopup key={word.key} pick={word} dict={dict} furigana={furigana} onWord={setWord} onClose={() => setWord(null)} />}
 
-        <DPad />
-        {help ? (
-          <div className="hud-help" onClick={(e) => e.stopPropagation()}>
-            <button className="hud-help-close" onClick={() => setHelp(false)} aria-label="Hide controls">
-              ✕
-            </button>
-            <dl>
-              {HELP.map(([k, v]) => (
-                <div key={k}>
-                  <dt>{k}</dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        ) : (
-          <button
-            className="hud-help-open"
-            onClick={(e) => {
-              e.stopPropagation()
-              setHelp(true)
-              setCredits(false)
-            }}
-          >
-            ⌨ Controls (H)
-          </button>
-        )}
-        <div className={`attribution ${credits ? 'open' : ''}`} onClick={(e) => e.stopPropagation()}>
-          {credits ? (
-            <>
-              <button className="attribution-close" onClick={() => setCredits(false)} aria-label="Hide credits">
-                ✕
-              </button>
-              Map data ©{' '}
-              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
-                OpenStreetMap contributors
-              </a>
-              {map.credits?.some((c) => c.includes('Mapillary')) && (
-                <>
-                  {' · '}Street-level data ©{' '}
-                  <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">
-                    Mapillary
-                  </a>{' '}
-                  contributors,{' '}
-                  <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">
-                    CC BY-SA
-                  </a>
-                </>
-              )}
-              {!params.get('weather') && (
-                <>
-                  {' · '}
-                  <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
-                    Weather data by Open-Meteo.com
-                  </a>
-                </>
-              )}
-              {dict && (
-                <>
-                  {' · '}Dictionary:{' '}
-                  <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noreferrer">
-                    JMdict and KANJIDIC2 (EDRDG, CC BY-SA)
-                  </a>
-                  {', '}
-                  <a href="https://tatoeba.org/" target="_blank" rel="noreferrer">
-                    Tatoeba
-                  </a>{' '}
-                  (CC BY 2.0 FR),{' '}
-                  <a href="https://kanjivg.tagaini.net/" target="_blank" rel="noreferrer">
-                    KanjiVG
-                  </a>{' '}
-                  (CC BY-SA)
-                </>
-              )}
-              {map.credits?.some((c) => c.includes('国土地理院')) && (
-                <>
-                  {' · '}Roof colors:{' '}
-                  <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noreferrer">
-                    出典：国土地理院ウェブサイト
-                  </a>
-                </>
-              )}
-              {Object.keys(soundCredits).length > 0 && (
-                <>
-                  {' · '}Sounds from Freesound:{' '}
-                  {Object.values(soundCredits).map((c, i) => (
-                    <span key={c.url}>
-                      {i > 0 && ', '}
-                      <a href={c.url} target="_blank" rel="noreferrer">
-                        {c.name}
-                      </a>{' '}
-                      by {c.author} (
-                      <a href={c.licenseUrl} target="_blank" rel="noreferrer">
-                        {c.license}
-                      </a>
-                      )
-                    </span>
-                  ))}
-                </>
-              )}
-              {talk && (
-                <>
-                  {' · '}
-                  {talk.attribution}
-                  {talk.voices?.length ? (
-                    <>
-                      {'; voices: '}
-                      <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noreferrer">
-                        {talk.voices.join(', ')}
-                      </a>
-                    </>
-                  ) : null}
-                </>
-              )}
-              {map.credits?.some((c) => c.includes('PLATEAU')) && (
-                <>
-                  {' · '}Buildings and terrain:{' '}
-                  <a href="https://www.mlit.go.jp/plateau/" target="_blank" rel="noreferrer">
-                    3D都市モデル（Project PLATEAU）国土交通省
-                  </a>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              ©{' '}
-              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
-                OpenStreetMap
-              </a>{' '}
-              ·{' '}
-              <button
-                className="attribution-more"
-                onClick={() => {
-                  setCredits(true)
-                  setHelp(false)
-                }}
-              >
-                All credits
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+        <Window
+          open={book}
+          onOpenChange={setBook}
+          tone="paper"
+          width={560}
+          title="スタンプラリー"
+          subtitle="Stamp rally · B closes"
+        >
+          <StampBook stampSize={68} spots={rally.map((d) => ({ id: d.id, ja: d.ja, en: d.en, got: stamps.has(d.id) }))} found={found.size} total={map.discoveries?.length ?? 0} />
+        </Window>
+        <Window open={help && !coarse} onOpenChange={setHelp} width={440} title="操作" subtitle="Controls · H closes">
+          <ControlsHelp controls={HELP} />
+        </Window>
+        <Toaster />
+      </UiRoot>
     </div>
+  )
+}
+
+/** A station number like the ones on Tokyo Metro signs (H04): the line's
+ *  color as a ring on white. */
+function Chip({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span
+      className="corner-sm inline-block bg-white px-1.5 py-1 font-arcade text-[0.55em] leading-none text-[#1d1a24]"
+      style={{ boxShadow: `inset 0 0 0 2px ${color}` }}
+    >
+      {children}
+    </span>
+  )
+}
+
+/** A− / A+ in the map's bottom row. */
+function SizeButton({ onClick, disabled, label, children }: { onClick: () => void; disabled: boolean; label: string; children: React.ReactNode }) {
+  return (
+    <button
+      className="corner-sm grid h-6 min-w-8 place-items-center bg-ink-3 px-1.5 text-[0.85em] font-bold text-paper hover:bg-paper hover:text-ink disabled:opacity-35 disabled:hover:bg-ink-3 disabled:hover:text-paper"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Everything the game is built from, with links and licenses. */
+function Credits({
+  map,
+  dict,
+  talk,
+  soundCredits,
+  liveWeather,
+}: {
+  map: GameMap
+  dict: Dict | null
+  talk: Talk | null
+  soundCredits: ReturnType<typeof useSoundCredits>
+  liveWeather: boolean
+}) {
+  return (
+    <>
+      Map data ©{' '}
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+        OpenStreetMap contributors
+      </a>
+      {map.credits?.some((c) => c.includes('Mapillary')) && (
+        <>
+          {' · '}Street-level data ©{' '}
+          <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">
+            Mapillary
+          </a>{' '}
+          contributors,{' '}
+          <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">
+            CC BY-SA
+          </a>
+        </>
+      )}
+      {liveWeather && (
+        <>
+          {' · '}
+          <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
+            Weather data by Open-Meteo.com
+          </a>
+        </>
+      )}
+      {dict && (
+        <>
+          {' · '}Dictionary:{' '}
+          <a href="https://www.edrdg.org/edrdg/licence.html" target="_blank" rel="noreferrer">
+            JMdict and KANJIDIC2 (EDRDG, CC BY-SA)
+          </a>
+          {', '}
+          <a href="https://tatoeba.org/" target="_blank" rel="noreferrer">
+            Tatoeba
+          </a>{' '}
+          (CC BY 2.0 FR),{' '}
+          <a href="https://kanjivg.tagaini.net/" target="_blank" rel="noreferrer">
+            KanjiVG
+          </a>{' '}
+          (CC BY-SA)
+        </>
+      )}
+      {map.credits?.some((c) => c.includes('国土地理院')) && (
+        <>
+          {' · '}Roof colors:{' '}
+          <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noreferrer">
+            出典：国土地理院ウェブサイト
+          </a>
+        </>
+      )}
+      {Object.keys(soundCredits).length > 0 && (
+        <>
+          {' · '}Sounds from Freesound:{' '}
+          {Object.values(soundCredits).map((c, i) => (
+            <span key={c.url}>
+              {i > 0 && ', '}
+              <a href={c.url} target="_blank" rel="noreferrer">
+                {c.name}
+              </a>{' '}
+              by {c.author} (
+              <a href={c.licenseUrl} target="_blank" rel="noreferrer">
+                {c.license}
+              </a>
+              )
+            </span>
+          ))}
+        </>
+      )}
+      {talk && (
+        <>
+          {' · '}
+          {talk.attribution}
+          {talk.voices?.length ? (
+            <>
+              {'; voices: '}
+              <a href="https://voicevox.hiroshiba.jp/" target="_blank" rel="noreferrer">
+                {talk.voices.join(', ')}
+              </a>
+            </>
+          ) : null}
+        </>
+      )}
+      {map.credits?.some((c) => c.includes('PLATEAU')) && (
+        <>
+          {' · '}Buildings and terrain:{' '}
+          <a href="https://www.mlit.go.jp/plateau/" target="_blank" rel="noreferrer">
+            3D都市モデル（Project PLATEAU）国土交通省
+          </a>
+        </>
+      )}
+    </>
   )
 }
 
 /** The controls, as [keys, what they do]. */
 const HELP: [string, string][] = [
-  ['Arrows / WASD', 'Move'],
+  ['↑↓←→ / WASD', 'Move'],
   ['Shift', 'Run'],
-  ['Scroll, pinch, + / −', 'Zoom'],
+  ['+ / −, mouse wheel', 'Zoom'],
   ['Q / E, right-drag', 'Turn'],
   ['M', 'Big map'],
   ['B', 'Stamp book'],
   ['F', 'Furigana'],
   ['N', 'Sound on/off'],
-  ['T', 'English for overheard talk'],
-  ['[ / ]', 'Smaller / bigger boxes'],
-  ['H', 'Show/hide this list'],
+  ['T', 'English under talk'],
+  ['[ / ]', 'Smaller / bigger'],
+  ['H', 'This list'],
   ['Tap a word', 'Word card'],
 ]
 

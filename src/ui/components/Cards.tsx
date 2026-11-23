@@ -14,6 +14,8 @@ export interface WordCardKanji {
   on?: string[]
   kun?: string[]
   strokes?: number
+  /** Drawn in place of the plain character box (a stroke-order animation...). */
+  glyph?: ReactNode
 }
 
 /** The card for a tapped word: reading, meanings, JLPT level, kanji and an example. */
@@ -30,6 +32,7 @@ export function WordCard({
   furigana = true,
   onClose,
   onWord,
+  footer,
   className,
 }: {
   word: string
@@ -44,6 +47,8 @@ export function WordCard({
   furigana?: boolean
   onClose?: () => void
   onWord?: (key: string, el: HTMLElement) => void
+  /** Small print at the bottom (sources). */
+  footer?: ReactNode
   className?: string
 }) {
   return (
@@ -77,10 +82,12 @@ export function WordCard({
       {kanji.length > 0 && (
         <div className="mt-3 grid gap-2">
           {kanji.map((k) => (
-            <div key={k.char} className="flex items-center gap-3 bg-ink/5 p-2">
+            <div key={k.char} className="corner-sm flex items-center gap-3 bg-ink/5 p-2">
+              {k.glyph ?? (
               <span className="grid size-10 shrink-0 place-items-center bg-paper text-2xl [box-shadow:inset_0_0_0_2px_var(--color-ink)] [background-image:linear-gradient(rgb(232_67_46/0.25)_1px,transparent_1px),linear-gradient(90deg,rgb(232_67_46/0.25)_1px,transparent_1px)] [background-position:center] [background-size:50%_50%]">
                 {k.char}
               </span>
+              )}
               <div className="min-w-0 text-sm leading-snug">
                 <div className="font-bold">{k.meanings.join(', ')}</div>
                 <div className="text-ink/65">
@@ -99,6 +106,7 @@ export function WordCard({
           {exampleEn && <div className="text-sm text-ink/60">{exampleEn}</div>}
         </div>
       )}
+      {footer && <div className="mt-2 text-[0.7em] text-ink/50">{footer}</div>}
     </Panel>
   )
 }
@@ -116,31 +124,37 @@ export function PlaceCard({
   hours,
   note,
   furigana = true,
+  onWord,
   className,
 }: {
-  name: string
+  name: string | JaSegment[]
   nameEn?: string
   status?: 'open' | 'closed' | 'gone'
-  cuisine?: string
+  cuisine?: string | JaSegment[]
   cuisineEn?: string
   hours?: string
   note?: ReactNode
   furigana?: boolean
+  onWord?: (key: string, el: HTMLElement) => void
   className?: string
 }) {
   return (
     <Panel className={cn('w-80 max-w-full', className)}>
       <div className="mb-1 text-[0.8em] text-paper-dim">近く · nearby</div>
       <div className="font-pixel text-2xl leading-tight">
-        <Furigana text={name} furigana={furigana} />
+        <Furigana text={name} furigana={furigana} onWord={onWord} />
       </div>
       {nameEn && <div className="text-paper-dim">{nameEn}</div>}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {status === 'open' && <Badge variant="open">営業中</Badge>}
         {status === 'closed' && <Badge variant="closed">準備中</Badge>}
         {status === 'gone' && <Badge variant="closed">閉店</Badge>}
-        {cuisine && <Badge variant="gold">{cuisine}</Badge>}
-        {hours && <span className="text-sm">本日 {hours}</span>}
+        {cuisine && (
+          <Badge variant="gold">
+            <Furigana text={cuisine} furigana={furigana} onWord={onWord} />
+          </Badge>
+        )}
+        {hours && <span className="text-sm">{/^\d/.test(hours) ? `本日 ${hours}` : hours}</span>}
       </div>
       <div className="mt-1 text-sm text-paper-dim">
         {[status === 'open' ? 'open now' : status === 'closed' ? 'closed now' : status === 'gone' ? 'closed for good, shown where it used to be' : null, cuisineEn]
@@ -163,14 +177,16 @@ export function SignCard({
   note,
   kind = 'slope',
   furigana = true,
+  onWord,
   className,
 }: {
-  title: string
+  title: string | JaSegment[]
   kana?: string
   english?: ReactNode
   note?: ReactNode
   kind?: 'slope' | 'station' | 'door'
   furigana?: boolean
+  onWord?: (key: string, el: HTMLElement) => void
   className?: string
 }) {
   const plate = kind === 'station' ? 'jg-paper bg-paper text-ink' : kind === 'door' ? 'bg-shu text-white' : 'bg-[#2c5e3f] text-white'
@@ -178,7 +194,7 @@ export function SignCard({
     <div className={cn('w-80 max-w-full drop-hard', className)}>
       <div className={cn('corner px-4 py-3 [box-shadow:inset_0_0_0_2px_rgb(255_255_255/0.6)]', plate)}>
         <div className="flex items-baseline gap-2 font-pixel text-3xl leading-tight">
-          <Furigana text={title} furigana={furigana} />
+          <Furigana text={title} furigana={furigana} onWord={onWord} />
           {kana && <span className="text-base opacity-75">{kana}</span>}
         </div>
         {english && <div className="mt-0.5 opacity-85">{english}</div>}
@@ -200,26 +216,28 @@ export function DiscoveryCard({
   textEn,
   links,
   furigana = true,
+  onWord,
   className,
 }: {
-  name: string
+  name: string | JaSegment[]
   nameEn?: string
   stamp?: boolean
-  textJa?: string
+  textJa?: string | JaSegment[]
   textEn?: string
   links?: { label: string; href: string }[]
   furigana?: boolean
+  onWord?: (key: string, el: HTMLElement) => void
   className?: string
 }) {
   return (
     <Panel tone="gold" className={cn('w-[26rem] max-w-full', className)}>
       <PanelTitle aside={stamp && <Badge variant="shu">🎴 STAMP</Badge>}>Discovery ★</PanelTitle>
       <div className="font-pixel text-2xl leading-tight">
-        <Furigana text={name} furigana={furigana} /> {nameEn && <span className="text-base text-paper-dim">{nameEn}</span>}
+        <Furigana text={name} furigana={furigana} onWord={onWord} /> {nameEn && <span className="text-base text-paper-dim">{nameEn}</span>}
       </div>
       {textJa && (
         <p className="mt-2 leading-[1.9]">
-          <Furigana text={textJa} furigana={furigana} />
+          <Furigana text={textJa} furigana={furigana} onWord={onWord} />
         </p>
       )}
       {textEn && <p className="mt-1 text-sm text-paper-dim">{textEn}</p>}

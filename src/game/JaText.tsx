@@ -1,7 +1,8 @@
-import { AREA_ID } from './area'
-import { hudScale } from './hud'
 import { useEffect, useState } from 'react'
+import { Furigana, WordCard, type JaSegment } from '../ui'
+import { AREA_ID } from './area'
 import { loadKanji, type Dict, type Kanji } from './dict'
+import { hudScale } from './hud'
 
 export interface WordPick {
   key: string
@@ -10,52 +11,41 @@ export interface WordPick {
   y: number
 }
 
+/** A text from the map split into the UI kit's segments: furigana for each
+ *  word, and a key only for words that have a word card. Plain text when
+ *  the dictionary doesn't know it. */
+export function jaSegments(text: string, dict: Dict | null): JaSegment[] {
+  const segs = dict?.texts[text]
+  if (!segs) return [[text]]
+  return segs.map(([surface, key, reading]) => [surface, reading, key && dict.words[key] ? key : undefined])
+}
+
+/** Turns the UI kit's (key, element) into the game's WordPick. */
+export function pickWord(onWord: (w: WordPick) => void) {
+  return (key: string, el: HTMLElement) => {
+    const r = el.getBoundingClientRect()
+    onWord({ key, surface: el.textContent ?? key, x: r.left + r.width / 2, y: r.top })
+  }
+}
+
 /** Japanese text with optional furigana; words in the dictionary can be
- *  tapped for their meaning. Falls back to plain text. */
+ *  tapped for their word card. Falls back to plain text. */
 export function JaText({
   text,
   dict,
   furigana,
   onWord,
+  className,
 }: {
   text: string
   dict: Dict | null
   furigana: boolean
   onWord: (w: WordPick) => void
+  className?: string
 }) {
-  const segs = dict?.texts[text]
-  if (!segs) return <span className="ja">{text}</span>
-  return (
-    <span className="ja">
-      {segs.map(([surface, key, reading], i) => {
-        const body = furigana && reading ? (
-          <ruby>
-            {surface}
-            <rt>{reading}</rt>
-          </ruby>
-        ) : (
-          surface
-        )
-        if (!key || !dict?.words[key]) return <span key={i}>{body}</span>
-        return (
-          <span
-            key={i}
-            className="ja-word"
-            onClick={(e) => {
-              e.stopPropagation()
-              const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-              onWord({ key, surface, x: r.left + r.width / 2, y: r.top })
-            }}
-          >
-            {body}
-          </span>
-        )
-      })}
-    </span>
-  )
+  return <Furigana text={jaSegments(text, dict)} furigana={furigana} onWord={pickWord(onWord)} className={className} />
 }
 
-const JLPT_COLORS: Record<number, string> = { 5: '#2f855a', 4: '#2b6cb0', 3: '#b7791f', 2: '#c05621', 1: '#9b2c2c' }
 const GRADES: Record<number, string> = { 8: 'secondary school', 9: 'name kanji', 10: 'name kanji' }
 
 /** The word card for a tapped word: reading, meanings, JLPT level, an
@@ -84,98 +74,88 @@ export function WordPopup({
   }, [])
   if (!w) return null
   const chars = [...new Set([...pick.key].filter((c) => /[一-鿿]/.test(c)))]
-  // Open below the word when it's in the top half of the screen.
-  // The popup sits in the scaled HUD layer, so work in its units.
+  // Open below the word when it's in the top half of the screen. The card
+  // sits in the scaled HUD layer, so work in its units.
   const px = pick.x / hudScale
   const py = pick.y / hudScale
-  const below = py < (window.innerHeight / hudScale) * 0.5
-  const left = Math.min(Math.max(px, 170), window.innerWidth / hudScale - 170)
+  const hudW = window.innerWidth / hudScale
+  const hudH = window.innerHeight / hudScale
+  const below = py < hudH * 0.5
+  const half = Math.min(184, hudW / 2 - 12)
+  const left = Math.min(Math.max(px, half + 12), hudW - half - 12)
   return (
     <div
-      className={`word-popup ${below ? 'below' : ''}`}
-      style={{ left, top: below ? py + 28 : py }}
-      onClick={(e) => {
-        e.stopPropagation()
-        onClose()
+      className="hud-scroll pointer-events-auto absolute z-10 overflow-y-auto"
+      style={{
+        left,
+        width: half * 2,
+        transform: `translate(-50%, ${below ? '0' : '-100%'})`,
+        top: below ? py + 28 : py - 8,
+        maxHeight: (below ? hudH - py - 28 : py - 8) - 12,
       }}
+      onClick={(e) => e.stopPropagation()}
     >
-      <div className="word-popup-head">
-        {pick.key}
-        {w.r !== pick.key && <span>{w.r}</span>}
-        {w.n && (
-          <span className="word-jlpt" style={{ background: JLPT_COLORS[w.n] }} title={`On the JLPT N${w.n} word list`}>
-            N{w.n}
-          </span>
-        )}
-      </div>
-      <ol>
-        {w.g.map((g, i) => (
-          <li key={i}>{g}</li>
-        ))}
-      </ol>
-      {w.ex && (
-        <div className="word-example" onClick={(e) => e.stopPropagation()}>
-          <div className="word-example-ja">
-            <JaText text={w.ex[0]} dict={dict} furigana={furigana} onWord={onWord} />
-          </div>
-          <div className="word-example-en">{w.ex[1]}</div>
-        </div>
-      )}
-      {chars.length > 0 && kanji && (
-        <div className="word-kanji">
-          {chars.map((c) => (
-            <KanjiCard key={`${pick.key}-${c}`} char={c} k={kanji[c]} />
-          ))}
-        </div>
-      )}
-      <div className="word-popup-src">
-        JMdict
-        {w.ex?.[2] && (
+      <WordCard
+        className="w-full"
+        word={pick.key}
+        reading={w.r !== pick.key ? w.r : undefined}
+        meanings={w.g}
+        jlpt={w.n as 1 | 2 | 3 | 4 | 5 | undefined}
+        kanji={
+          kanji
+            ? chars.map((c) => {
+                const k = kanji[c]
+                return {
+                  char: c,
+                  meanings: k?.m?.slice(0, 3) ?? [],
+                  on: k?.on,
+                  kun: k?.kun,
+                  strokes: k?.s,
+                  glyph: <KanjiStrokes key={`${pick.key}-${c}`} char={c} k={k} />,
+                }
+              })
+            : []
+        }
+        example={w.ex ? jaSegments(w.ex[0], dict) : undefined}
+        exampleEn={w.ex?.[1]}
+        furigana={furigana}
+        onWord={pickWord(onWord)}
+        onClose={onClose}
+        footer={
           <>
-            {' · '}
-            <a href={`https://tatoeba.org/en/sentences/show/${w.ex[2]}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-              Tatoeba
-            </a>
+            JMdict
+            {w.ex?.[2] && (
+              <>
+                {' · '}
+                <a href={`https://tatoeba.org/en/sentences/show/${w.ex[2]}`} target="_blank" rel="noreferrer" className="underline">
+                  Tatoeba
+                </a>
+              </>
+            )}
+            {w.n && ' · JLPT list: J. Waller'}
+            {chars.length > 0 && ' · KANJIDIC2 · KanjiVG'}
+            {chars.some((c) => kanji?.[c]?.gr) && ` · ${chars.map((c) => kanji?.[c]?.gr && `${c}: ${GRADES[kanji[c].gr!] ?? `grade ${kanji[c].gr}`}`).filter(Boolean).join(', ')}`}
           </>
-        )}
-        {w.n && ' · JLPT list: J. Waller'}
-        {chars.length > 0 && ' · KANJIDIC2 · KanjiVG'}
-      </div>
+        }
+      />
     </div>
   )
 }
 
-/** One kanji: its strokes drawn in order, then meanings and readings. */
-function KanjiCard({ char, k }: { char: string; k?: Kanji }) {
-  // Redraw the strokes when the card is tapped.
+/** One kanji drawn stroke by stroke on squared practice paper. Tap to
+ *  draw it again. */
+function KanjiStrokes({ char, k }: { char: string; k?: Kanji }) {
   const [run, setRun] = useState(0)
+  const box =
+    'grid size-14 shrink-0 place-items-center rounded-md bg-paper [box-shadow:inset_0_0_0_1.5px_var(--color-ink)] [background-image:linear-gradient(rgb(232_67_46/0.25)_1px,transparent_1px),linear-gradient(90deg,rgb(232_67_46/0.25)_1px,transparent_1px)] [background-position:center] [background-size:50%_50%]'
+  if (!k?.p) return <span className={`${box} text-4xl`}>{char}</span>
   return (
-    <div
-      className="kanji-card"
-      onClick={(e) => {
-        e.stopPropagation()
-        setRun((r) => r + 1)
-      }}
-    >
-      {k?.p ? (
-        <svg key={run} className="kanji-strokes" viewBox="0 0 109 109" aria-label={char}>
-          {k.p.map((d, i) => (
-            <path key={i} d={d} pathLength={1} style={{ animationDelay: `${i * 0.35}s` }} />
-          ))}
-        </svg>
-      ) : (
-        <div className="kanji-glyph">{char}</div>
-      )}
-      <div className="kanji-info">
-        {k?.m && <div className="kanji-meaning">{k.m.slice(0, 3).join(', ')}</div>}
-        {k?.on && k.on.length > 0 && <div>音 {k.on.join('、')}</div>}
-        {k?.kun && k.kun.length > 0 && <div>訓 {k.kun.join('、')}</div>}
-        {k?.s && (
-          <div className="kanji-meta">
-            {k.s} strokes{k.gr ? ` · ${GRADES[k.gr] ?? `grade ${k.gr}`}` : ''}
-          </div>
-        )}
-      </div>
-    </div>
+    <button type="button" className={box} onClick={() => setRun((r) => r + 1)} aria-label={`${char}: draw again`} title="Tap to draw again">
+      <svg key={run} className="kanji-strokes size-full" viewBox="0 0 109 109" aria-hidden>
+        {k.p.map((d, i) => (
+          <path key={i} d={d} pathLength={1} style={{ animationDelay: `${i * 0.35}s` }} />
+        ))}
+      </svg>
+    </button>
   )
 }
