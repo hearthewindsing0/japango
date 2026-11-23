@@ -69,7 +69,7 @@ Rules:
 - 8 to 12 lines, the two speakers taking turns (a speaker may say two short lines in a row now and then).
 - Each line under 40 Japanese characters. Japanese text only in "ja": no romaji, no furigana, no brackets.
 - "en" is a natural English translation of that line.
-- Names are ordinary Japanese names as they would be said (e.g. 佐藤さん, ユイ). Never real or famous people.
+- Names are ordinary Japanese names as they would be said (e.g. 佐藤さん, ユイ), varied from scene to scene. Never real or famous people, and never the names in the voice list: those are voices, not characters.
 - Everyday, friendly content a teenager could hear: no politics, no slurs, no sexual content, drinking only in passing.
 - Give each speaker a voice from the list that fits their age and manner; the two speakers must have different voices.
 - "note" is one or two English sentences on a bit of language or culture from the conversation that a learner would find useful.`
@@ -154,10 +154,11 @@ Scene: ${scene.seed}`
 function check(c) {
   if (c.speakers?.length !== 2) return 'needs exactly two speakers'
   if (c.speakers[0].voice === c.speakers[1].voice) return 'both speakers have the same voice'
+  for (const s of c.speakers) if (Object.keys(VOICES).some((v) => v.includes(s.name.replace(/さん$/, '')))) return `speaker named after a voice (${s.name})`
   if (!(c.lines?.length >= 6 && c.lines.length <= 14)) return `${c.lines?.length} lines`
   for (const l of c.lines) {
     if (l.speaker !== 0 && l.speaker !== 1) return 'line with an unknown speaker'
-    if (!/[぀-ヿ一-鿿]/.test(l.ja) || /[a-zA-Z]{3,}/.test(l.ja.replace(/ALMOND|AFURI|Hub/g, ''))) return `odd line "${l.ja}"`
+    if (!/[぀-ヿ一-鿿]/.test(l.ja) || /[a-zA-Z]{3,}/.test(l.ja.replace(/ALMOND|AFURI|Hub|LINE/g, ''))) return `odd line "${l.ja}"`
     if (l.ja.length > 50) return `long line "${l.ja}"`
   }
   return null
