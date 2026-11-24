@@ -73,7 +73,9 @@ export interface MapFile {
   /** c: wall color measured from street photos (sRGB 0-255), if any. */
   /** rc: roof color from aerial photos (sRGB 0-255), if any. */
   buildings: { p: Flat; h: number; v: number; ho?: Flat[]; c?: [number, number, number]; rc?: [number, number, number] }[]
-  roads: { t: string; w: number; s: number; p: Flat; b: number }[]
+  /** o: one-way (1 along the points, -1 against them), l: lanes, v: speed
+   *  limit in km/h, sg: indices of points with traffic lights. */
+  roads: { t: string; w: number; s: number; p: Flat; b: number; o?: 1 | -1; l?: number; v?: number; sg?: number[] }[]
   paths: { t: string; w: number; p: Flat }[]
   areas: { t: number; p: Flat; h: Flat[] }[]
   /** [x, y, scale] triples. */

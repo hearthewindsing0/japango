@@ -1,13 +1,15 @@
 // The japango Worker:
-//   /tiles/<area>/<file>  map tiles from R2 (falls back to the copy built
-//                         into the site, so it works before the first upload)
+//   /tiles/ /dict/ /talk/ /life/ /trains/ /sounds/ /data/ /index/
+//                         the game's generated data, from R2 under the same
+//                         key (see scripts/data.mjs; falls back to a copy
+//                         built into the site, if there is one)
 //   /api/progress         a player's found places and stamps, in D1
 //   /api/health           a quick check that the API is up
 // Everything else is the game itself, from the static assets.
 
 interface Env {
   ASSETS: Fetcher
-  TILES: R2Bucket
+  DATA: R2Bucket
   DB: D1Database
 }
 
@@ -21,22 +23,44 @@ const json = (body: unknown, status = 200) =>
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
   })
 
-async function tiles(req: Request, env: Env, url: URL) {
+/** Folders of generated data served from R2. */
+const DATA = /^\/(tiles|dict|talk|life|trains|sounds|data|index)\/[A-Za-z0-9_.\/-]+$/
+const TYPES: Record<string, string> = {
+  json: 'application/json',
+  mp3: 'audio/mpeg',
+  webp: 'image/webp',
+  png: 'image/png',
+  txt: 'text/plain; charset=utf-8',
+}
+
+async function data(req: Request, env: Env, url: URL) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return new Response('Method not allowed', { status: 405 })
-  const key = url.pathname.slice('/tiles/'.length)
-  if (!/^[a-z0-9-]+\/[A-Za-z0-9_.-]+\.json$/.test(key)) return new Response('Not found', { status: 404 })
-  const obj = await env.TILES.get(key)
-  if (!obj) return env.ASSETS.fetch(req)
+  const key = url.pathname.slice(1)
+  if (key.includes('..')) return new Response('Not found', { status: 404 })
+  const obj = await env.DATA.get(key)
+  if (!obj) {
+    // Not in R2: a copy built into the site, if any. Never the game's
+    // index.html for a missing data file.
+    const res = await env.ASSETS.fetch(req)
+    const type = res.headers.get('content-type') ?? ''
+    return res.ok && !type.includes('text/html') ? res : new Response('Not found', { status: 404 })
+  }
   const headers = new Headers()
   obj.writeHttpMetadata(headers)
   headers.set('etag', obj.httpEtag)
-  headers.set('content-type', 'application/json')
+  headers.set('content-type', TYPES[key.split('.').pop() ?? ''] ?? headers.get('content-type') ?? 'application/octet-stream')
   headers.set('access-control-allow-origin', '*')
-  // The manifest changes on every rebuild; tiles are asked for with the
-  // build time in ?v=, so each version can be cached for good.
+  // Indexes and manifests change on every rebuild. Files asked for with a
+  // version in ?v= (the build time or the file's hash) can be cached for good.
   headers.set(
     'cache-control',
-    key.endsWith('/manifest.json') ? 'public, max-age=60' : url.searchParams.has('v') ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
+    key.startsWith('index/')
+      ? 'no-store'
+      : key.endsWith('/manifest.json')
+        ? 'public, max-age=60'
+        : url.searchParams.has('v')
+          ? 'public, max-age=31536000, immutable'
+          : 'public, max-age=300',
   )
   return new Response(req.method === 'HEAD' ? null : obj.body, { headers })
 }
@@ -85,7 +109,7 @@ async function progress(req: Request, env: Env, url: URL) {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url)
-    if (url.pathname.startsWith('/tiles/')) return tiles(req, env, url)
+    if (DATA.test(url.pathname)) return data(req, env, url)
     if (url.pathname === '/api/progress') return progress(req, env, url)
     if (url.pathname === '/api/health') return json({ ok: true })
     if (url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404)

@@ -1,13 +1,16 @@
 # Builds the game map for each area in areas/: downloads every data source
 # for it at once (OpenStreetMap, PLATEAU buildings/terrain/bridges, GSI
 # aerial roof colors, Mapillary, Wikipedia), builds the map, cuts it into
-# tiles and the dictionary, then commits the result to the same branch.
+# tiles and the dictionary, and uploads all of it to the server (R2, see
+# scripts/data.mjs); none of it goes into git. Only a new or changed
+# areas/<id>.json is committed, to the same branch.
 #
 # It only runs when started by hand: Actions tab → Map data → "Run workflow".
 # Give an area id plus a center and size, or a box of corners, to add or
 # change an area (it writes areas/<id>.json). With just an id it rebuilds
-# that area; "all" rebuilds every area. Run on main, the Deploy workflow then
-# uploads the new tiles to R2 and publishes them.
+# that area; "all" rebuilds every area. Players get the new map as soon as
+# the upload finishes. Needs the CLOUDFLARE_API_TOKEN and
+# CLOUDFLARE_ACCOUNT_ID repository secrets.
 name: Map data
 
 on:
@@ -81,6 +84,9 @@ jobs:
     env:
       AREA: ${{ matrix.area }}
       MAPILLARY_TOKEN: ${{ secrets.MAPILLARY_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -109,21 +115,22 @@ jobs:
           bun scripts/add-area.mjs "${args[@]}"
       - name: Check the area exists
         run: test -f "areas/$AREA.json" || { echo "::error::No areas/$AREA.json. Give a center and size (or corners) to add it."; exit 1; }
+      - name: Last run's data from the server
+        # A source that fails this time is built from its last snapshot, and
+        # the dictionary also covers the conversations' words.
+        run: bun scripts/data.mjs pull sources talk
       - name: Download every source at once, build the map and tiles
         run: bun scripts/fetch-all.mjs
       - name: Japanese dictionary for the map's text (JMdict, Tatoeba, KANJIDIC2, KanjiVG)
         run: bash scripts/build-dict.sh
-      - name: Keep the result for the commit job
+      - name: Upload to the server
+        run: bun scripts/data.mjs push sources tiles dict
+      - name: Keep the area file for the commit job
         uses: actions/upload-artifact@v4
         with:
           name: area-${{ matrix.area }}
           retention-days: 3
-          path: |
-            areas/${{ matrix.area }}.json
-            data/${{ matrix.area }}.*
-            public/tiles/${{ matrix.area }}/
-            public/dict/${{ matrix.area }}.json
-            public/dict/${{ matrix.area }}.*.json
+          path: areas/${{ matrix.area }}.json
 
   sounds:
     # City sounds are shared by every area. Only when asked for, and once
@@ -132,6 +139,9 @@ jobs:
     if: ${{ inputs.sounds }}
     env:
       FREESOUND_TOKEN: ${{ secrets.FREESOUND_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@v4
         if: ${{ env.FREESOUND_TOKEN != '' }}
@@ -142,17 +152,17 @@ jobs:
       - name: City sounds from Freesound
         if: ${{ env.FREESOUND_TOKEN != '' }}
         run: bun scripts/fetch-sounds.mjs
-      - uses: actions/upload-artifact@v4
+      - run: bun install --frozen-lockfile
         if: ${{ env.FREESOUND_TOKEN != '' }}
-        with:
-          name: sounds
-          retention-days: 3
-          path: public/sounds/
+      - name: Upload to the server
+        if: ${{ env.FREESOUND_TOKEN != '' }}
+        run: bun scripts/data.mjs push sounds
 
   commit:
-    # One commit for all areas. Areas that built are committed even if
+    # Commits new or changed area files (areas/<id>.json), the only part of
+    # a run that lives in git. Areas that built are committed even if
     # another failed.
-    needs: [build, sounds]
+    needs: [build]
     if: ${{ !cancelled() && needs.build.result != 'skipped' }}
     runs-on: ubuntu-latest
     steps:
@@ -162,19 +172,17 @@ jobs:
         continue-on-error: true
         with:
           path: /tmp/built
-      - name: Commit map data
+      - name: Commit area files
         run: |
           shopt -s nullglob
-          for d in /tmp/built/area-*; do cp -r "$d"/. .; done
-          [ -d /tmp/built/sounds ] && mkdir -p public/sounds && cp -r /tmp/built/sounds/. public/sounds/
+          for d in /tmp/built/area-*; do cp -r "$d"/. areas/; done
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A areas data public/tiles public/dict public/sounds
+          git add -A areas
           if git diff --cached --quiet; then
-            echo "Map data unchanged."
+            echo "Area files unchanged."
           else
-            git commit -m "Update map data from OpenStreetMap, PLATEAU and Mapillary"
-            # The branch may have moved on while the data was downloading.
+            git commit -m "Add or change map areas"
             git pull --rebase -X theirs origin "${GITHUB_REF_NAME}"
             git push
           fi

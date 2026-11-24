@@ -10,6 +10,10 @@ run the map scripts; install it with `curl -fsSL https://bun.sh/install | bash`.
 Vite and wrangler run on Node.js when it is installed, otherwise on Bun. The
 game itself runs in the browser and the API on Cloudflare Workers as before.
 
+The map, dictionary, conversations and sounds aren't in git: `bun run dev`
+loads any it doesn't find in `public/` from the live site, so there is
+nothing to download first. See [Where the data lives](#where-the-data-lives).
+
 Move with the arrow keys or WASD, hold Shift to run, scroll or press +/− to
 zoom, and press M for the full map. On a phone, use the on-screen arrows.
 
@@ -106,8 +110,8 @@ screen.
 
 The **Map data** GitHub Action runs these steps (Mapillary only when the
 `MAPILLARY_TOKEN` repository secret is set, Freesound only with
-`FREESOUND_TOKEN`) and commits the result whenever
-the map scripts change, and can be run by hand from the Actions tab.
+`FREESOUND_TOKEN`) when run by hand from the Actions tab, and uploads the
+result to the server (see below).
 
 Map data © OpenStreetMap contributors, available under the
 [Open Database License](https://www.openstreetmap.org/copyright).
@@ -212,26 +216,57 @@ with `?at=1112.2,1039.1,11.73`.
 The game runs as one Cloudflare Worker (`wrangler.toml`, `worker/index.ts`):
 
 - The site itself is the Worker's static assets (`dist/`).
-- `/tiles/<area>/…` serves the map tiles from the R2 bucket `japango-tiles`.
-  Tiles are fetched with the build time in `?v=`, so the CDN can cache
-  each version for good. Before the first upload, the copy built into the
-  site is served instead.
+- `/tiles/`, `/dict/`, `/talk/`, `/life/`, `/trains/`, `/sounds/`, `/data/`
+  and `/index/` serve the generated data from the R2 bucket `japango-tiles`
+  (see below). Tiles are fetched with the build time in `?v=`, so the CDN
+  can cache each version for good.
 - `/api/progress` keeps each player's found places and stamps in the D1
   database `japango` (`migrations/`). Players are anonymous, identified by a
   random id their browser keeps. The browser keeps its own copy too, so the
   game works the same without the API.
 
-The **Deploy** Action runs on every push to `main` and after each Map data
-run. It creates the database and bucket if needed (`scripts/cf-setup.mjs`),
-uploads the tiles and a snapshot of the raw source data to R2
-(`scripts/upload-r2.mjs`), applies database migrations, and deploys. It
-needs the `CLOUDFLARE_API_TOKEN` (Workers, R2 and D1 edit rights) and
-`CLOUDFLARE_ACCOUNT_ID` repository secrets.
+The **Deploy** Action runs on every push to `main`. It creates the database
+and bucket if needed (`scripts/cf-setup.mjs`), applies database migrations,
+and deploys the site and API. It needs the `CLOUDFLARE_API_TOKEN` (Workers,
+R2 and D1 edit rights) and `CLOUDFLARE_ACCOUNT_ID` repository secrets.
 
-Map data is refreshed only on demand: run the Map data Action by hand. On
-main, Deploy then uploads the new tiles to R2. A plain code deploy skips the
-tile upload unless the push changed `public/tiles/`; tick "Upload map
-tiles" when running Deploy by hand to force it.
+### Where the data lives
+
+Git holds the code, the scripts and what people write by hand: `areas/`
+(each map area's frame), `data/places/` (places added by hand) and the
+interiors in `src/game/interiors/`. Everything the scripts make lives only
+on the server, in R2, at the same path the game asks for:
+
+| Set | Files | Made by |
+| --- | --- | --- |
+| `sources` | `data/<area>.*.json`: raw downloads and the built map | Map data Action |
+| `tiles` | `public/tiles/<area>/` | Map data Action |
+| `dict` | `public/dict/<area>.*` | Map data and Conversations Actions |
+| `talk` | `public/talk/<area>.json` and its audio | Conversations Action |
+| `life` | `data/life/<area>/`, `public/life/<area>/` | Life Action |
+| `trains` | `public/trains/<area>.json` | Train timetables Action |
+| `sounds` | `public/sounds/` (all areas) | Map data Action, when asked |
+
+Each Action pulls what it builds on, runs, and pushes its sets; the game
+sees the result as soon as the upload finishes, with no deploy. Nothing is
+refreshed on a schedule. `scripts/data.mjs` does the moving, with an index
+per set in R2 (`index/<set>.json`) so only changed files go up or down:
+
+- `bun run data:pull` downloads every set from the live site into this
+  folder (no sign-in needed), to run the scripts locally or play offline.
+  `bun run data:pull tiles dict` pulls just those. `AREA=<id>` picks the area.
+- `bun run data:status` lists what differs between here and the server.
+- `bun run data:push tiles` uploads a set you built locally. It needs
+  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; add `--local` to fill
+  wrangler's local R2 for `bun run cf:dev` instead.
+- `bun run dev` serves files from `public/` when they're there and fetches
+  the rest from the live site. `JAPANGO_DATA_URL` points it (and pull) at
+  another site; `JAPANGO_DATA_URL=off bun run dev` uses only local files.
+
+A new generator writes its output under `public/<kind>/<area>…` (or
+`data/…` for files only scripts read), adds a set to `SETS` in
+`scripts/data.mjs` and the folder to the Worker's list, and ends its
+workflow with `bun scripts/data.mjs push <set>` instead of a commit.
 
 Run it all locally with `bun run cf:dev`, which uses wrangler's local D1
 and R2.

@@ -1,26 +1,21 @@
-# Builds the game and deploys it as a Cloudflare Worker: the site, the API
-# with its D1 database and, when they changed, the map tiles in R2. Runs on
-# every push to main. Tiles are uploaded only after a Map data run, when a
-# push changed public/tiles/, or when asked for by hand ("Run workflow" with
-# "Upload map tiles" ticked). Does nothing until the CLOUDFLARE_API_TOKEN
-# and CLOUDFLARE_ACCOUNT_ID repository secrets are set.
+# Builds the game and deploys it as a Cloudflare Worker: the site and the
+# API with its D1 database. Runs on every push to main. The game's generated
+# data (map tiles, dictionary, conversations, ...) isn't part of this: the
+# workflows that make it upload it to R2 themselves (scripts/data.mjs).
+# Does nothing until the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
+# repository secrets are set.
 name: Deploy
 
 on:
   push:
     branches: [main]
-  # The Map data workflow's own commits don't start workflows, so deploy
-  # after it finishes on main too.
+  # The Map data workflow's own commits (new areas) don't start workflows,
+  # so deploy after it finishes on main too.
   workflow_run:
-    workflows: [Map data, Conversations, Train timetables]
+    workflows: [Map data, Conversations]
     types: [completed]
     branches: [main]
   workflow_dispatch:
-    inputs:
-      upload_tiles:
-        description: Upload map tiles to R2
-        type: boolean
-        default: false
 
 concurrency:
   group: deploy
@@ -52,26 +47,22 @@ jobs:
       - name: Make sure the D1 database and R2 bucket exist
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
         run: bun scripts/cf-setup.mjs
-      - name: Did the map tiles change?
-        id: tiles
+      - name: Move the data that used to be in git to R2 (once)
+        # Until this change, generated data was committed. If R2 doesn't
+        # have it yet, upload it from the last commit that still had it.
+        # Sets already in R2 are left alone, so this is quick after the
+        # first run.
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
-        env:
-          EVENT: ${{ github.event_name }}
-          FROM_WORKFLOW: ${{ github.event.workflow_run.name }}
-          ASKED: ${{ inputs.upload_tiles }}
-          BEFORE: ${{ github.event.before }}
         run: |
-          up=false
-          if [ "$EVENT" = workflow_run ] && [ "$FROM_WORKFLOW" = "Map data" ]; then up=true; fi
-          if [ "$EVENT" = workflow_dispatch ] && [ "$ASKED" = true ]; then up=true; fi
-          if [ "$EVENT" = push ]; then
-            if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null || git diff --name-only "$BEFORE" HEAD -- public/tiles | grep -q .; then up=true; fi
-          fi
-          echo "upload=$up" >> "$GITHUB_OUTPUT"
-          echo "Upload tiles: $up"
-      - name: Upload map tiles to R2
-        if: ${{ steps.tiles.outputs.upload == 'true' }}
-        run: for f in areas/*.json; do AREA=$(basename "$f" .json) bun scripts/upload-r2.mjs; done
+          [ ! -e public/tiles/roppongi/manifest.json ] || { echo "Data is still in git."; exit 0; }
+          # The commit (on main) that took it out; its first parent still had it.
+          gone=$(git log -1 --first-parent --format=%H -- public/tiles/roppongi/manifest.json)
+          [ -n "$gone" ] || { echo "Nothing to move."; exit 0; }
+          git worktree add -q --detach "$RUNNER_TEMP/old" "$gone^"
+          for f in "$RUNNER_TEMP"/old/areas/*.json; do
+            AREA=$(basename "$f" .json) bun scripts/data.mjs seed --root "$RUNNER_TEMP/old"
+          done
+          git worktree remove --force "$RUNNER_TEMP/old"
       - name: Update the database
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
         run: bunx wrangler d1 migrations apply japango --remote

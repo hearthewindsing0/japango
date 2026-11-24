@@ -1,7 +1,6 @@
 # Builds the train timetables (public/trains/<area>.json) from the operators'
 # static GTFS feeds and uploads them to the server (R2, the "trains" set of
-# scripts/data.mjs; the Worker serves /trains/ from there). Before that
-# script exists on the branch, it commits them instead. Timetables change a few times a year
+# scripts/data.mjs; the Worker serves /trains/ from there). Timetables change a few times a year
 # (ダイヤ改正), so this only runs by hand (Actions tab → Train timetables →
 # "Run workflow") and when its own script changes on main.
 #
@@ -20,7 +19,7 @@ on:
       - .github/workflows/trains.yml
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: trains-${{ github.ref }}
@@ -42,20 +41,6 @@ jobs:
           ODPT_TOKEN: ${{ secrets.ODPT_TOKEN }}
         run: bun scripts/trains/build-timetables.mjs
       - name: Upload to the server
-        if: hashFiles('scripts/data.mjs') != ''
         run: |
           bun install --frozen-lockfile
           bun scripts/data.mjs push trains
-      - name: Commit (only before scripts/data.mjs)
-        if: hashFiles('scripts/data.mjs') == ''
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A public/trains
-          if git diff --cached --quiet; then
-            echo "Timetables unchanged."
-          else
-            git commit -m "Update train timetables"
-            git pull --rebase
-            git push
-          fi
