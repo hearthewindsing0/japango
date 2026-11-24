@@ -11,7 +11,9 @@
       "osmType": "node",
       "model": "src/game/Almond.tsx",
       "note": "The pink café on the corner of Roppongi Crossing, the neighborhood's classic meeting point (アマンド前で待ち合わせ).",
-      "sources": ["https://ja.wikipedia.org/wiki/アマンド"]
+      "sources": [
+        "https://ja.wikipedia.org/wiki/アマンド"
+      ]
     },
     {
       "id": "maman",
@@ -38,7 +40,25 @@
       "osmType": "way",
       "model": "src/game/landmarks/MoriTower.tsx",
       "note": "54-floor, 238 m office tower at the heart of Roppongi Hills (2003). Tokyo City View and the Mori Art Museum are in the glass crown at the top.",
-      "sources": ["https://en.wikipedia.org/wiki/Roppongi_Hills"]
+      "sources": [
+        "https://en.wikipedia.org/wiki/Roppongi_Hills"
+      ]
+    },
+    {
+      "id": "don-quijote",
+      "ja": "ドン・キホーテ六本木店",
+      "en": "Don Quijote Roppongi",
+      "life": "shop",
+      "osm": 3722750748,
+      "osmType": "node",
+      "model": "src/game/landmarks/DonQuijote.tsx",
+      "interior": "src/game/interiors/donki.ts",
+      "note": "The 8-storey Don Quijote (ドンキ) on Gaien-Higashi-dori, open 24 hours, with fish tanks by the entrance and the half-pipe roller coaster on the roof that never ran (built 2005-06, neighbours objected to the noise). You can walk into the ground floor.",
+      "sources": [
+        "https://tokyocheapo.com/place/donki-roppong",
+        "https://rcdb.com/5891.htm",
+        "https://muza-chan.net/japan/index.php/blog/half-pipe-don-quijote-roppongi"
+      ]
     }
   ]
 }

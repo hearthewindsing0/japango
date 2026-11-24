@@ -5,6 +5,7 @@
 // you can't walk through (see station.ts).
 import type { StationFloor, StationRamp, StationSign } from './station'
 import { antnbeeLayout, ANTNBEE } from './interiors/antnbee'
+import { donkiLayout, DONKI } from './interiors/donki'
 
 /** Where a place's front door is, from the map build. */
 export interface InteriorPlace {
@@ -19,6 +20,10 @@ export interface InteriorPlace {
   uy: number
   /** Length of the building's front. */
   front: number
+  /** A ground-floor room worked out from the building's outline (landmarks
+   *  found in the game, not the map build): its extent along the front and
+   *  how deep it goes, in meters from the door. */
+  room?: { a0: number; a1: number; depth: number }
 }
 
 /** Furniture and counters you bump into: boxes like gate cabinets. */
@@ -41,19 +46,33 @@ export interface InteriorLayout {
   signs: StationSign[]
 }
 
-export interface Interior extends InteriorLayout {
-  id: string
+/** What the HUD says about a place. */
+export interface InteriorInfo {
   name: string
   nameEn: string
   kind: string
   kindEn: string
   floor: string
+  /** Short floor chip (B1, 1F) and the floor in English. */
+  chip: string
+  floorEn: string
+  /** The sign by the door, and how to go in. */
+  door: { t: string; en: string; n: string }
+  enter: string
+}
+
+export interface Interior extends InteriorLayout, InteriorInfo {
+  id: string
   place: InteriorPlace
 }
 
 /** The places the game knows how to lay out, by id. */
-const KNOWN: Record<string, { layout: (p: InteriorPlace) => InteriorLayout; info: { name: string; nameEn: string; kind: string; kindEn: string; floor: string } }> = {
-  antnbee: { layout: antnbeeLayout, info: ANTNBEE },
+const KNOWN: Record<string, { layout: (p: InteriorPlace) => InteriorLayout; info: InteriorInfo }> = {
+  antnbee: {
+    layout: antnbeeLayout,
+    info: { ...ANTNBEE, chip: 'B1', floorEn: 'basement 1', door: ANTNBEE.signs.street, enter: 'Walk down the stairs to go in.' },
+  },
+  donki: { layout: donkiLayout, info: DONKI },
 }
 
 export function buildInteriors(places: InteriorPlace[] | undefined): Interior[] {
@@ -61,8 +80,8 @@ export function buildInteriors(places: InteriorPlace[] | undefined): Interior[] 
   for (const place of places ?? []) {
     const k = KNOWN[place.id]
     if (!k) continue
-    const { name, nameEn, kind, kindEn, floor } = k.info
-    out.push({ id: place.id, name, nameEn, kind, kindEn, floor, place, ...k.layout(place) })
+    const { name, nameEn, kind, kindEn, floor, chip, floorEn, door, enter } = k.info
+    out.push({ id: place.id, name, nameEn, kind, kindEn, floor, chip, floorEn, door, enter, place, ...k.layout(place) })
   }
   return out
 }

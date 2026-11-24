@@ -21,10 +21,11 @@ import { useProgressSync } from './game/progress'
 import { Underground, type Station } from './game/station'
 import { Stations, boardRows } from './game/Stations'
 import { useTimetable, type Timetable } from './game/trains'
-import { buildInteriors } from './game/interior'
+import { buildInteriors, type InteriorPlace } from './game/interior'
+import { donkiDoor } from './game/landmarks/DonQuijote'
 import { Interiors, type Glass } from './game/Interiors'
 import { BarMenu } from './game/BarMenu'
-import { ANTNBEE, ORDER_SPOT, toLocal } from './game/interiors/antnbee'
+import { ORDER_SPOT, toLocal } from './game/interiors/antnbee'
 import { Talkers } from './game/Talkers'
 import { LifePeople } from './game/LifePeople'
 import { loadLife, useApproachable, useLifeTalk, type Life } from './game/life'
@@ -48,6 +49,8 @@ export default function App() {
     return d >= MIN_DIST && d <= MAX_DIST ? d : 32
   })
   const focus = useRef<Focus>({ x: 0, y: 0 })
+  // In development, expose where you are for testing (screenshots, scripts).
+  if (import.meta.env.DEV) (window as unknown as { __focus: typeof focus }).__focus = focus
   // For poking at the player from the console while developing.
   if (import.meta.env.DEV) (window as unknown as { japango: unknown }).japango = { focus }
   const [bigMap, setBigMap] = useState(false)
@@ -309,10 +312,17 @@ export default function App() {
   const month = tokyoMonth(now)
   const holiday = isHoliday(now)
   const when = useMemo(() => ({ month, holiday, hour }), [month, holiday, hour])
+  // Walk-in landmarks found in the loaded tiles (not the map build), such
+  // as Don Quijote's ground floor. Kept as a string so the underground is
+  // only rebuilt when one appears or changes.
+  const landmarkDoors = useMemo(() => {
+    const d = donkiDoor(map, tiles)
+    return d ? JSON.stringify([d]) : '[]'
+  }, [map, tiles])
   const ug = useMemo(() => {
-    const interiors = buildInteriors(map?.interiors)
+    const interiors = buildInteriors([...(map?.interiors ?? []), ...(JSON.parse(landmarkDoors) as InteriorPlace[])])
     return map?.stations?.length || interiors.length ? new Underground(map?.stations ?? [], interiors) : null
-  }, [map])
+  }, [map, landmarkDoors])
   useAmbience({ map, focus, under, when, night: sky.night, rain: sky.rain, muted, credits: soundCredits })
   const spotCaption = useTalk({ map, talk, focus, hour, rain: sky.rain, muted })
   // A group meeting nearby, when no talking spot is.
@@ -351,7 +361,7 @@ export default function App() {
   const inside = under && ug ? ug.interiorAt(pos.x, pos.y, z) : null
   const station = under && ug && !inside ? ug.stationAt(pos.x, pos.y, z) : null
   // Local spot in the bar, to tell if you're at the counter.
-  const barAt = inside ? toLocal(inside.place, pos.x, pos.y) : null
+  const barAt = inside?.id === 'antnbee' ? toLocal(inside.place, pos.x, pos.y) : null
   const atCounter = !!barAt && barAt[0] < ORDER_SPOT.a && barAt[1] > ORDER_SPOT.b0 && barAt[1] < ORDER_SPOT.b1
   // On the street, right by a walk-in place's door.
   const door = !under && ug ? ug.interiors.find((it) => Math.hypot(it.place.x - pos.x, it.place.y - pos.y) < 7) : null
@@ -477,11 +487,11 @@ export default function App() {
             {inside && (
               <div className="mt-1 flex flex-wrap items-center gap-x-1.5 border-t border-paper/15 pt-1">
                 <Chip color="var(--color-kin)">
-                  B1
+                  {inside.chip}
                 </Chip>
                 {ja(inside.name)} {ja(inside.kind)}
                 <span className="text-[0.85em] text-paper-dim">
-                  {inside.nameEn}, {inside.kindEn} ({inside.floor}, basement 1)
+                  {inside.nameEn}, {inside.kindEn} ({inside.floor}, {inside.floorEn})
                 </span>
               </div>
             )}
@@ -584,9 +594,9 @@ export default function App() {
             <SignCard
               className="pointer-events-auto w-[min(26rem,100%)]"
               kind="door"
-              title={[...seg(door.name), [' '], ...seg(ANTNBEE.signs.street.t)]}
-              english={`${door.nameEn}: ${ANTNBEE.signs.street.en}. Walk down the stairs to go in.`}
-              note={ANTNBEE.signs.street.n}
+              title={[...seg(door.name), [' '], ...seg(door.door.t)]}
+              english={`${door.nameEn}: ${door.door.en}. ${door.enter}`}
+              note={door.door.n}
               furigana={furigana}
               onWord={tap}
             />
@@ -605,7 +615,7 @@ export default function App() {
           )}
         </div>
 
-        {inside && (
+        {inside?.id === 'antnbee' && (
           <BarMenu
             open={barOpen}
             onOpenChange={setBarOpen}
