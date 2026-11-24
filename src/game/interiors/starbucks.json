@@ -1,0 +1,45 @@
+{
+  "id": "starbucks",
+  "name": "スターバックス コーヒー 東京ミッドタウン店",
+  "nameEn": "Starbucks Coffee Tokyo Midtown",
+  "kind": "カフェ",
+  "kindEn": "café",
+  "floor": "プラザ 1階",
+  "floorEn": "Plaza, ground floor",
+  "chip": "1F",
+  "address": "東京都港区赤坂9-7-3 東京ミッドタウン プラザ 1F",
+  "door": {
+    "t": "スターバックス コーヒー",
+    "en": "Starbucks Coffee",
+    "n": "Everyone shortens it to スタバ. This one is on the ground floor of Midtown's Plaza, under the big glass canopy, with seats out on the plaza (テラス席)."
+  },
+  "enter": "Walk in through the glass doors.",
+  "signs": {
+    "order": { "t": "ご注文", "en": "Order here", "n": "ご注文 (ごちゅうもん) is the polite word for an order. You'll hear 店内でお召し上がりですか？ (てんないでおめしあがりですか, for here?). Answer 店内で (here) or 持ち帰りで (もちかえりで, to go)." },
+    "pickup": { "t": "お受け取り", "en": "Pick-up", "n": "受け取る (うけとる) means to receive. Drinks come out here, and the barista calls them out, like ホットのトールラテのお客様 (the customer with the hot tall latte)." },
+    "menu": { "t": "メニュー", "en": "Menu", "n": "Most drinks are katakana: コーヒー, ラテ, カプチーノ, フラペチーノ, 抹茶ティーラテ (まっちゃ, green tea). ホット is hot and アイス is iced." },
+    "sizes": { "t": "サイズ", "en": "Sizes", "n": "ショート, トール, グランデ, ベンティ (Short, Tall, Grande, Venti). Order with で: 抹茶ティーラテをトールでください (a tall matcha latte, please)." },
+    "coffee": { "t": "本日のコーヒー", "en": "Coffee of the day", "n": "本日 (ほんじつ) is a formal word for today (今日, きょう). ドリップコーヒー is drip coffee, and おかわり is a refill." },
+    "food": { "t": "フード", "en": "Food", "n": "Pastries and sandwiches are in the case. The staff may ask 温めますか？ (あたためますか, shall I warm it up?). Say はい、お願いします for yes, please." },
+    "condiment": { "t": "ミルク・シュガー", "en": "Milk and sugar", "n": "At the condiment bar: ミルク (milk), シュガー or 砂糖 (さとう, sugar), はちみつ (honey) and マドラー (a stirrer)." },
+    "seats": { "t": "お席", "en": "Seats", "n": "席 (せき) is a seat. To ask whether one is free, say ここ、空いてますか？ (あいてますか). 満席 (まんせき) means every seat is taken." },
+    "terrace": { "t": "テラス席", "en": "Terrace seats", "n": "テラス席 (テラスせき) are the outdoor seats on the plaza. 外 (そと) is outside and 中 (なか) is inside." },
+    "exit": { "t": "出口", "en": "Exit", "n": "出口 (でぐち) is exit and 入口 (いりぐち) is entrance: 出る (でる) to go out, 入る (はいる) to go in." }
+  },
+  "menu": [
+    ["本日のコーヒー", "Coffee of the day"],
+    ["カフェ ラテ", "Caffè latte"],
+    ["カプチーノ", "Cappuccino"],
+    ["キャラメル マキアート", "Caramel macchiato"],
+    ["抹茶 ティー ラテ", "Matcha tea latte"],
+    ["フラペチーノ", "Frappuccino"],
+    ["アイス コーヒー", "Iced coffee"],
+    ["ティー", "Tea"]
+  ],
+  "sizes": ["ショート", "トール", "グランデ", "ベンティ"],
+  "sources": [
+    "https://www.timeout.jp/tokyo/ja/レストラン/スターバックスコーヒー-東京ミッドタウン-コンプレックス-スタジオ店",
+    "https://www.som.com/projects/tokyo-midtown/",
+    "https://www.architecturalrecord.com/articles/8062-tokyo-midtown"
+  ]
+}

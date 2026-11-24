@@ -126,7 +126,7 @@ function paintCrown() {
 }
 
 /** Painted panels around a ring, from y0 to y1, `out` meters off the walls. */
-function band(ring: Ring, y0: number, y1: number, out: number, uScale: number, vScale: number, vOffset = 0) {
+export function band(ring: Ring, y0: number, y1: number, out: number, uScale: number, vScale: number, vOffset = 0) {
   const ccw = ringArea(ring) > 0
   const pos: number[] = []
   const uv: number[] = []
@@ -158,7 +158,7 @@ function band(ring: Ring, y0: number, y1: number, out: number, uScale: number, v
 }
 
 /** Pushes a ring outward by `d` meters (simple offset along vertex normals). */
-function grow(ring: Ring, d: number): Ring {
+export function grow(ring: Ring, d: number): Ring {
   const ccw = ringArea(ring) > 0
   const n = ring.length
   return ring.map(([x, y], i) => {
@@ -178,7 +178,7 @@ function grow(ring: Ring, d: number): Ring {
   })
 }
 
-function roofGeometry(ring: Ring, y: number) {
+export function roofGeometry(ring: Ring, y: number) {
   const shape = new THREE.Shape(ring.map(([x, z]) => new THREE.Vector2(x, -z)))
   const geo = new THREE.ShapeGeometry(shape)
   geo.rotateX(-Math.PI / 2)

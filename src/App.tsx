@@ -24,6 +24,7 @@ import { useTimetable, type Timetable } from './game/trains'
 import { buildInteriors, type InteriorPlace } from './game/interior'
 import { donkiDoor } from './game/landmarks/DonQuijote'
 import { nactDoor } from './game/landmarks/Nact'
+import { starbucksDoor } from './game/landmarks/Midtown'
 import { Interiors, type Glass } from './game/Interiors'
 import { BarMenu } from './game/BarMenu'
 import { ORDER_SPOT, toLocal } from './game/interiors/antnbee'
@@ -317,7 +318,7 @@ export default function App() {
   // as Don Quijote's ground floor. Kept as a string so the underground is
   // only rebuilt when one appears or changes.
   const landmarkDoors = useMemo(() => {
-    return JSON.stringify([donkiDoor(map, tiles), nactDoor(map, tiles)].filter(Boolean))
+    return JSON.stringify([donkiDoor(map, tiles), nactDoor(map, tiles), starbucksDoor(map, tiles)].filter(Boolean))
   }, [map, tiles])
   const ug = useMemo(() => {
     const interiors = buildInteriors([...(map?.interiors ?? []), ...(JSON.parse(landmarkDoors) as InteriorPlace[])])
