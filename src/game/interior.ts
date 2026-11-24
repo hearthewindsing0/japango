@@ -6,6 +6,7 @@
 import type { StationFloor, StationRamp, StationSign } from './station'
 import { antnbeeLayout, ANTNBEE } from './interiors/antnbee'
 import { donkiLayout, DONKI } from './interiors/donki'
+import { nactLayout, NACT } from './interiors/nact'
 
 /** Where a place's front door is, from the map build. */
 export interface InteriorPlace {
@@ -24,6 +25,12 @@ export interface InteriorPlace {
    *  found in the game, not the map build): its extent along the front and
    *  how deep it goes, in meters from the door. */
   room?: { a0: number; a1: number; depth: number }
+  /** Or a free-form floor in map meters (flat x, y list), with named spots
+   *  in it (map meters), for rooms that follow a curved wall. */
+  poly?: number[]
+  /** The first this many edges of `poly` are glass (the rest solid wall). */
+  glass?: number
+  spots?: Record<string, [number, number]>
 }
 
 /** Furniture and counters you bump into: boxes like gate cabinets. */
@@ -73,6 +80,7 @@ const KNOWN: Record<string, { layout: (p: InteriorPlace) => InteriorLayout; info
     info: { ...ANTNBEE, chip: 'B1', floorEn: 'basement 1', door: ANTNBEE.signs.street, enter: 'Walk down the stairs to go in.' },
   },
   donki: { layout: donkiLayout, info: DONKI },
+  nact: { layout: nactLayout, info: NACT },
 }
 
 export function buildInteriors(places: InteriorPlace[] | undefined): Interior[] {

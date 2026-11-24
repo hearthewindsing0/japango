@@ -2,6 +2,7 @@ import { Almond } from './Almond'
 import { DonQuijote } from './landmarks/DonQuijote'
 import { Maman } from './landmarks/Maman'
 import { MoriTower } from './landmarks/MoriTower'
+import { Nact } from './landmarks/Nact'
 import type { GameMap, MapTile } from './map'
 import type { Focus } from './World'
 
@@ -15,6 +16,7 @@ export function Landmarks(props: { map: GameMap; tiles: MapTile[]; focus: React.
       <Maman {...props} />
       <MoriTower {...props} />
       <DonQuijote {...props} />
+      <Nact {...props} />
     </>
   )
 }

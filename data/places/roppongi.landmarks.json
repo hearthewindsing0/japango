@@ -59,6 +59,22 @@
         "https://rcdb.com/5891.htm",
         "https://muza-chan.net/japan/index.php/blog/half-pipe-don-quijote-roppongi"
       ]
+    },
+    {
+      "id": "national-art-center",
+      "ja": "国立新美術館",
+      "en": "The National Art Center, Tokyo",
+      "life": "sight",
+      "meet": true,
+      "osm": 136048451,
+      "osmType": "way",
+      "model": "src/game/landmarks/Nact.tsx",
+      "interior": "src/game/interiors/nact.ts",
+      "note": "Kisho Kurokawa's museum (2007) behind the great undulating glass wall. Inside the glass is a tall atrium with two inverted concrete cones: Brasserie Paul Bocuse Le Musée sits on top of the big one, the Salon de Thé Rond on the small one. No permanent collection; it hosts big touring shows. You can walk into the atrium.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/National_Art_Center,_Tokyo",
+        "https://www.nact.jp/english/"
+      ]
     }
   ]
 }
