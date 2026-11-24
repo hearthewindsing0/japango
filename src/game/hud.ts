@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react'
 // readable.
 
 const KEY = 'japango.hudSize'
-export const HUD_SIZES = [1, 1.5, 2, 3, 4]
+export const HUD_SIZES = [1, 1.25, 1.5, 2, 3, 4]
 
 /** Current overall HUD scale, for code that converts screen coordinates. */
 export let hudScale = 1
@@ -29,8 +29,10 @@ function loadSize() {
   } catch {
     // ignore
   }
-  // Bigger by default on big screens.
-  return window.innerWidth >= 900 ? 2 : 1
+  // By default, the biggest size that still leaves the HUD room to lay out
+  // like a laptop screen (at least 600×560), so boxes don't pile up.
+  const fits = HUD_SIZES.filter((s) => window.innerWidth / s >= 600 && window.innerHeight / s >= 560)
+  return fits.length ? fits[fits.length - 1] : 1
 }
 
 export function useHudScale() {
@@ -52,8 +54,9 @@ export function useHudScale() {
       // ignore
     }
   }, [size])
-  // Never so big that the HUD's own layout gets narrower than a phone.
-  const scale = Math.max(0.5, Math.min((size / zoom), win.w / 380, win.h / 380))
+  // Never so big that the HUD's own layout gets smaller than a phone
+  // (narrower than 380, or shorter than 460, where boxes start to overlap).
+  const scale = Math.max(0.5, Math.min(size / zoom, win.w / 380, win.h / 460))
   hudScale = scale
   const step = (dir: 1 | -1) =>
     setSize((s) => HUD_SIZES[Math.max(0, Math.min(HUD_SIZES.length - 1, HUD_SIZES.indexOf(s) + dir))] ?? s)
