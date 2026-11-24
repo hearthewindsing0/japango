@@ -1,0 +1,41 @@
+{
+  "id": "donki",
+  "name": "ドン・キホーテ六本木店",
+  "nameEn": "Don Quijote Roppongi",
+  "kind": "ディスカウントストア",
+  "kindEn": "discount store",
+  "floor": "1階",
+  "floorEn": "ground floor",
+  "chip": "1F",
+  "address": "東京都港区六本木3-14-10",
+  "hours": "24時間営業",
+  "hoursEn": "Open 24 hours (as listed for this store; check before you go)",
+  "door": {
+    "t": "驚安の殿堂 ドン・キホーテ",
+    "en": "The Palace of Amazing Bargains, Don Quijote",
+    "n": "驚安 (きょうやす) is Don Quijote's own word: 驚く (おどろく, to be amazed) + 安い (やすい, cheap). 殿堂 (でんどう) is a palace or hall. Everyone calls the chain ドンキ."
+  },
+  "enter": "Walk in through the front doors.",
+  "signs": {
+    "sweets": { "t": "お菓子", "en": "Sweets and snacks", "n": "お菓子 (おかし) covers sweets, snacks and crisps. The aisle by the door is full of Kit Kat flavors you only find in Japan." },
+    "souvenirs": { "t": "お土産", "en": "Souvenirs", "n": "お土産 (おみやげ) are gifts you bring back from a trip: snacks, chopsticks, character goods. 人気 (にんき) means popular." },
+    "cosmetics": { "t": "化粧品", "en": "Cosmetics", "n": "化粧品 (けしょうひん): make-up and skin care. 日焼け止め (ひやけどめ) is sunscreen, 美容 (びよう) is beauty." },
+    "medicine": { "t": "医薬品", "en": "Medicine", "n": "医薬品 (いやくひん) is medicine; 薬 (くすり) on its own is the everyday word. 風邪薬 (かぜぐすり) is cold medicine." },
+    "daily": { "t": "日用品", "en": "Everyday goods", "n": "日用品 (にちようひん): things you use every day, like toothbrushes, tissues and detergent." },
+    "drinks": { "t": "お酒・飲料", "en": "Alcohol and drinks", "n": "お酒 (おさけ) means alcohol in general (and sake). 飲料 (いんりょう) is drinks; 飲み物 (のみもの) in everyday speech." },
+    "party": { "t": "パーティーグッズ", "en": "Party goods", "n": "Costumes and party goods: Roppongi's Donki is famous for Halloween costumes. コスプレ is cosplay." },
+    "register": { "t": "レジ", "en": "Checkout", "n": "レジ (from register) is the checkout. 袋はご利用ですか？ (ふくろはごりようですか): do you need a bag? 大丈夫です means no thanks." },
+    "taxfree": { "t": "免税カウンター", "en": "Tax-free counter", "n": "免税 (めんぜい) means tax-free: visitors with a passport can skip the consumption tax (消費税, しょうひぜい) on purchases over ¥5,000." },
+    "exit": { "t": "出口", "en": "Exit", "n": "出口 (でぐち) is exit and 入口 (いりぐち) is entrance: 出る (でる) to go out, 入る (はいる) to go in, 口 (くち) mouth." },
+    "escalator": { "t": "上りエスカレーター", "en": "Up escalator", "n": "上り (のぼり) is up and 下り (くだり) is down. The upper floors are closed for now: only the ground floor is in the game." },
+    "pop": { "t": "驚安！", "en": "Amazingly cheap!", "n": "The handwritten yellow price cards are called POP (ポップ). 大特価 (だいとっか) is a big sale price, 数量限定 (すうりょうげんてい) means while stocks last." }
+  },
+  "pops": ["驚安", "大特価", "数量限定", "期間限定", "新商品", "人気No.1", "激安", "お買い得"],
+  "prices": ["¥98", "¥128", "¥198", "¥298", "¥398", "¥498", "¥980", "¥1,980"],
+  "sources": [
+    "https://tokyocheapo.com/place/donki-roppong",
+    "https://ja.wikipedia.org/wiki/ドン・キホーテ_(企業)",
+    "https://muza-chan.net/japan/index.php/blog/half-pipe-don-quijote-roppongi",
+    "https://rcdb.com/5891.htm"
+  ]
+}

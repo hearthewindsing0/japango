@@ -3,7 +3,8 @@ import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { buildingBase } from './geometry'
 import { groundAt, tileGroundAt, type GameMap, type MapTile } from './map'
-import { seeThroughGlsl, seeThroughUniforms } from './seeThrough'
+import { seeThroughUniforms } from './seeThrough'
+import { inside, ringOf, segDist, seeThrough, texture } from './landmarks/common'
 import type { Focus } from './World'
 
 // ALMOND (アマンド), the pink café on the corner of Roppongi Crossing and the
@@ -28,33 +29,6 @@ const PINK_DEEP = '#b81d5c'
 const STONE = '#c2bfb9'
 const MULLION = '#d9dadc'
 const SERIF = 'Didot, "Bodoni 72", Georgia, "Times New Roman", serif'
-
-type Ring = [number, number][]
-
-const ringOf = (p: number[]): Ring => {
-  const r: Ring = []
-  for (let i = 0; i + 1 < p.length; i += 2) r.push([p[i], p[i + 1]])
-  const [a, b] = [r[0], r[r.length - 1]]
-  if (r.length > 1 && a[0] === b[0] && a[1] === b[1]) r.pop()
-  return r
-}
-
-function inside(r: Ring, x: number, y: number) {
-  let hit = false
-  for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
-    const [xi, yi] = r[i]
-    const [xj, yj] = r[j]
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit
-  }
-  return hit
-}
-
-const segDist = (x: number, y: number, ax: number, ay: number, bx: number, by: number) => {
-  const dx = bx - ax
-  const dy = by - ay
-  const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1e-9)))
-  return Math.hypot(ax + t * dx - x, ay + t * dy - y)
-}
 
 /** One wall of the building that faces the street. */
 interface Face {
@@ -417,27 +391,6 @@ function paintFlag() {
   c.fillText(NAME, w / 2, h * 0.62)
   c.fillRect(w * 0.2, h * 0.7, w * 0.6, 2)
   return cv
-}
-
-const texture = (cv: HTMLCanvasElement) => {
-  const t = new THREE.CanvasTexture(cv)
-  t.colorSpace = THREE.SRGBColorSpace
-  t.anisotropy = 4
-  return t
-}
-
-/** Adds the see-through hole to a material, as the other buildings have. */
-function seeThrough<M extends THREE.Material>(m: M, uniforms: ReturnType<typeof seeThroughUniforms>, base: number) {
-  m.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms)
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vWorld;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;')
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nuniform vec3 uPlayer; uniform vec3 uCam; varying vec3 vWorld;\nconst float vBase = ${base.toFixed(2)};`)
-      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${seeThroughGlsl()}`)
-  }
-  return m
 }
 
 interface Built {

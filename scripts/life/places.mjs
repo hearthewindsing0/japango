@@ -8,6 +8,7 @@
 // Writes public/life/<area>/places.json, which the day-plan generator picks
 // from and the game reads.
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { AREA, AREA_ID } from '../area.mjs'
 import { latLonToFrame } from '../geo.mjs'
 import { parseOpeningHours } from '../opening-hours.mjs'
@@ -141,6 +142,44 @@ for (const r of [...map.roads.filter((r) => !r.b), ...map.paths])
       x: door.x, y: door.y, door,
     })
   }
+
+// Landmarks modelled by hand in the game (data/places/<area>.landmarks.json):
+// each is a place people can go to, meet at, or work in. When OSM already
+// gave the same spot a place, that place is tagged (and keeps its id, which
+// older day plans use); otherwise the landmark gets one of its own.
+const landmarksFile = `data/places/${AREA_ID}.landmarks.json`
+if (existsSync(landmarksFile)) {
+  const { landmarks } = JSON.parse(await readFile(landmarksFile, 'utf8'))
+  const byOsm = new Map(osm.elements.map((e) => [`${e.type[0]}${e.id}`, e]))
+  for (const lm of landmarks) {
+    const ref = lm.osm ? `${(lm.osmType ?? 'node')[0]}${lm.osm}` : null
+    const el = ref ? byOsm.get(ref) : null
+    const ll = (el && where(el)) ?? (lm.lat != null ? [lm.lat, lm.lon] : null)
+    if (!ll) {
+      console.warn(`Landmark ${lm.id}: no position`)
+      continue
+    }
+    const tag = { landmark: lm.id, name: lm.ja, nameEn: lm.en, kind: lm.life, ...(lm.meet ? { meet: true } : {}) }
+    const old = ref ? places.find((p) => p.id.endsWith(`-${ref}`)) : null
+    if (old) {
+      Object.assign(old, tag)
+      continue
+    }
+    const [x, y] = latLonToFrame(AREA, ll[0], ll[1])
+    const p = { id: `landmark-${lm.id}`, ...tag }
+    const oh = el && parseOpeningHours(el.tags?.opening_hours)
+    if (oh) p.hours = oh
+    if (lm.door) {
+      const [dx, dy] = latLonToFrame(AREA, lm.door.lat, lm.door.lon)
+      const door = nearestCell(grid, dx, dy, paved, 40)
+      if (door && dx >= 2 && dy >= 2 && dx <= W - 2 && dy <= H - 2) {
+        places.push({ ...p, x: +x.toFixed(1), y: +y.toFixed(1), door: { x: door.x, y: door.y } })
+        continue
+      }
+    }
+    add(p, x, y)
+  }
+}
 
 const byKind = {}
 for (const p of places) byKind[p.kind] = (byKind[p.kind] ?? 0) + 1

@@ -21,10 +21,12 @@ import { useProgressSync } from './game/progress'
 import { Underground, type Station } from './game/station'
 import { Stations, boardRows } from './game/Stations'
 import { useTimetable, type Timetable } from './game/trains'
-import { buildInteriors } from './game/interior'
+import { buildInteriors, type InteriorPlace } from './game/interior'
+import { donkiDoor } from './game/landmarks/DonQuijote'
+import { nactDoor } from './game/landmarks/Nact'
 import { Interiors, type Glass } from './game/Interiors'
 import { BarMenu } from './game/BarMenu'
-import { ANTNBEE, ORDER_SPOT, toLocal } from './game/interiors/antnbee'
+import { ORDER_SPOT, toLocal } from './game/interiors/antnbee'
 import { Talkers } from './game/Talkers'
 import { LifePeople } from './game/LifePeople'
 import { loadLife, useApproachable, useLifeTalk, type Life } from './game/life'
@@ -42,8 +44,14 @@ export default function App() {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   // Down in a station (off the street).
   const [under, setUnder] = useState(false)
-  const [distance, setDistance] = useState(32)
+  // ?dist=m sets the camera distance (handy for screenshots).
+  const [distance, setDistance] = useState(() => {
+    const d = Number(new URLSearchParams(location.search).get('dist'))
+    return d >= MIN_DIST && d <= MAX_DIST ? d : 32
+  })
   const focus = useRef<Focus>({ x: 0, y: 0 })
+  // In development, expose where you are for testing (screenshots, scripts).
+  if (import.meta.env.DEV) (window as unknown as { __focus: typeof focus }).__focus = focus
   // For poking at the player from the console while developing.
   if (import.meta.env.DEV) (window as unknown as { japango: unknown }).japango = { focus }
   const [bigMap, setBigMap] = useState(false)
@@ -193,6 +201,9 @@ export default function App() {
         // round to the Roppongi-dori side so its storefront is the first
         // thing you see (Q/E or R turn it back to north-up).
         if (start === m.spawn && AREA_ID === 'roppongi') view.yaw = view.target = Math.PI
+        // ?yaw=degrees turns the camera (0 = north-up), for screenshots.
+        const yaw = Number(new URLSearchParams(location.search).get('yaw'))
+        if (Number.isFinite(yaw) && new URLSearchParams(location.search).has('yaw')) view.yaw = view.target = (yaw * Math.PI) / 180
         // ?at=x,y,z starts underground at height z (in a station).
         if (at?.length === 3 && Number.isFinite(at[2])) focus.current = { ...start, z: at[2], under: true }
         // The tiles around the start, before the player appears.
@@ -302,10 +313,16 @@ export default function App() {
   const month = tokyoMonth(now)
   const holiday = isHoliday(now)
   const when = useMemo(() => ({ month, holiday, hour }), [month, holiday, hour])
+  // Walk-in landmarks found in the loaded tiles (not the map build), such
+  // as Don Quijote's ground floor. Kept as a string so the underground is
+  // only rebuilt when one appears or changes.
+  const landmarkDoors = useMemo(() => {
+    return JSON.stringify([donkiDoor(map, tiles), nactDoor(map, tiles)].filter(Boolean))
+  }, [map, tiles])
   const ug = useMemo(() => {
-    const interiors = buildInteriors(map?.interiors)
+    const interiors = buildInteriors([...(map?.interiors ?? []), ...(JSON.parse(landmarkDoors) as InteriorPlace[])])
     return map?.stations?.length || interiors.length ? new Underground(map?.stations ?? [], interiors) : null
-  }, [map])
+  }, [map, landmarkDoors])
   useAmbience({ map, focus, under, when, night: sky.night, rain: sky.rain, muted, credits: soundCredits })
   const spotCaption = useTalk({ map, talk, focus, hour, rain: sky.rain, muted })
   // A group meeting nearby, when no talking spot is.
@@ -344,7 +361,7 @@ export default function App() {
   const inside = under && ug ? ug.interiorAt(pos.x, pos.y, z) : null
   const station = under && ug && !inside ? ug.stationAt(pos.x, pos.y, z) : null
   // Local spot in the bar, to tell if you're at the counter.
-  const barAt = inside ? toLocal(inside.place, pos.x, pos.y) : null
+  const barAt = inside?.id === 'antnbee' ? toLocal(inside.place, pos.x, pos.y) : null
   const atCounter = !!barAt && barAt[0] < ORDER_SPOT.a && barAt[1] > ORDER_SPOT.b0 && barAt[1] < ORDER_SPOT.b1
   // On the street, right by a walk-in place's door.
   const door = !under && ug ? ug.interiors.find((it) => Math.hypot(it.place.x - pos.x, it.place.y - pos.y) < 7) : null
@@ -470,11 +487,11 @@ export default function App() {
             {inside && (
               <div className="mt-1 flex flex-wrap items-center gap-x-1.5 border-t border-paper/15 pt-1">
                 <Chip color="var(--color-kin)">
-                  B1
+                  {inside.chip}
                 </Chip>
                 {ja(inside.name)} {ja(inside.kind)}
                 <span className="text-[0.85em] text-paper-dim">
-                  {inside.nameEn}, {inside.kindEn} ({inside.floor}, basement 1)
+                  {inside.nameEn}, {inside.kindEn} ({inside.floor}, {inside.floorEn})
                 </span>
               </div>
             )}
@@ -577,9 +594,9 @@ export default function App() {
             <SignCard
               className="pointer-events-auto w-[min(26rem,100%)]"
               kind="door"
-              title={[...seg(door.name), [' '], ...seg(ANTNBEE.signs.street.t)]}
-              english={`${door.nameEn}: ${ANTNBEE.signs.street.en}. Walk down the stairs to go in.`}
-              note={ANTNBEE.signs.street.n}
+              title={[...seg(door.name), [' '], ...seg(door.door.t)]}
+              english={`${door.nameEn}: ${door.door.en}. ${door.enter}`}
+              note={door.door.n}
               furigana={furigana}
               onWord={tap}
             />
@@ -598,7 +615,7 @@ export default function App() {
           )}
         </div>
 
-        {inside && (
+        {inside?.id === 'antnbee' && (
           <BarMenu
             open={barOpen}
             onOpenChange={setBarOpen}

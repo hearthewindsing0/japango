@@ -1,0 +1,35 @@
+{
+  "id": "nact",
+  "name": "国立新美術館",
+  "nameEn": "The National Art Center, Tokyo",
+  "kind": "美術館",
+  "kindEn": "art museum",
+  "floor": "1階 アトリウム",
+  "floorEn": "ground floor atrium",
+  "chip": "1F",
+  "hours": "10:00〜18:00 火曜日休館",
+  "hoursEn": "10 am to 6 pm, closed Tuesdays (check the exhibition)",
+  "door": {
+    "t": "国立新美術館 正面入口",
+    "en": "The National Art Center, Tokyo, main entrance",
+    "n": "美術館 (びじゅつかん) is an art museum: 美術 (art) + 館 (building, hall). 正面入口 (しょうめんいりぐち) is the main entrance. 新 (しん) means new."
+  },
+  "enter": "Walk in through the glass entrance.",
+  "signs": {
+    "ticket": { "t": "チケット売り場", "en": "Tickets", "n": "売り場 (うりば) is where something is sold. 大人一枚ください (おとないちまいください): one adult ticket, please. The atrium itself is free (入場無料, にゅうじょうむりょう)." },
+    "info": { "t": "インフォメーション", "en": "Information", "n": "Ask here: 展覧会はどこですか？ (てんらんかいはどこですか): where is the exhibition? 展覧会 is an exhibition." },
+    "gallery": { "t": "展示室", "en": "Galleries", "n": "展示室 (てんじしつ) are the exhibition rooms. This museum has no collection of its own: it hosts big exhibitions, so check what's on (開催中, かいさいちゅう)." },
+    "lockers": { "t": "コインロッカー", "en": "Coin lockers", "n": "The lockers take a ¥100 coin that you get back (返却式, へんきゃくしき). 荷物 (にもつ) is luggage." },
+    "photo": { "t": "撮影禁止", "en": "No photography", "n": "撮影 (さつえい) is taking photos or filming, 禁止 (きんし) means forbidden. In the atrium photos are fine; in many exhibitions they're not." },
+    "cafe": { "t": "カフェ コキーユ", "en": "Café Coquille", "n": "The ground-floor café, beside the glass wall. コーヒーを一つお願いします (ひとつおねがいします): one coffee, please." },
+    "brasserie": { "t": "ブラッスリー ポール・ボキューズ ミュゼ", "en": "Brasserie Paul Bocuse Le Musée (3F, on the big cone)", "n": "The French restaurant sits on top of the big inverted cone, 3階 (さんがい), third floor. 予約 (よやく) is a reservation." },
+    "salon": { "t": "サロン・ド・テ ロンド", "en": "Salon de Thé Rond (2F, on the small cone)", "n": "A tea room on top of the smaller cone, 2階 (にかい). 円錐 (えんすい) means cone." },
+    "exit": { "t": "出口", "en": "Exit", "n": "出口 (でぐち) is exit and 入口 (いりぐち) is entrance." },
+    "escalator": { "t": "エスカレーター", "en": "Escalator", "n": "The upper floors and galleries aren't in the game yet." }
+  },
+  "sources": [
+    "https://en.wikipedia.org/wiki/National_Art_Center,_Tokyo",
+    "https://ja.wikipedia.org/wiki/国立新美術館",
+    "https://www.nact.jp/english/"
+  ]
+}

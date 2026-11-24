@@ -48,11 +48,11 @@ const detourOk = (extra, direct) => extra <= Math.max(6, direct * 0.5)
 /**
  * Moves a group's meeting spot when it sends someone the long way round:
  * to the spot (one of the places they're going, a station exit, a
- * konbini, a park, ALMOND) that keeps everyone's detour smallest. Claude
+ * konbini, a park, a landmark meeting point like ALMOND or Maman) that keeps everyone's detour smallest. Claude
  * picks plausible spots but doesn't know how far apart things are.
  */
 export function fixMeets(outings, places, walk = roughWalk) {
-  const spots = [...places.values()].filter((p) => p.kind === 'exit' || p.kind === 'konbini' || p.kind === 'park' || p.name === 'ALMOND')
+  const spots = [...places.values()].filter((p) => p.kind === 'exit' || p.kind === 'konbini' || p.kind === 'park' || p.meet || p.name === 'ALMOND')
   for (const o of outings) {
     if (o.people.length < 2 || !Array.isArray(o.from) || !Array.isArray(o.to)) continue
     const legs = o.people.map((k) => [places.get(o.from.find((w) => w.key === k)?.place), places.get(o.to.find((w) => w.key === k)?.place)])

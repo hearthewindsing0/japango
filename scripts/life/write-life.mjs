@@ -49,6 +49,12 @@ const listOf = (kinds) =>
 // The place list Claude chooses from, sent once per call and cached.
 const PLACE_LIST = `Places in the area (id: name). Use these ids exactly.
 
+Landmarks everyone in Roppongi knows (good for days out, and the ones marked "meeting point" are where people arrange to meet):
+${places
+  .filter((p) => p.landmark)
+  .map((p) => `${label(p)}${p.meet ? ' [meeting point]' : ''}`)
+  .join('\n')}
+
 Homes (apartment blocks; many people can live in one):
 ${listOf(['home'])}
 

@@ -1,0 +1,80 @@
+{
+  "about": "Roppongi's well-known landmarks that the game models by hand (src/game/landmarks/). Each one is also a place in people's day plans: scripts/life/places.mjs adds it to public/life/<area>/places.json (or, when OpenStreetMap already gave the same spot a place, tags that place and keeps its id so older plans still work). `life` is the kind of place it is for people's days (sight, office, shop, cafe, park, ...). `meet`: a classic meeting point, so groups can arrange to meet there. Position from `osm` (node/way id in data/<area>.osm.json, with `osmType`) or `lat`/`lon`. `door` (lat/lon) is where people stand when they go there, if not the place's own point. Photos were used as reference only; none are in this repo.",
+  "landmarks": [
+    {
+      "id": "almond",
+      "ja": "アマンド",
+      "en": "ALMOND café",
+      "life": "cafe",
+      "meet": true,
+      "osm": 3178285261,
+      "osmType": "node",
+      "model": "src/game/Almond.tsx",
+      "note": "The pink café on the corner of Roppongi Crossing, the neighborhood's classic meeting point (アマンド前で待ち合わせ).",
+      "sources": [
+        "https://ja.wikipedia.org/wiki/アマンド"
+      ]
+    },
+    {
+      "id": "maman",
+      "ja": "ママン（クモの彫刻）",
+      "en": "Maman (the giant spider)",
+      "life": "sight",
+      "meet": true,
+      "osm": 13722565828,
+      "osmType": "node",
+      "model": "src/game/landmarks/Maman.tsx",
+      "note": "Louise Bourgeois's 9.3 m bronze spider on 66 Plaza at the foot of Mori Tower, with 32 marble eggs. Placed in 2003 as a meeting spot like Hachiko: クモの下で会いましょう.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Maman_(sculpture)",
+        "https://www.japantimes.co.jp/news/2005/11/15/reference/gigantic-spider/",
+        "https://www.tokyoartbeat.com/en/articles/-/public-art-3-louise-bourgeois-maman"
+      ]
+    },
+    {
+      "id": "mori-tower",
+      "ja": "六本木ヒルズ森タワー",
+      "en": "Roppongi Hills Mori Tower",
+      "life": "office",
+      "osm": 153924771,
+      "osmType": "way",
+      "model": "src/game/landmarks/MoriTower.tsx",
+      "note": "54-floor, 238 m office tower at the heart of Roppongi Hills (2003). Tokyo City View and the Mori Art Museum are in the glass crown at the top.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Roppongi_Hills"
+      ]
+    },
+    {
+      "id": "don-quijote",
+      "ja": "ドン・キホーテ六本木店",
+      "en": "Don Quijote Roppongi",
+      "life": "shop",
+      "osm": 3722750748,
+      "osmType": "node",
+      "model": "src/game/landmarks/DonQuijote.tsx",
+      "interior": "src/game/interiors/donki.ts",
+      "note": "The 8-storey Don Quijote (ドンキ) on Gaien-Higashi-dori, open 24 hours, with fish tanks by the entrance and the half-pipe roller coaster on the roof that never ran (built 2005-06, neighbours objected to the noise). You can walk into the ground floor.",
+      "sources": [
+        "https://tokyocheapo.com/place/donki-roppong",
+        "https://rcdb.com/5891.htm",
+        "https://muza-chan.net/japan/index.php/blog/half-pipe-don-quijote-roppongi"
+      ]
+    },
+    {
+      "id": "national-art-center",
+      "ja": "国立新美術館",
+      "en": "The National Art Center, Tokyo",
+      "life": "sight",
+      "meet": true,
+      "osm": 136048451,
+      "osmType": "way",
+      "model": "src/game/landmarks/Nact.tsx",
+      "interior": "src/game/interiors/nact.ts",
+      "note": "Kisho Kurokawa's museum (2007) behind the great undulating glass wall. Inside the glass is a tall atrium with two inverted concrete cones: Brasserie Paul Bocuse Le Musée sits on top of the big one, the Salon de Thé Rond on the small one. No permanent collection; it hosts big touring shows. You can walk into the atrium.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/National_Art_Center,_Tokyo",
+        "https://www.nact.jp/english/"
+      ]
+    }
+  ]
+}
