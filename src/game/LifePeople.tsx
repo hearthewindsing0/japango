@@ -1,9 +1,10 @@
 import { useFrame } from '@react-three/fiber'
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type * as THREE from 'three'
 import { groundAt, type GameMap } from './map'
 import { lifeLive, tokyoMinute, whereabouts, type Life, type LifePerson, type Whereabouts } from './life'
 import { Person, type PersonState } from './Talkers'
+import { streetPeople } from './traffic'
 
 // The people of the area (src/game/life.ts) on the street: walking their
 // day's walks, and standing in a ring where their group meets while they
@@ -20,9 +21,15 @@ export function LifePeople({ life, map, focus, rain }: { life: Life; map: GameMa
     last.current = t
     const f = focus.current
     const next = new Map<string, Whereabouts>()
-    for (const w of whereabouts(life, tokyoMinute(new Date()))) if (Math.hypot(w.x - f.x, w.y - f.y) < SEEN) next.set(w.person.id, w)
+    streetPeople.length = 0
+    for (const w of whereabouts(life, tokyoMinute(new Date()))) {
+      if (Math.hypot(w.x - f.x, w.y - f.y) >= SEEN) continue
+      next.set(w.person.id, w)
+      if (w.onZebra) streetPeople.push({ x: w.x, y: w.y })
+    }
     now.current = next
   })
+  useEffect(() => () => void (streetPeople.length = 0), [])
   return (
     <>
       {[...life.legsOf.keys()].map((id) => {

@@ -5,6 +5,7 @@
 // meets, talks (you can listen in), then walks off to where they decided.
 import { useEffect, useRef, useState } from 'react'
 import type { Look } from './character'
+import { walkSignal } from './signals'
 import type { Caption, Conversation } from './talk'
 
 export interface LifePerson {
@@ -49,6 +50,10 @@ export interface Leg {
   p: number[] | null
   /** At the end: wait there for the others, or go in. */
   then: 'wait' | 'enter'
+  /** Zebras across big roads on the way: [from, to] meters along the walk,
+   *  the road's axis (0 east-west), 1 if traffic lights control it, and its
+   *  x (scripts/life/walk.mjs crossingsOf). */
+  x?: [number, number, 0 | 1, 0 | 1, number][]
 }
 
 export interface Outing {
@@ -136,26 +141,92 @@ export interface Whereabouts {
   /** Direction they face, radians (as rotation.y). */
   facing: number
   walking: boolean
+  /** Out on a zebra across a big road (cars stop for them). */
+  onZebra?: boolean
   /** The outing they're on. */
   outing: Outing
 }
 
-/** Point and heading a fraction `t` of the way along a walk. */
-function along(p: number[], t: number) {
-  let total = 0
-  for (let i = 2; i < p.length; i += 2) total += Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1])
-  let d = Math.max(0, Math.min(1, t)) * total
+const PACE = 80 / 60 // m/s, as plan.mjs walks
+const DAY = 24 * 3600 // seconds: the lights' clock starts again at midnight
+
+/** Point and heading `d` meters along a walk. */
+function along(p: number[], d: number) {
   for (let i = 2; i < p.length; i += 2) {
     const dx = p[i] - p[i - 2]
     const dy = p[i + 1] - p[i - 1]
     const s = Math.hypot(dx, dy)
     if (d <= s || i === p.length - 2) {
-      const k = s ? Math.min(1, d / s) : 0
+      const k = s ? Math.max(0, Math.min(1, d / s)) : 0
       return { x: p[i - 2] + dx * k, y: p[i - 1] + dy * k, facing: Math.atan2(dx, dy) }
     }
     d -= s
   }
   return { x: p[0], y: p[1], facing: 0 }
+}
+
+/** A walk in time: seconds from Tokyo midnight and meters along, with
+ *  stops at the kerb until the green man. */
+interface Timeline {
+  t: number[]
+  d: number[]
+}
+const timelines = new WeakMap<Leg, Timeline>()
+
+/** Wait for the green man (with time to get across) before stepping out
+ *  onto a zebra with lights; cross the others straight away (the cars stop,
+ *  traffic.ts). Walk a little faster or slower so as to still arrive on
+ *  time, as the day was planned. */
+function timeline(leg: Leg): Timeline {
+  const known = timelines.get(leg)
+  if (known) return known
+  const p = leg.p ?? []
+  let len = 0
+  for (let i = 2; i < p.length; i += 2) len += Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1])
+  const t0 = leg.depart * 60
+  const span = (leg.arrive - leg.depart) * 60
+  const lit = (leg.x ?? []).filter((c) => c[3])
+  let v = Math.min(PACE * 1.5, Math.max(PACE * 0.8, len / Math.max(1, span)))
+  let tl: Timeline = { t: [t0, t0 + span], d: [0, len] }
+  for (let k = 0; k < 4; k++) {
+    const t: number[] = [t0]
+    const d: number[] = [0]
+    let now = t0
+    let at = 0
+    for (const [from, to, axis, , x] of lit) {
+      const kerb = Math.max(at, from - 0.6)
+      now += (kerb - at) / v
+      at = kerb
+      t.push(now)
+      d.push(at)
+      const across = (to - kerb + 0.6) / v
+      let wait = 0
+      while (wait < 80 && !(walkSignal((now + wait) % DAY, axis, x) && walkSignal((now + wait + across * 0.7) % DAY, axis, x))) wait += 0.5
+      if (wait) {
+        now += wait
+        t.push(now)
+        d.push(at)
+      }
+    }
+    now += (len - at) / v
+    t.push(now)
+    d.push(len)
+    tl = { t, d }
+    const waited = now - t0 - len / v
+    v = Math.min(PACE * 1.5, Math.max(PACE * 0.8, len / Math.max(1, span - waited)))
+  }
+  timelines.set(leg, tl)
+  return tl
+}
+
+/** Meters along a walk at `sec` (seconds from midnight), and whether
+ *  they're standing at the kerb. */
+function distanceAt(tl: Timeline, sec: number) {
+  const { t, d } = tl
+  if (sec <= t[0]) return { d: 0, waiting: false }
+  for (let i = 1; i < t.length; i++)
+    if (sec < t[i]) return { d: d[i - 1] + ((d[i] - d[i - 1]) * (sec - t[i - 1])) / (t[i] - t[i - 1] || 1), waiting: d[i] === d[i - 1] }
+  return { d: d[d.length - 1], waiting: true }
 }
 
 /**
@@ -175,13 +246,15 @@ export function whereabouts(life: Life, minute: number): Whereabouts[] {
       for (let i = 0; i < legs.length; i++) {
         const { leg, outing } = legs[i]
         if (m >= leg.depart && m < leg.arrive && leg.p) {
-          const a = along(leg.p, (m - leg.depart) / Math.max(0.01, leg.arrive - leg.depart))
+          const { d, waiting } = distanceAt(timeline(leg), m * 60)
+          const a = along(leg.p, d)
           // Keep to their own side of the pavement, so two people on the
           // same walk don't merge into one.
           const side = (((hash(id) % 5) - 2) * 0.35) as number
           a.x += Math.cos(a.facing) * side
           a.y -= Math.sin(a.facing) * side
-          found = { person, ...a, walking: true, outing }
+          const onZebra = !!leg.x?.some(([from, to]) => d >= from && d <= to)
+          found = { person, ...a, walking: !waiting, outing, onZebra }
           break
         }
         const next = legs[i + 1]
@@ -229,15 +302,8 @@ function hash(s: string) {
 /** Minutes since Tokyo midnight, with seconds, for smooth walking. */
 export function tokyoMinute(date: Date) {
   if (START_AT) return (START_AT.minute + (date.getTime() - START_AT.from) / 60000) % 1440
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Tokyo',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(date)
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0)
-  return get('hour') * 60 + get('minute') + (get('second') + date.getMilliseconds() / 1000) / 60
+  // Japan keeps one time all year: UTC+9.
+  return ((date.getTime() / 60000 + 9 * 60) % 1440 + 1440) % 1440
 }
 
 /** Shared with the 3D people: who in the group is speaking right now. */
