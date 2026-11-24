@@ -73,6 +73,8 @@ jobs:
           fi
       - name: The people so far and the map, from the server
         run: bun scripts/data.mjs pull sources life
+      - name: Where people go (OSM places plus the hand-made landmarks)
+        run: bun scripts/life/places.mjs
       - name: Write the people and their days
         run: |
           # A long run outlives GitHub's identity token (about 5 minutes),

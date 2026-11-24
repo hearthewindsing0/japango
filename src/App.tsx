@@ -42,7 +42,11 @@ export default function App() {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   // Down in a station (off the street).
   const [under, setUnder] = useState(false)
-  const [distance, setDistance] = useState(32)
+  // ?dist=m sets the camera distance (handy for screenshots).
+  const [distance, setDistance] = useState(() => {
+    const d = Number(new URLSearchParams(location.search).get('dist'))
+    return d >= MIN_DIST && d <= MAX_DIST ? d : 32
+  })
   const focus = useRef<Focus>({ x: 0, y: 0 })
   // For poking at the player from the console while developing.
   if (import.meta.env.DEV) (window as unknown as { japango: unknown }).japango = { focus }
@@ -193,6 +197,9 @@ export default function App() {
         // round to the Roppongi-dori side so its storefront is the first
         // thing you see (Q/E or R turn it back to north-up).
         if (start === m.spawn && AREA_ID === 'roppongi') view.yaw = view.target = Math.PI
+        // ?yaw=degrees turns the camera (0 = north-up), for screenshots.
+        const yaw = Number(new URLSearchParams(location.search).get('yaw'))
+        if (Number.isFinite(yaw) && new URLSearchParams(location.search).has('yaw')) view.yaw = view.target = (yaw * Math.PI) / 180
         // ?at=x,y,z starts underground at height z (in a station).
         if (at?.length === 3 && Number.isFinite(at[2])) focus.current = { ...start, z: at[2], under: true }
         // The tiles around the start, before the player appears.

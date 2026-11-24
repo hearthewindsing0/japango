@@ -1,0 +1,44 @@
+{
+  "about": "Roppongi's well-known landmarks that the game models by hand (src/game/landmarks/). Each one is also a place in people's day plans: scripts/life/places.mjs adds it to public/life/<area>/places.json (or, when OpenStreetMap already gave the same spot a place, tags that place and keeps its id so older plans still work). `life` is the kind of place it is for people's days (sight, office, shop, cafe, park, ...). `meet`: a classic meeting point, so groups can arrange to meet there. Position from `osm` (node/way id in data/<area>.osm.json, with `osmType`) or `lat`/`lon`. `door` (lat/lon) is where people stand when they go there, if not the place's own point. Photos were used as reference only; none are in this repo.",
+  "landmarks": [
+    {
+      "id": "almond",
+      "ja": "アマンド",
+      "en": "ALMOND café",
+      "life": "cafe",
+      "meet": true,
+      "osm": 3178285261,
+      "osmType": "node",
+      "model": "src/game/Almond.tsx",
+      "note": "The pink café on the corner of Roppongi Crossing, the neighborhood's classic meeting point (アマンド前で待ち合わせ).",
+      "sources": ["https://ja.wikipedia.org/wiki/アマンド"]
+    },
+    {
+      "id": "maman",
+      "ja": "ママン（クモの彫刻）",
+      "en": "Maman (the giant spider)",
+      "life": "sight",
+      "meet": true,
+      "osm": 13722565828,
+      "osmType": "node",
+      "model": "src/game/landmarks/Maman.tsx",
+      "note": "Louise Bourgeois's 9.3 m bronze spider on 66 Plaza at the foot of Mori Tower, with 32 marble eggs. Placed in 2003 as a meeting spot like Hachiko: クモの下で会いましょう.",
+      "sources": [
+        "https://en.wikipedia.org/wiki/Maman_(sculpture)",
+        "https://www.japantimes.co.jp/news/2005/11/15/reference/gigantic-spider/",
+        "https://www.tokyoartbeat.com/en/articles/-/public-art-3-louise-bourgeois-maman"
+      ]
+    },
+    {
+      "id": "mori-tower",
+      "ja": "六本木ヒルズ森タワー",
+      "en": "Roppongi Hills Mori Tower",
+      "life": "office",
+      "osm": 153924771,
+      "osmType": "way",
+      "model": "src/game/landmarks/MoriTower.tsx",
+      "note": "54-floor, 238 m office tower at the heart of Roppongi Hills (2003). Tokyo City View and the Mori Art Museum are in the glass crown at the top.",
+      "sources": ["https://en.wikipedia.org/wiki/Roppongi_Hills"]
+    }
+  ]
+}
