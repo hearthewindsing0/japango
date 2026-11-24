@@ -26,6 +26,8 @@ import { Interiors, type Glass } from './game/Interiors'
 import { BarMenu } from './game/BarMenu'
 import { ANTNBEE, ORDER_SPOT, toLocal } from './game/interiors/antnbee'
 import { Talkers } from './game/Talkers'
+import { LifePeople } from './game/LifePeople'
+import { loadLife, useLifeTalk, type Life } from './game/life'
 import { TalkCaption } from './game/TalkCaption'
 import { loadTalk, useTalk, type Talk } from './game/talk'
 import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoClock, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
@@ -106,6 +108,11 @@ export default function App() {
   const [talk, setTalk] = useState<Talk | null>(null)
   useEffect(() => {
     loadTalk('roppongi').then(setTalk)
+  }, [])
+  // The people of the area going about their day.
+  const [life, setLife] = useState<Life | null>(null)
+  useEffect(() => {
+    loadLife(AREA_ID).then(setLife)
   }, [])
   const [english, setEnglish] = useState(() => {
     try {
@@ -295,10 +302,13 @@ export default function App() {
     return map?.stations?.length || interiors.length ? new Underground(map?.stations ?? [], interiors) : null
   }, [map])
   useAmbience({ map, focus, under, when, night: sky.night, rain: sky.rain, muted, credits: soundCredits })
-  const caption = useTalk({ map, talk, focus, hour, rain: sky.rain, muted })
+  const spotCaption = useTalk({ map, talk, focus, hour, rain: sky.rain, muted })
+  // A group meeting nearby, when no talking spot is.
+  const lifeCaption = useLifeTalk(life, focus, !spotCaption)
+  const caption = spotCaption ?? lifeCaption
   // Each spot's people look like the voices of their latest conversation.
   const [voices, setVoices] = useState<Record<string, [string, string]>>({})
-  const talkingConv = caption?.conv
+  const talkingConv = spotCaption?.conv
   useEffect(() => {
     if (!talkingConv) return
     const v: [string, string] = [talkingConv.speakers[0]?.voice ?? '', talkingConv.speakers[1]?.voice ?? '']
@@ -398,6 +408,7 @@ export default function App() {
         {ug && <Stations ug={ug} focus={focus} under={under} clock={trainClock} />}
         {ug && ug.interiors.length > 0 && <Interiors interiors={ug.interiors} focus={focus} under={under} night={sky.night > 0.5} glasses={glasses} />}
         {talk && !under && <Talkers talk={talk} voices={voices} rain={sky.rain > 0.2} />}
+        {life && map && !under && <LifePeople life={life} map={map} focus={focus} rain={sky.rain > 0.2} />}
         <Player
           map={map}
           ug={ug}
