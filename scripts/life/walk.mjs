@@ -41,13 +41,26 @@ export async function loadWalkGrid(areaId) {
   const cost = new Float32Array(W * H)
   for (let i = 0; i < cells.length; i++) cost[i] = COST[cells[i]] ?? 0
   // Block big roads (not their zebra crossings, not bridges overhead).
+  // Everything inside the carriageway goes, not only road cells: OSM often
+  // draws a footpath or a pavement corner a little inside the road, and a
+  // walker on it looks like they're walking down the middle of the street.
+  // crossing: 0, or 1 + the axis of the road a zebra cell crosses (0 east-
+  // west, 1 north-south), for waiting at the lights.
+  const crossing = new Uint8Array(W * H)
   for (const r of map.roads) {
     if (r.b || !BIG_ROADS.test(r.t)) continue
     const half = r.w / 2
-    for (let i = 0; i + 3 < r.p.length; i += 2) stroke(r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], half, (j) => {
-      if (cells[j] === T.ROAD) cost[j] = 0
-    })
+    for (let i = 0; i + 3 < r.p.length; i += 2) {
+      const axis = Math.abs(r.p[i + 2] - r.p[i]) >= Math.abs(r.p[i + 3] - r.p[i + 1]) ? 0 : 1
+      stroke(r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], half, (j) => {
+        if (cells[j] === T.CROSSING) crossing[j] = 1 + axis
+        else cost[j] = 0
+      })
+    }
   }
+  // Traffic lights (the points of a road the cars stop at).
+  const lights = []
+  for (const r of map.roads) for (const i of r.sg ?? []) lights.push(r.p[i * 2], r.p[i * 2 + 1])
   function stroke(ax, ay, bx, by, half, fn) {
     const minX = Math.max(0, Math.floor(Math.min(ax, bx) - half))
     const maxX = Math.min(W - 1, Math.ceil(Math.max(ax, bx) + half))
@@ -87,7 +100,7 @@ export async function loadWalkGrid(areaId) {
     if (n > bestN) [bestN, best] = [n, id]
   }
   for (let i = 0; i < W * H; i++) if (comp[i] === best) main[i] = 1
-  return { W, H, cells, cost, main, map }
+  return { W, H, cells, cost, main, map, crossing, lights }
 }
 
 /** Nearest cell to (x, y) that passes `ok`, searching outward up to `max` m. */
@@ -246,4 +259,51 @@ class Heap {
     }
     return top
   }
+}
+
+/** Lights this close to a zebra (m) control it. */
+const LIGHT_NEAR = 30
+
+/**
+ * The zebras a walk crosses big roads on, as [from, to, axis, lights, x]:
+ * meters along the walk where it steps onto and off the zebra, the axis of
+ * the road (0 east-west, 1 north-south), 1 if traffic lights control it
+ * (the walker waits for the green man) else 0, and the zebra's x, which the
+ * lights' timing depends on (traffic.ts signalState).
+ */
+export function crossingsOf(grid, p) {
+  const { W, crossing, lights } = grid
+  const out = []
+  let run = null
+  let d = 0
+  const close = () => {
+    if (run && run.to - run.from >= 2) {
+      const axis = run.axis[1] >= run.axis[0] ? 1 : 0
+      let lit = 0
+      for (let i = 0; i < lights.length && !lit; i += 2) if (Math.hypot(lights[i] - run.x, lights[i + 1] - run.y) < LIGHT_NEAR) lit = 1
+      out.push([Math.round(run.from * 10) / 10, Math.round(run.to * 10) / 10, axis, lit, Math.round(run.x)])
+    }
+    run = null
+  }
+  for (let i = 2; i < p.length; i += 2) {
+    const dx = p[i] - p[i - 2]
+    const dy = p[i + 1] - p[i - 1]
+    const s = Math.hypot(dx, dy)
+    for (let t = 0; t < s; t += 0.25) {
+      const x = p[i - 2] + (dx * t) / s
+      const y = p[i - 1] + (dy * t) / s
+      const c = crossing[Math.floor(y) * W + Math.floor(x)]
+      if (c) {
+        // A gap of a meter or two (a kerb, a gap in the paint) is still the same zebra.
+        if (run && d + t - run.to > 2) close()
+        run ??= { from: d + t, to: d + t, axis: [0, 0], x, y }
+        run.to = d + t
+        run.axis[c - 1]++
+        if (run.axis[c - 1] === 4) [run.x, run.y] = [x, y]
+      }
+    }
+    d += s
+  }
+  close()
+  return out
 }

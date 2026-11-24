@@ -55,13 +55,78 @@ function walkLines(map: MapTile) {
       lines.push({ p: out, busy: r.t.startsWith('trunk') || r.t.startsWith('primary') ? 4 : 2 })
     }
   }
-  return lines
+  return keepOffBigRoads(lines, map)
     .map(({ p: line, busy }) => {
       const len = [0]
       for (let i = 2; i < line.length; i += 2) len.push(len[len.length - 1] + Math.hypot(line[i] - line[i - 2], line[i + 1] - line[i - 1]))
       return { line, len, busy }
     })
     .filter((l) => l.len[l.len.length - 1] > 15)
+}
+
+// Roads nobody walks along or across except at a zebra (as
+// scripts/life/walk.mjs). Crowd walkers never cross: they turn back.
+const BIG_ROADS = /^(motorway|trunk|primary|secondary|tertiary)/
+const CELL = 16
+
+/** Cut each line where it runs inside a big road: a pavement line carries
+ *  straight on across a junction, and OSM draws some footpaths a little
+ *  inside the road, which put walkers in the middle of the traffic. */
+function keepOffBigRoads(lines: { p: number[]; busy: number }[], map: MapTile) {
+  // The big roads' segments, bucketed on a coarse grid.
+  const buckets = new Map<string, number[][]>()
+  for (const r of map.roads) {
+    if (r.b || !BIG_ROADS.test(r.t)) continue
+    const half = r.w / 2 + 0.3
+    for (let i = 0; i + 3 < r.p.length; i += 2) {
+      const seg = [r.p[i], r.p[i + 1], r.p[i + 2], r.p[i + 3], half]
+      for (let gx = Math.floor((Math.min(seg[0], seg[2]) - half) / CELL); gx <= Math.floor((Math.max(seg[0], seg[2]) + half) / CELL); gx++)
+        for (let gy = Math.floor((Math.min(seg[1], seg[3]) - half) / CELL); gy <= Math.floor((Math.max(seg[1], seg[3]) + half) / CELL); gy++) {
+          const k = `${gx},${gy}`
+          const list = buckets.get(k) ?? []
+          list.push(seg)
+          buckets.set(k, list)
+        }
+    }
+  }
+  const inRoad = (x: number, y: number) => {
+    for (const [ax, ay, bx, by, half] of buckets.get(`${Math.floor(x / CELL)},${Math.floor(y / CELL)}`) ?? []) {
+      const dx = bx - ax
+      const dy = by - ay
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)))
+      if (Math.hypot(ax + dx * t - x, ay + dy * t - y) < half) return true
+    }
+    return false
+  }
+  const out: { p: number[]; busy: number }[] = []
+  for (const { p, busy } of lines) {
+    let run: number[] = []
+    const flush = () => {
+      if (run.length >= 4) out.push({ p: run, busy })
+      run = []
+    }
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const dx = p[i + 2] - p[i]
+      const dy = p[i + 3] - p[i + 1]
+      const n = Math.max(1, Math.ceil(Math.hypot(dx, dy)))
+      for (let k = i === 0 ? 0 : 1; k <= n; k++) {
+        const x = p[i] + (dx * k) / n
+        const y = p[i + 1] + (dy * k) / n
+        if (inRoad(x, y)) flush()
+        else if (k === 0 || k === n || !run.length) run.push(x, y)
+        else {
+          // Keep only the corners and the ends of a run, not every meter.
+          const L = run.length
+          if (L >= 4 && Math.abs((run[L - 2] - run[L - 4]) * (y - run[L - 1]) - (run[L - 1] - run[L - 3]) * (x - run[L - 2])) < 1e-6) {
+            run[L - 2] = x
+            run[L - 1] = y
+          } else run.push(x, y)
+        }
+      }
+    }
+    flush()
+  }
+  return out
 }
 
 export function Crowd({ tile, clip, flow, when, rain }: { tile: MapTile; clip: THREE.Plane[]; flow?: PeopleFlow; when: FlowTime; rain: number }) {

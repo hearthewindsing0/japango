@@ -5,7 +5,11 @@
 // streets around the player are simulated; cars that drive out of range are
 // brought back somewhere else out of sight.
 import { groundAt, tileGroundAt, type Flat, type GameMap, type MapTile } from './map'
+import { tokyoMinute } from './life'
+import { signalState } from './signals'
 import { vehicleLength, vehiclePaints, type VehicleKind } from './vehicles'
+
+export { signalState }
 
 type RoadClass = 'main' | 'mid' | 'minor' | 'expressway'
 
@@ -377,21 +381,6 @@ function crossAlong(w: Way, ax: number, ay: number, bx: number, by: number) {
   return null
 }
 
-/** Signal cycle, seconds: green, amber and all-red for the east-west
- *  streets, then the same for north-south. */
-const GREEN = 28
-const AMBER = 3
-const ALL_RED = 3
-const CYCLE = 2 * (GREEN + AMBER + ALL_RED)
-
-/** 0: green, 1: amber, 2: red, for a light on a street along `axis` at x. */
-export function signalState(time: number, axis: 0 | 1, x: number) {
-  let t = (time + x / 14) % CYCLE
-  if (t < 0) t += CYCLE
-  if (axis === 1) t = (t + CYCLE / 2) % CYCLE
-  return t < GREEN ? 0 : t < GREEN + AMBER ? 1 : 2
-}
-
 function pickKind(cls: RoadClass, hour: number, rand: () => number): VehicleKind {
   // More taxis at night, delivery vans in the daytime.
   const night = hour >= 22 || hour < 5
@@ -409,6 +398,10 @@ function pickKind(cls: RoadClass, hour: number, rand: () => number): VehicleKind
   }
   return 'sedan'
 }
+
+/** People out on a zebra right now (LifePeople.tsx fills it): cars stop
+ *  for them as they do for the player. */
+export const streetPeople: { x: number; y: number }[] = []
 
 /** What the cars near the player are doing, for the street sounds. */
 export interface Nearby {
@@ -582,6 +575,8 @@ export class Traffic {
     this.time += dt
     const net = this.net
     if (!net) return
+    // The lights run on the Tokyo clock, shared with the people crossing.
+    const clock = tokyoMinute(new Date()) * 60
     const minSpawn = radius * 0.6
 
     // How many cars the streets in range should hold right now, worked out
@@ -670,7 +665,7 @@ export class Traffic {
         const ahead = (s.d - c.d) * c.dir - c.len / 2
         if (ahead < -0.5 || ahead > 60) continue
         const pt = pointAt(w, s.d)
-        const st = signalState(this.time, s.axis, pt.x)
+        const st = signalState(clock, s.axis, pt.x)
         // Going through on green: clear of the junction's other lights.
         if (ahead < 2 && (st === 0 || (st === 1 && c.v > 3))) {
           c.clearTo = c.odo + ahead + c.len + 45
@@ -686,16 +681,20 @@ export class Traffic {
       const here = pointAt(w, c.d)
       const fx = here.tx * c.dir
       const fy = here.ty * c.dir
-      if (playerOnStreet) {
-        const rx = px - c.x
-        const ry = py - c.y
+      const yieldTo = (qx: number, qy: number, width: number, why: string) => {
+        const rx = qx - c.x
+        const ry = qy - c.y
         const along = rx * fx + ry * fy
         const side = Math.abs(rx * fy - ry * fx)
-        if (along > 0 && along < 25 && side < 1.7 && along - c.len / 2 - 1.5 < free) {
+        if (along > 0 && along < 25 && side < width && along - c.len / 2 - 1.5 < free) {
           free = along - c.len / 2 - 1.5
-          c.why = 'player'
+          c.why = why
         }
       }
+      if (playerOnStreet) yieldTo(px, py, 1.7, 'player')
+      // People on a zebra: a driver stops for them anywhere on it, not only
+      // in their own lane.
+      for (const q of streetPeople) if (Math.abs(q.x - c.x) < 26 && Math.abs(q.y - c.y) < 26) yieldTo(q.x, q.y, 4, 'walker')
       // Speed: as fast as the road allows, slowing to stop ~2 m short.
       const room = free - 2
       const safe = room <= 0 ? 0 : Math.sqrt(2 * 4 * room)
