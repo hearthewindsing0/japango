@@ -27,19 +27,43 @@ export function LifePeople({ life, map, focus, rain }: { life: Life; map: GameMa
     <>
       {[...life.legsOf.keys()].map((id) => {
         const p = life.people.get(id)
-        return p ? <Walker key={id} person={p} map={map} now={now} rain={rain} /> : null
+        return p ? <Walker key={id} person={p} map={map} now={now} rain={rain} focus={focus} /> : null
       })}
     </>
   )
 }
 
-function Walker({ person, map, now, rain }: { person: LifePerson; map: GameMap; now: { current: Map<string, Whereabouts> }; rain: boolean }) {
+function Walker({
+  person,
+  map,
+  now,
+  rain,
+  focus,
+}: {
+  person: LifePerson
+  map: GameMap
+  now: { current: Map<string, Whereabouts> }
+  rain: boolean
+  focus: { current: { x: number; y: number } }
+}) {
   const group = useRef<THREE.Group>(null)
   const smooth = useRef<{ x: number; y: number; facing: number } | null>(null)
   const at = useRef<Whereabouts | null>(null)
   useFrame((_, dt) => {
     const g = group.current
     if (!g) return
+    // Stopped to talk to the player: stay put and face them.
+    if (lifeLive.paused.has(person.id) && smooth.current) {
+      const s = smooth.current
+      const f = focus.current
+      let df = Math.atan2(f.x - s.x, f.y - s.y) - s.facing
+      df = Math.atan2(Math.sin(df), Math.cos(df))
+      s.facing += df * Math.min(1, dt * 6)
+      g.rotation.y = s.facing
+      g.visible = true
+      if (at.current) at.current = { ...at.current, walking: false }
+      return
+    }
     const w = now.current.get(person.id) ?? null
     at.current = w
     g.visible = !!w
@@ -63,6 +87,7 @@ function Walker({ person, map, now, rain }: { person: LifePerson; map: GameMap; 
     if (!w) return null
     if (w.walking) return 'walk'
     const sp = lifeLive.speaking
+    if (sp?.outing === 'player') return sp.person === person.id ? 'speak' : null
     if (!sp || sp.outing !== w.outing.id) return null
     return sp.person === person.id ? 'speak' : 'listen'
   }

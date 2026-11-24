@@ -19,6 +19,22 @@ export interface LifePerson {
   mood: string
   look: Look
   voice: string
+  /** What happens when the player walks up to them. */
+  approach?: Approach
+}
+
+export interface ApproachLine {
+  ja: string
+  en: string
+}
+
+export interface Approach {
+  openness: 'chatty' | 'polite-brief' | 'busy' | 'shy'
+  register: 'casual' | 'polite' | 'keigo'
+  topics: string[]
+  knows: string[]
+  avoids: string
+  lines: Record<'greet' | 'recommend' | 'directions' | 'topic' | 'bye', ApproachLine[]>
 }
 
 export interface Leg {
@@ -227,6 +243,59 @@ export function tokyoMinute(date: Date) {
 /** Shared with the 3D people: who in the group is speaking right now. */
 export const lifeLive = {
   speaking: null as { outing: string; person: string } | null,
+  /** People stopped to talk to the player: they stand still, facing them. */
+  paused: new Set<string>(),
+}
+
+const NEAR = 3.2 // meters: close enough to talk to someone walking past
+const NEAR_GROUP = 5 // and to join a group standing and talking
+
+/** Who the player could talk to: the nearest person within reach, and the
+ *  rest of their group if they're standing with one. */
+export interface Approachable {
+  person: LifePerson
+  group: LifePerson[]
+  outing: Outing
+  walking: boolean
+}
+
+/** Polls who is close enough to talk to, a few times a second. */
+export function useApproachable(life: Life | null, focus: { current: { x: number; y: number; under?: boolean } }, frozen: boolean): Approachable | null {
+  const [near, setNear] = useState<Approachable | null>(null)
+  const stop = useRef(frozen)
+  useEffect(() => {
+    stop.current = frozen
+  }, [frozen])
+  useEffect(() => {
+    if (!life) return
+    let shown = ''
+    const timer = window.setInterval(() => {
+      if (stop.current) return
+      const f = focus.current
+      let best: Whereabouts | null = null
+      let bd = Infinity
+      const all = f.under ? [] : whereabouts(life, tokyoMinute(new Date()))
+      for (const w of all) {
+        const d = Math.hypot(w.x - f.x, w.y - f.y)
+        if (d < (w.walking ? NEAR : NEAR_GROUP) && d < bd && w.person.approach) [bd, best] = [d, w]
+      }
+      const next: Approachable | null = best
+        ? {
+            person: best.person,
+            group: best.walking ? [best.person] : all.filter((w) => !w.walking && w.outing.id === best.outing.id).map((w) => w.person),
+            outing: best.outing,
+            walking: best.walking,
+          }
+        : null
+      const key = next ? `${next.person.id}:${next.group.length}` : ''
+      if (key !== shown) {
+        shown = key
+        setNear(next)
+      }
+    }, 250)
+    return () => window.clearInterval(timer)
+  }, [life, focus])
+  return near
 }
 
 const START = 25 // meters: you hear a group once you're this close
