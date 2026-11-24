@@ -17,6 +17,7 @@
     "map:fetch": "bun scripts/fetch-osm.mjs",
     "map:build": "bun scripts/build-map.mjs && bun scripts/build-tiles.mjs",
     "map:mapillary": "bun scripts/fetch-mapillary.mjs",
+    "map:people": "bun scripts/fetch-people.mjs",
     "map:plateau": "bun scripts/fetch-plateau.mjs",
     "map:terrain": "bun scripts/fetch-terrain.mjs",
     "map:bridges": "bun scripts/fetch-bridges.mjs",

@@ -2,6 +2,7 @@ import type { Week } from './hours'
 import { BLOCKED, T } from './tiles'
 import type { InteriorPlace } from './interior'
 import type { Station } from './station'
+import type { PeopleFlow } from './people-flow'
 
 export type PoiKind =
   | 'station'
@@ -216,6 +217,8 @@ export interface Manifest {
   stations?: Station[]
   /** Front doors of places you can walk into (see interior.ts). */
   interiors?: InteriorPlace[]
+  /** Measured people counts per 1 km square (see people-flow.ts). */
+  peopleFlow?: PeopleFlow
 }
 
 /** The map as the game sees it: the manifest plus whichever tiles are
