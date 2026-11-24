@@ -74,8 +74,24 @@ jobs:
       - name: The people so far and the map, from the server
         run: bun scripts/data.mjs pull sources life
       - name: Write the people and their days
-        run: bun scripts/life/write-life.mjs --circles=${{ inputs.circles }} ${{ inputs.redo && '--redo' || '' }}
+        run: |
+          # A long run outlives GitHub's identity token (about 5 minutes),
+          # and the SDK signs in again from the token file when its access
+          # token runs out, so keep the file fresh in the background.
+          if [ -n "$ANTHROPIC_IDENTITY_TOKEN_FILE" ]; then
+            (
+              while sleep 180; do
+                curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                  "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://api.anthropic.com" | jq -r .value > "$ANTHROPIC_IDENTITY_TOKEN_FILE.new" \
+                  && mv "$ANTHROPIC_IDENTITY_TOKEN_FILE.new" "$ANTHROPIC_IDENTITY_TOKEN_FILE"
+              done
+            ) &
+          fi
+          bun scripts/life/write-life.mjs --circles=${{ inputs.circles }} ${{ inputs.redo && '--redo' || '' }}
+      # Keep the circles that were written even if a later one failed.
       - name: Check their days and work out their walks
+        if: ${{ !cancelled() }}
         run: bun scripts/life/plan.mjs
       - name: Upload to the server
+        if: ${{ !cancelled() }}
         run: bun scripts/data.mjs push life

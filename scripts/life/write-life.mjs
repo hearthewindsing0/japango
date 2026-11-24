@@ -22,7 +22,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { AREA_ID } from '../area.mjs'
 import { VOICES } from '../voices.mjs'
-import { checkCircle, PLACE_KINDS_SOCIAL } from './plan.mjs'
+import { checkCircle, fixMeets, PLACE_KINDS_SOCIAL } from './plan.mjs'
 
 const MODEL = 'claude-haiku-5-5'
 const arg = (k, d) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d
@@ -246,7 +246,7 @@ const TALK_SCHEMA = {
   },
 }
 
-const TALK_RULES = `Write the way people really talk in Tokyo today, at an intermediate learner level: mostly JLPT N4-N3 vocabulary and grammar, short spoken sentences, casual speech between friends and polite speech with seniors. Each line under 40 Japanese characters, Japanese only in "ja" (no romaji, furigana or brackets), a natural English translation in "en". Use real places by name when it fits.`
+const TALK_RULES = `Write the way people really talk in Tokyo today, at an intermediate learner level: mostly JLPT N4-N3 vocabulary and grammar, short spoken sentences, casual speech between friends and polite speech with seniors. Each line under 40 Japanese characters, Japanese only in "ja" (no romaji, furigana or brackets), a natural English translation in "en". Use real places by name when it fits. Only the people listed speak: no lines for staff, waiters or passers-by (their "key" must be one of the listed keys).`
 
 function checkTalk(out, o, keys) {
   const p = []
@@ -322,7 +322,10 @@ Rules, which are checked:
 - 3 to 6 outings per person. Use real places from the list, mostly within Roppongi.
 - Every key in from/to is on the outing, and every person on the outing appears in both.`,
     OUTINGS_SCHEMA,
-    (out) => checkCircle({ people: cast.people, outings: out.outings, places: byId }),
+    (out) => {
+      fixMeets(out.outings, byId)
+      return checkCircle({ people: cast.people, outings: out.outings, places: byId })
+    },
     `${id} day`,
   )
   if (!day) continue
