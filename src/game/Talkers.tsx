@@ -59,18 +59,28 @@ function SpotPair({ spot, voices, rain }: { spot: string; voices: [string, strin
   return (
     <group ref={group} visible={false}>
       <group ref={a}>
-        <Person look={lookFor(voices[0])} spot={spot} who={0} rain={rain} />
+        <Person look={lookFor(voices[0])} phase={0} rain={rain} state={() => stateOf(spot, 0)} />
       </group>
       <group ref={b}>
-        <Person look={lookFor(voices[1])} spot={spot} who={1} rain={rain} />
+        <Person look={lookFor(voices[1])} phase={3.7} rain={rain} state={() => stateOf(spot, 1)} />
       </group>
     </group>
   )
 }
 
+function stateOf(spot: string, who: number): PersonState {
+  const s = talkLive.speaking
+  return s?.spot !== spot ? null : s.s === who ? 'speak' : 'listen'
+}
+
 type Limb = 'armL' | 'armR'
 
-function Person({ look, spot, who, rain }: { look: Look; spot: string; who: number; rain: boolean }) {
+/** What someone is doing, for how they move. */
+export type PersonState = 'speak' | 'listen' | 'walk' | null
+
+/** One person, standing on the spot: talking hands when they speak, a nod
+ *  when they listen, arms swinging when they walk. */
+export function Person({ look, phase, rain, state }: { look: Look; phase: number; rain: boolean; state: () => PersonState }) {
   const body = useRef<THREE.Group>(null)
   const armL = useRef<THREE.Group>(null)
   const armR = useRef<THREE.Group>(null)
@@ -81,20 +91,23 @@ function Person({ look, spot, who, rain }: { look: Look; spot: string; who: numb
     [look, rain],
   )
   useEffect(() => () => parts.forEach((p) => p.geo.dispose()), [parts])
-  const t = useRef(who * 3.7)
+  const t = useRef(phase)
 
   useFrame((_, dt) => {
     t.current += Math.min(dt, 0.05)
     const time = t.current
-    const s = talkLive.speaking
-    const speaking = s?.spot === spot && s.s === who
-    const listening = s?.spot === spot && s.s !== who
-    // Talking hands and a bobbing head; the listener nods now and then.
-    if (armR.current) armR.current.rotation.x = speaking ? -0.5 - Math.sin(time * 5) * 0.25 : 0
-    if (armL.current) armL.current.rotation.x = speaking ? -0.2 - Math.sin(time * 3.3 + 1) * 0.15 : 0
+    const st = state()
+    const speaking = st === 'speak'
+    const listening = st === 'listen'
+    const walking = st === 'walk'
+    // Talking hands and a bobbing head; the listener nods now and then; a
+    // walker swings their arms and bobs with each step.
+    const swing = Math.sin(time * 8.5) * 0.45
+    if (armR.current) armR.current.rotation.x = speaking ? -0.5 - Math.sin(time * 5) * 0.25 : walking ? swing : 0
+    if (armL.current) armL.current.rotation.x = speaking ? -0.2 - Math.sin(time * 3.3 + 1) * 0.15 : walking ? -swing : 0
     if (body.current) {
       body.current.rotation.x = speaking ? Math.sin(time * 6) * 0.03 : listening ? Math.max(0, Math.sin(time * 1.7)) * 0.05 : 0
-      body.current.position.y = Math.sin(time * 1.3) * 0.006
+      body.current.position.y = walking ? Math.abs(Math.sin(time * 8.5)) * 0.04 : Math.sin(time * 1.3) * 0.006
     }
   })
 
