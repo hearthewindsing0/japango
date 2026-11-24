@@ -31,7 +31,9 @@ export interface StationSign {
   t: string
   en: string
   c: string
-  k: 'platform' | 'name' | 'gate' | 'exit' | 'info'
+  k: 'platform' | 'name' | 'gate' | 'exit' | 'info' | 'board'
+  /** For a departure board ('board'): its platform's index. */
+  p?: number
   /** A learning note for this sign, instead of the one for its kind. */
   n?: string
 }
@@ -101,6 +103,36 @@ export function rampZ(r: StationRamp, x: number, y: number) {
   return r.za + (r.zb - r.za) * t
 }
 
+/** A departure board (発車案内) over each platform, a little along from its
+ *  middle so it doesn't sit on the station name board. Its text is live:
+ *  see DepartureBoards in Stations.tsx. */
+function addDepartureBoards(s: Station) {
+  if (s.signs.some((g) => g.k === 'board')) return
+  s.platforms.forEach((p, i) => {
+    const f = s.floors[p.i]
+    const t = s.tracks[i]
+    if (!f || !t) return
+    let cx = 0
+    let cy = 0
+    for (let k = 0; k < f.p.length; k += 2) (cx += f.p[k]), (cy += f.p[k + 1])
+    cx /= f.p.length / 2
+    cy /= f.p.length / 2
+    const len = Math.hypot(t.bx - t.ax, t.by - t.ay) || 1
+    const along = 14
+    s.signs.push({
+      x: cx + ((t.bx - t.ax) / len) * along,
+      y: cy + ((t.by - t.ay) / len) * along,
+      z: f.z,
+      r: 0,
+      t: '発車案内',
+      en: 'Departures',
+      c: s.line.colour,
+      k: 'board',
+      p: i,
+    })
+  })
+}
+
 /** One map's stations and walk-in places (a basement bar), flattened for
  *  quick walking checks. */
 export class Underground {
@@ -119,6 +151,7 @@ export class Underground {
       this.floors.push(...s.floors)
       this.ramps.push(...s.ramps)
       for (const g of s.gates) this.cabinets.push(...gateBoxes(g))
+      addDepartureBoards(s)
     }
     for (const it of interiors) {
       this.floors.push(...it.floors)

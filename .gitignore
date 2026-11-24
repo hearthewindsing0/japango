@@ -37,3 +37,6 @@ dist-ssr
 /data/*.json
 /data/life/
 !/data/places/
+
+# GTFS zips (scripts/trains/build-timetables.mjs reads them if present)
+data/gtfs/
