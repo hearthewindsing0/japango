@@ -2,9 +2,11 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { gateBoxes, type Station, type StationFloor, type StationRamp, type StationSign, type Underground } from './station'
+import { doorOpenings, gateBoxes, platformFrames, type Station, type StationFloor, type StationRamp, type StationSign, type Underground } from './station'
 import type { Focus } from './World'
-import { view } from './input'
+import { platformView, view } from './input'
+import { Riders } from './PlatformRiders'
+import type { RiderSource } from './riders'
 import { patternedMaterial } from './patterns'
 import { clockText, departures, nextDepartures, tokyoNow, type Timetable } from './trains'
 
@@ -15,6 +17,9 @@ import { clockText, departures, nextDepartures, tokyoNow, type Timetable } from 
 // exits show: a covered stairwell with the line's sign.
 
 const WALL_H = 2.0 // low, so the camera can see over them
+/** On a platform, with the camera down at eye level, the walls go up to
+ *  a ceiling this high over the platform. */
+const HALL_H = 4.4
 export const FONT = '"Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif'
 
 /** A box between two points on the map, from height z0 to z1. */
@@ -39,7 +44,7 @@ function floorGeo(p: number[], z: number) {
 }
 
 /** Walls along a floor's edges, wherever the space doesn't carry on. */
-function floorWalls(f: StationFloor, ug: Underground) {
+function floorWalls(f: StationFloor, ug: Underground, z0 = f.z, z1 = f.z + WALL_H, skip?: (x: number, y: number) => boolean) {
   const out: THREE.BufferGeometry[] = []
   const p = f.p
   for (let i = 0; i < p.length; i += 2) {
@@ -64,10 +69,10 @@ function floorWalls(f: StationFloor, ug: Underground) {
       const t = k / steps
       const x = ax + (bx - ax) * t
       const y = ay + (by - ay) * t
-      const open = k < steps && ug.hasSurface(x + nx * 0.4, y + ny * 0.4, f.z)
+      const open = k < steps && (ug.hasSurface(x + nx * 0.4, y + ny * 0.4, f.z) || !!skip?.(x + nx * 0.4, y + ny * 0.4))
       if (!open && run == null && k < steps) run = t
       if ((open || k === steps) && run != null) {
-        out.push(wallBox(ax + (bx - ax) * run, ay + (by - ay) * run, x, y, f.z, f.z + WALL_H))
+        out.push(wallBox(ax + (bx - ax) * run, ay + (by - ay) * run, x, y, z0, z1))
         run = null
       }
     }
@@ -179,6 +184,9 @@ function signTexture(s: StationSign) {
 interface Piece {
   /** Lowest height of this piece: it shows while the player is above it. */
   z: number
+  /** Only with the camera down on a platform at this height: the upper
+   *  walls and the ceiling. */
+  hall?: number
   geo: THREE.BufferGeometry
   mat: THREE.Material
 }
@@ -197,14 +205,52 @@ function useStationPieces(stations: Station[], ug: Underground) {
       gateTop: new THREE.MeshLambertMaterial({ color: '#2f6fd6' }),
       tactile: new THREE.MeshLambertMaterial({ color: '#f1c40f' }),
       door: new THREE.MeshLambertMaterial({ color: '#dfe6ee', transparent: true, opacity: 0.85 }),
+      upper: new THREE.MeshLambertMaterial({ color: '#e9e6df' }),
+      ceiling: new THREE.MeshLambertMaterial({ color: '#4a4f57', side: THREE.DoubleSide }),
+      lights: new THREE.MeshBasicMaterial({ color: '#fdfcf4' }),
     }
     const pieces: Piece[] = []
     for (const st of stations) {
       const stripe = new THREE.MeshLambertMaterial({ color: st.line.colour })
       for (const f of st.floors) {
         pieces.push({ z: f.z, geo: floorGeo(f.p, f.z), mat: f.kind === 'platform' ? mats.platform : mats.floor })
-        const walls = merged(floorWalls(f, ug))
+        // Along a platform's edge the track side is open (the screen doors
+        // stand there), so no wall over the track.
+        const nearTrack = (x: number, y: number) =>
+          f.kind === 'platform' &&
+          st.tracks.some((t) => {
+            if (Math.abs(t.z - f.z) > 0.3) return false
+            const len = Math.hypot(t.bx - t.ax, t.by - t.ay) || 1
+            return Math.abs(((x - t.ax) * (t.by - t.ay) - (y - t.ay) * (t.bx - t.ax)) / len) < 2.6
+          })
+        const walls = merged(floorWalls(f, ug, f.z, f.z + WALL_H, nearTrack))
         if (walls) pieces.push({ z: f.z, geo: walls, mat: mats.wall })
+        if (f.kind !== 'platform') continue
+        // The platform hall, for the low camera: walls up to the ceiling
+        // (not over the track side), the ceiling, and a strip of lights.
+        const upper = merged(floorWalls(f, ug, f.z + WALL_H, f.z + HALL_H, nearTrack))
+        if (upper) pieces.push({ z: f.z, hall: f.z, geo: upper, mat: mats.upper })
+        const roof = floorGeo(f.p, f.z + HALL_H)
+        pieces.push({ z: f.z, hall: f.z, geo: roof, mat: mats.ceiling })
+      }
+      for (const fr of platformFrames(st)) {
+        const lights: THREE.BufferGeometry[] = []
+        const ceil: THREE.BufferGeometry[] = []
+        // Over the track, out to the far wall.
+        const over = new THREE.PlaneGeometry(fr.half * 2, 4.0).rotateX(Math.PI / 2)
+        over.rotateY(-Math.atan2(fr.uy, fr.ux))
+        over.translate(fr.mx, fr.z + HALL_H, fr.my)
+        ceil.push(over)
+        const lx = fr.mx + fr.nx * (fr.edge + fr.width * 0.45)
+        const ly = fr.my + fr.ny * (fr.edge + fr.width * 0.45)
+        for (let a = -fr.half + 4; a < fr.half - 4; a += 6) {
+          const g = new THREE.BoxGeometry(3.6, 0.08, 0.35)
+          g.rotateY(-Math.atan2(fr.uy, fr.ux))
+          g.translate(lx + fr.ux * a, fr.z + HALL_H - 0.06, ly + fr.uy * a)
+          lights.push(g)
+        }
+        pieces.push({ z: fr.z, hall: fr.z, geo: merged(ceil)!, mat: mats.ceiling })
+        pieces.push({ z: fr.z, hall: fr.z, geo: merged(lights)!, mat: mats.lights })
       }
       for (const r of st.ramps) {
         const g = merged(rampGeo(r))
@@ -274,6 +320,7 @@ function useStationPieces(stations: Station[], ug: Underground) {
         const fy = my - ny * 2.1
         const shared = st.tracks.some((o) => o !== t && Math.abs(o.z - t.z) < 0.5 && Math.hypot((o.ax + o.bx) / 2 - (mx - nx * 4.4), (o.ay + o.by) / 2 - (my - ny * 4.4)) < 3)
         if (!shared) pieces.push({ z: t.z - 1.1, geo: wallBox(fx - ux * len * 0.5, fy - uy * len * 0.5, fx + ux * len * 0.5, fy + uy * len * 0.5, t.z - 1.1, t.z + WALL_H), mat: mats.wall })
+        if (!shared) pieces.push({ z: t.z - 1.1, hall: t.z, geo: wallBox(fx - ux * len * 0.5, fy - uy * len * 0.5, fx + ux * len * 0.5, fy + uy * len * 0.5, t.z + WALL_H, t.z + HALL_H), mat: mats.upper })
         if (!shared) pieces.push({ z: t.z - 1.1, geo: wallBox(fx - ux * len * 0.5 + nx * 0.15, fy - uy * len * 0.5 + ny * 0.15, fx + ux * len * 0.5 + nx * 0.15, fy + uy * len * 0.5 + ny * 0.15, t.z + 0.9, t.z + 1.2, 0.05), mat: stripe })
         // Platform edge: yellow tactile strip and screen doors with gaps.
         const ex = mx + nx * 1.75
@@ -298,6 +345,9 @@ export interface TrainClock {
   timetable: Timetable | null
   offset: number
 }
+
+const LEAF = new THREE.Color('#aab3bd')
+const DOORWAY = new THREE.Color('#262b31')
 
 /** Trains: cars come in, wait with doors open, and leave, at the times in
  *  the timetable (src/game/trains.ts). */
@@ -326,9 +376,28 @@ function Trains({ station, show, focus, clock }: { station: Station; show: boole
         body: Object.assign(bodyMat.clone(), { clippingPlanes: c }),
         stripe: Object.assign(stripeMat.clone(), { clippingPlanes: c }),
         win: Object.assign(winMat.clone(), { clippingPlanes: c }),
+        door: new THREE.MeshLambertMaterial({ color: '#ffffff', clippingPlanes: c }),
       })),
     [clips, bodyMat, stripeMat, winMat],
   )
+  // Doors on the platform side, lined up with the openings in the screen
+  // doors: two leaves each, that slide apart while the train stands.
+  const doors = useMemo(
+    () =>
+      platformFrames(station).map((f) => {
+        const t = station.tracks[f.i]
+        // Along the train (its local x) and which side the platform is on
+        // (its local z), from the track's direction and the platform's.
+        const along = Math.sign(f.ux * t.dx + f.uy * t.dy) || 1
+        const side = Math.sign(f.nx * -t.dy + f.ny * t.dx) || 1
+        return { at: doorOpenings(t.half).map((a) => a * along), side, open: -1 }
+      }),
+    [station],
+  )
+  const doorGeo = useMemo(() => new THREE.BoxGeometry(0.66, 1.95, 0.06), [])
+  useEffect(() => () => doorGeo.dispose(), [doorGeo])
+  const doorMeshes = useRef<(THREE.InstancedMesh | null)[]>([])
+  const dm = useMemo(() => new THREE.Matrix4(), [])
   useEffect(() => () => mats.forEach((m) => Object.values(m).forEach((x) => x.dispose())), [mats])
 
   useFrame(() => {
@@ -357,6 +426,33 @@ function Trains({ station, show, focus, clock }: { station: Station; show: boole
       const my = (t.ay + t.by) / 2
       g.position.set(mx + t.dx * s, t.z - 1.0, my + t.dy * s)
       g.rotation.y = -Math.atan2(t.dy, t.dx)
+      // Doors: open from a second after it stops until 3 seconds before
+      // it leaves, sliding over a second.
+      const dd = doors[i]
+      const im = doorMeshes.current[i]
+      if (!dd || !im || !d) return
+      const open = Math.max(0, Math.min(1, Math.min(sec - d.arr - 1, d.dep - 3 - sec)))
+      if (Math.abs(open - dd.open) < 0.01) return
+      dd.open = open
+      dd.at.forEach((a, k) => {
+        for (const [j, sgn] of [
+          [0, -1],
+          [1, 1],
+        ] as const) {
+          dm.makeTranslation(a + sgn * (0.33 + open * 0.62), 1.0 + 1.1, dd.side * 1.445)
+          im.setMatrixAt(k * 3 + j, dm)
+        }
+        // The dark doorway behind the leaves.
+        dm.makeScale(2, 1, 1).setPosition(a, 1.0 + 1.1, dd.side * 1.425)
+        im.setMatrixAt(k * 3 + 2, dm)
+        if (dd.open === open && !im.userData.painted) {
+          im.setColorAt(k * 3, LEAF)
+          im.setColorAt(k * 3 + 1, LEAF)
+          im.setColorAt(k * 3 + 2, DOORWAY)
+        }
+      })
+      if (!im.userData.painted && im.instanceColor) (im.userData.painted = true), (im.instanceColor.needsUpdate = true)
+      im.instanceMatrix.needsUpdate = true
     })
   })
 
@@ -367,6 +463,7 @@ function Trains({ station, show, focus, clock }: { station: Station; show: boole
         const carLen = (t.half * 2) / cars
         return (
           <group key={i} ref={(el) => void (groups.current[i] = el)} visible={false}>
+            {doors[i] && <instancedMesh ref={(el) => void (doorMeshes.current[i] = el)} args={[doorGeo, mats[i].door, doors[i].at.length * 3]} frustumCulled={false} />}
             {Array.from({ length: cars }, (_, c) => {
               const x = -t.half + carLen * (c + 0.5)
               return (
@@ -391,22 +488,23 @@ function Trains({ station, show, focus, clock }: { station: Station; show: boole
 }
 
 /** Hanging signs. They turn to face the camera and lean back a little,
- *  so they read from above. */
+ *  so they read from above; down on a platform they hang straight. */
 function Signs({ station }: { station: Station }) {
   const items = useMemo(
     () =>
       station.signs
-        .filter((s) => s.k !== 'board')
+        .filter((s) => s.k !== 'board' && !s.wall)
         .map((s) => {
-        const tex = signTexture(s)
-        return { s, tex, mat: new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }) }
-      }),
+          const tex = signTexture(s)
+          return { s, tex, mat: new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }) }
+        }),
     [station],
   )
   useEffect(() => () => items.forEach((i) => (i.tex.dispose(), i.mat.dispose())), [items])
   const root = useRef<THREE.Group>(null)
   useFrame(() => {
-    root.current?.children.forEach((c) => c.rotation.set(-0.55, view.yaw, 0, 'YXZ'))
+    const lean = -0.55 * (1 - platformView.amount)
+    root.current?.children.forEach((c) => c.rotation.set(lean, view.yaw, 0, 'YXZ'))
   })
   return (
     <group ref={root}>
@@ -421,9 +519,145 @@ function Signs({ station }: { station: Station }) {
   )
 }
 
+/** Dark text or light text on a line's color. */
+function inkOn(hex: string) {
+  const n = parseInt(hex.slice(1), 16)
+  const l = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)
+  return l > 150 ? '#1b1b1b' : '#ffffff'
+}
+
+/** A station name board (駅名標): the station number, the name in kanji,
+ *  kana and English, and a band in the line's color with the previous
+ *  and next stations, the next one on the side its trains go. */
+function nameBoardTexture(s: StationSign) {
+  const W = 1024
+  const H = 320
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  const ctx = c.getContext('2d')!
+  const nm = s.name!
+  ctx.fillStyle = '#fbfbf8'
+  ctx.fillRect(0, 0, W, H)
+  // Station number: the line letter over the number, in a rounded square
+  // ringed in the line's color.
+  const bx = 34
+  const by = 34
+  const bs = 150
+  ctx.fillStyle = s.c
+  ctx.beginPath()
+  ctx.roundRect(bx, by, bs, bs, 26)
+  ctx.fill()
+  ctx.fillStyle = '#ffffff'
+  ctx.beginPath()
+  ctx.roundRect(bx + 16, by + 16, bs - 32, bs - 32, 14)
+  ctx.fill()
+  ctx.fillStyle = '#1b1b1b'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = `700 38px ${FONT}`
+  ctx.fillText(nm.here.ref[0], bx + bs / 2, by + 50)
+  ctx.font = `800 56px ${FONT}`
+  ctx.fillText(nm.here.ref.slice(1), bx + bs / 2, by + 102)
+  // The name.
+  const cx = W / 2 + 60
+  ctx.fillStyle = '#3a3a3a'
+  ctx.font = `600 34px ${FONT}`
+  if (nm.here.kana) ctx.fillText(nm.here.kana, cx, 44)
+  ctx.fillStyle = '#111111'
+  ctx.font = `800 112px ${FONT}`
+  ctx.fillText(nm.here.ja, cx, 124, 620)
+  ctx.fillStyle = '#2b2b2b'
+  ctx.font = `600 38px ${FONT}`
+  ctx.fillText(nm.here.en, cx, 200)
+  // The band: previous on one side, next on the other.
+  const top = 230
+  ctx.fillStyle = s.c
+  ctx.fillRect(0, top, W, H - top)
+  const ink = inkOn(s.c)
+  const side = (st: NonNullable<typeof nm.next>, label: string, onRight: boolean) => {
+    const y = top + (H - top) / 2
+    ctx.fillStyle = ink
+    ctx.textBaseline = 'middle'
+    ctx.textAlign = onRight ? 'right' : 'left'
+    const edge = onRight ? W - 28 : 28
+    const dir = onRight ? -1 : 1
+    // The arrow, at the outer edge.
+    ctx.beginPath()
+    const ax = edge
+    ctx.moveTo(ax, y)
+    ctx.lineTo(ax + dir * 34, y - 26)
+    ctx.lineTo(ax + dir * 34, y + 26)
+    ctx.closePath()
+    ctx.fill()
+    let x = edge + dir * 50
+    ctx.font = `700 26px ${FONT}`
+    // 次 or 前, in a small box.
+    const lw = 40
+    ctx.strokeStyle = ink
+    ctx.lineWidth = 3
+    ctx.strokeRect(onRight ? x - lw : x, y - 20, lw, 40)
+    ctx.textAlign = 'center'
+    ctx.fillText(label, onRight ? x - lw / 2 : x + lw / 2, y + 1)
+    x += dir * (lw + 14)
+    ctx.textAlign = onRight ? 'right' : 'left'
+    ctx.font = `700 30px ${FONT}`
+    ctx.fillText(st.ref, x, y)
+    x += dir * (ctx.measureText(st.ref).width + 14)
+    // The name, with its English under it.
+    ctx.font = `800 36px ${FONT}`
+    ctx.fillText(st.ja, x, y - 12)
+    ctx.font = `600 20px ${FONT}`
+    ctx.fillText(st.en, x, y + 23)
+  }
+  if (nm.next) side(nm.next, '次', nm.right)
+  if (nm.prev) side(nm.prev, '前', !nm.right)
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.anisotropy = 8
+  return tex
+}
+
+/** Name boards on the wall across the tracks, facing the platform. Low on
+ *  the wall when you look from above, at eye height on the platform. */
+function NameBoards({ station }: { station: Station }) {
+  const items = useMemo(
+    () =>
+      station.signs
+        .filter((s) => s.wall && s.name)
+        .map((s) => {
+          const tex = nameBoardTexture(s)
+          return { s, tex, mat: new THREE.MeshBasicMaterial({ map: tex }) }
+        }),
+    [station],
+  )
+  useEffect(() => () => items.forEach((i) => (i.tex.dispose(), i.mat.dispose())), [items])
+  const root = useRef<THREE.Group>(null)
+  useFrame(() => {
+    const k = platformView.amount
+    root.current?.children.forEach((c, i) => {
+      const w = items[i]?.s.wall
+      if (w) c.position.y = w.z + 1.3 * (1 - k) + 2.55 * k
+    })
+  })
+  return (
+    <group ref={root}>
+      {items.map(({ s, mat }, i) => (
+        <group key={i} position={[s.wall!.x, s.wall!.z + 1.3, s.wall!.y]} rotation-y={s.r} userData={{ z: s.z }}>
+          <mesh material={mat}>
+            <planeGeometry args={[4.0, 1.25]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  )
+}
+
 /** The words on a departure board, for the board and the sign card:
- *  先発 (the first train to leave) and 次発 (the one after), with the time
- *  and where each train is going (〜行, "bound for"). */
+ *  先発 (the first train to leave) and 次発 (the one after), 各停 (a local
+ *  train, stopping everywhere: every train on these lines is), the time
+ *  and where each train is going (〜行, "bound for"). `arr`: seconds until
+ *  it comes in (negative while it stands at the platform). */
 export function boardRows(station: Station, platform: number, clock: TrainClock, ms: number) {
   const { day, sec } = tokyoNow(ms)
   const next = nextDepartures(clock.timetable, station, platform, day, sec, 2)
@@ -432,94 +666,214 @@ export function boardRows(station: Station, platform: number, clock: TrainClock,
   const done = !!next[0] && next[0].dep - sec > 2 * 3600
   return (done ? next.slice(0, 1) : next).map((d, i) => ({
     label: done ? '始発' : i ? '次発' : '先発',
+    kind: '各停',
     time: clockText(d.dep),
     to: `${d.to}行`,
     toEn: d.toEn,
     approx: !!d.approx,
     done,
+    arr: Math.round(d.arr - sec),
   }))
 }
 
-function drawBoard(ctx: CanvasRenderingContext2D, s: StationSign, rows: ReturnType<typeof boardRows>) {
-  const W = 512
-  const H = 192
-  ctx.fillStyle = '#101418'
-  ctx.fillRect(0, 0, W, H)
-  ctx.fillStyle = s.c
-  ctx.fillRect(0, 0, W, 34)
-  ctx.fillStyle = '#ffffff'
-  ctx.textBaseline = 'middle'
-  ctx.font = `700 24px ${FONT}`
-  ctx.fillText('発車案内', 14, 18)
-  ctx.font = `500 18px ${FONT}`
-  ctx.textAlign = 'right'
-  ctx.fillText(rows[0]?.approx ? 'Departures (approx.)' : 'Departures', W - 14, 18)
-  ctx.textAlign = 'left'
-  if (rows[0]?.done) {
-    ctx.fillStyle = '#ffffff'
-    ctx.font = `700 30px ${FONT}`
-    ctx.fillText('本日の運転は終了しました', 14, 66, W - 28)
-    ctx.font = `500 18px ${FONT}`
-    ctx.fillStyle = '#c9d1d9'
-    ctx.fillText('No more trains today', 14, 98)
-  }
-  rows.forEach((r, i) => {
-    const y = r.done ? 110 : 34 + 16 + i * 74
-    ctx.fillStyle = i || r.done ? '#9fd8ff' : '#ffb347'
-    ctx.font = `700 26px ${FONT}`
-    ctx.fillText(r.label, 14, y + 18)
-    ctx.fillStyle = '#ffffff'
-    ctx.font = `700 40px ${FONT}`
-    ctx.fillText(r.time, 92, y + 20)
-    ctx.fillText(r.to, 210, y + 20, W - 224)
-    ctx.fillStyle = '#c9d1d9'
-    ctx.font = `500 18px ${FONT}`
-    if (r.toEn) ctx.fillText(`for ${r.toEn}`, 212, y + 52, W - 226)
-  })
+// LED departure board: a matrix of 16-dot-high characters, like the
+// boards over Tokyo platforms. Text is drawn small, then each pixel is
+// lit as one round dot.
+const DOTS_W = 192
+const DOTS_H = 64
+const DOT = 4
+const LED = {
+  label: '#ff5a36',
+  kind: '#35e05a',
+  time: '#ffd23f',
+  to: '#ff9b2f',
+  en: '#9fe7ff',
+  ticker: '#ffd23f',
+  off: '#24160f',
+}
+let unlit: HTMLCanvasElement | null = null
+function unlitDots() {
+  if (unlit) return unlit
+  unlit = document.createElement('canvas')
+  unlit.width = DOTS_W * DOT
+  unlit.height = DOTS_H * DOT
+  const ctx = unlit.getContext('2d')!
+  ctx.fillStyle = '#050505'
+  ctx.fillRect(0, 0, unlit.width, unlit.height)
+  ctx.fillStyle = LED.off
+  for (let y = 0; y < DOTS_H; y++)
+    for (let x = 0; x < DOTS_W; x++) {
+      ctx.beginPath()
+      ctx.arc(x * DOT + DOT / 2, y * DOT + DOT / 2, DOT * 0.36, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  return unlit
 }
 
-/** Departure boards over the platforms: the next two trains, redrawn when
- *  they change. Hidden like the signs when the floor is above you. */
+interface LedLine {
+  parts: { t: string; c: string; x: number; en?: boolean }[]
+  /** Scrolls right to left. */
+  scroll?: boolean
+}
+
+/** What a board shows now: two trains, then a line that alternates (or
+ *  scrolls) through announcements in Japanese and English. */
+function ledLines(station: Station, platform: number, rows: ReturnType<typeof boardRows>, phase: number): LedLine[] {
+  const p = station.platforms[platform]
+  const en = phase % 2 === 1
+  if (rows[0]?.done) {
+    const r = rows[0]
+    return [
+      { parts: [{ t: en ? 'No more trains' : '本日の運転は', c: LED.to, x: 4, en }] },
+      { parts: [{ t: en ? 'today' : '終了しました', c: LED.to, x: 4, en }] },
+      { parts: [{ t: en ? `First train ${r.time} for ${r.toEn}` : `始発 ${r.time} ${r.to}`, c: LED.ticker, x: 4, en }], scroll: true },
+    ]
+  }
+  const train = (r: (typeof rows)[number] | undefined): LedLine => {
+    if (!r) return { parts: [] }
+    if (en)
+      return {
+        parts: [
+          { t: r.label === '先発' ? '1st' : '2nd', c: LED.label, x: 2, en },
+          { t: 'Local', c: LED.kind, x: 30, en },
+          { t: r.time, c: LED.time, x: 74, en },
+          { t: r.toEn, c: LED.to, x: 112, en },
+        ],
+      }
+    return {
+      parts: [
+        { t: r.label, c: LED.label, x: 2 },
+        { t: r.kind, c: LED.kind, x: 38 },
+        { t: r.time, c: LED.time, x: 74 },
+        { t: r.to.replace(/行$/, ''), c: LED.to, x: 114 },
+      ],
+    }
+  }
+  const first = rows[0]
+  const num = p?.num ?? ''
+  let ticker: string
+  if (first && first.arr <= 60 && first.arr > -5)
+    ticker = en ? `The train for ${first.toEn} is arriving on track ${num}.` : `まもなく ${num}番線に ${first.to}が まいります`
+  else if (first && first.arr <= -5)
+    ticker = en ? `The doors are closing. Please stand back.` : `${first.to} ドアが閉まります ご注意ください`
+  else ticker = en ? `Track ${num}: trains ${p?.en ?? ''}` : `${num}番線 ${p?.ja ?? ''}`
+  return [train(rows[0]), train(rows[1]), { parts: [{ t: ticker, c: LED.ticker, x: 2, en }], scroll: true }]
+}
+
+const ledSmall = typeof document !== 'undefined' ? document.createElement('canvas') : null
+/** Draws the lines as lit dots onto a board's canvas. `t`: seconds, for
+ *  the scrolling line. */
+function drawLed(ctx: CanvasRenderingContext2D, lines: LedLine[], t: number) {
+  const small = ledSmall!
+  small.width = DOTS_W
+  small.height = DOTS_H
+  const sc = small.getContext('2d', { willReadFrequently: true })!
+  sc.fillStyle = '#000'
+  sc.fillRect(0, 0, DOTS_W, DOTS_H)
+  sc.textBaseline = 'top'
+  lines.forEach((ln, i) => {
+    const y = 1 + i * 21
+    for (const part of ln.parts) {
+      sc.font = part.en ? `700 13px ${FONT}` : `700 15px ${FONT}`
+      sc.fillStyle = part.c
+      let x = part.x
+      if (ln.scroll) {
+        const w = sc.measureText(part.t).width
+        if (w > DOTS_W - 4) x = DOTS_W - (((t * 24) % (w + DOTS_W)) | 0)
+      }
+      sc.fillText(part.t, x, y + (part.en ? 2 : 0))
+    }
+  })
+  const img = sc.getImageData(0, 0, DOTS_W, DOTS_H).data
+  ctx.drawImage(unlitDots(), 0, 0)
+  for (let y = 0; y < DOTS_H; y++)
+    for (let x = 0; x < DOTS_W; x++) {
+      const k = (y * DOTS_W + x) * 4
+      const m = Math.max(img[k], img[k + 1], img[k + 2])
+      if (m < 100) continue
+      // Full brightness in the text's own color.
+      const f = 255 / m
+      ctx.fillStyle = `rgb(${Math.min(255, img[k] * f) | 0},${Math.min(255, img[k + 1] * f) | 0},${Math.min(255, img[k + 2] * f) | 0})`
+      ctx.beginPath()
+      ctx.arc(x * DOT + DOT / 2, y * DOT + DOT / 2, DOT * 0.45, 0, Math.PI * 2)
+      ctx.fill()
+    }
+}
+
+/** Departure boards over the platforms: an LED board with the next two
+ *  trains and an announcement line. They turn to face you from above, and
+ *  hang square across the platform when you're on it. */
 function DepartureBoards({ station, clock }: { station: Station; clock: TrainClock }) {
+  const frames = useMemo(() => platformFrames(station), [station])
   const boards = useMemo(
     () =>
       station.signs
         .filter((s) => s.k === 'board')
         .map((s) => {
           const canvas = document.createElement('canvas')
-          canvas.width = 512
-          canvas.height = 192
+          canvas.width = DOTS_W * DOT
+          canvas.height = DOTS_H * DOT
           const tex = new THREE.CanvasTexture(canvas)
           tex.colorSpace = THREE.SRGBColorSpace
-          tex.anisotropy = 4
-          return { s, canvas, tex, mat: new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }), shown: '' }
+          tex.anisotropy = 8
+          // Across the platform: the track's direction, either way.
+          const f = frames.find((x) => x.i === (s.p ?? 0))
+          const across = f ? Math.atan2(f.ux, f.uy) : 0
+          return { s, canvas, tex, across, mat: new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }), shown: '' }
         }),
-    [station],
+    [station, frames],
   )
   useEffect(() => () => boards.forEach((b) => (b.tex.dispose(), b.mat.dispose())), [boards])
   const root = useRef<THREE.Group>(null)
   const last = useRef(0)
   useFrame(() => {
-    root.current?.children.forEach((c) => c.rotation.set(-0.55, view.yaw, 0, 'YXZ'))
+    const k = platformView.amount
+    root.current?.children.forEach((c, i) => {
+      const b = boards[i]
+      let yaw = view.yaw
+      if (k > 0.5 && b) {
+        // Square across the platform, the face toward the camera.
+        const d = Math.atan2(Math.sin(b.across - view.yaw), Math.cos(b.across - view.yaw))
+        yaw = Math.abs(d) < Math.PI / 2 ? b.across : b.across + Math.PI
+      }
+      c.rotation.set(-0.55 * (1 - k), yaw, 0, 'YXZ')
+    })
     const now = Date.now() + clock.offset
-    if (now - last.current < 1000) return
+    // The scrolling line moves about 8 times a second, but only while
+    // you're down on the platforms; otherwise once a second.
+    if (now - last.current < (platformView.on ? 120 : 1000)) return
     last.current = now
+    const t = now / 1000
     for (const b of boards) {
       const rows = boardRows(station, b.s.p ?? 0, clock, now)
-      const key = JSON.stringify(rows)
+      // Japanese and English take turns, 6 seconds each.
+      const lines = ledLines(station, b.s.p ?? 0, rows, Math.floor(t / 6))
+      const scrolling = platformView.on && lines.some((l) => l.scroll)
+      const key = JSON.stringify(lines) + (scrolling ? Math.floor(t * 8) : '')
       if (key === b.shown) continue
       b.shown = key
-      drawBoard(b.canvas.getContext('2d')!, b.s, rows)
+      drawLed(b.canvas.getContext('2d')!, lines, t)
       b.tex.needsUpdate = true
     }
   })
   return (
     <group ref={root}>
       {boards.map(({ s, mat }, i) => (
-        <group key={i} position={[s.x, s.z + 2.9, s.y]} userData={{ z: s.z }}>
+        <group key={i} position={[s.x, s.z + 3.0, s.y]} userData={{ z: s.z }}>
           <mesh material={mat}>
-            <planeGeometry args={[2.8, 1.05]} />
+            <planeGeometry args={[3.3, 1.1]} />
           </mesh>
+          {/* The board's case and the rods it hangs from. */}
+          <mesh position={[0, 0, -0.09]}>
+            <boxGeometry args={[3.5, 1.28, 0.16]} />
+            <meshLambertMaterial color="#2a2d33" />
+          </mesh>
+          {[-1.2, 1.2].map((x) => (
+            <mesh key={x} position={[x, 1.0, -0.09]}>
+              <boxGeometry args={[0.05, 0.8, 0.05]} />
+              <meshLambertMaterial color="#5b6068" />
+            </mesh>
+          ))}
         </group>
       ))}
     </group>
@@ -613,7 +967,7 @@ function ExitHoods({ stations }: { stations: Station[] }) {
 }
 
 /** All the map's stations. `under`: the player is down in one. */
-export function Stations({ ug, focus, under, clock }: { ug: Underground; focus: React.RefObject<Focus>; under: boolean; clock: TrainClock }) {
+export function Stations({ ug, focus, under, clock, riders }: { ug: Underground; focus: React.RefObject<Focus>; under: boolean; clock: TrainClock; riders?: RiderSource | null }) {
   const { pieces, mats } = useStationPieces(ug.stations, ug)
   useEffect(
     () => () => {
@@ -627,9 +981,10 @@ export function Stations({ ug, focus, under, clock }: { ug: Underground; focus: 
   // Show what's at or below the player, so the floor above never hides them.
   useFrame(() => {
     const z = focus.current.z ?? 0
+    const hall = platformView.amount > 0.05
     pieces.forEach((p, i) => {
       const m = meshes.current[i]
-      if (m) m.visible = under && p.z <= z + 1.2
+      if (m) m.visible = under && (p.hall != null ? hall && Math.abs(p.hall - z) < 0.6 : p.z <= z + 1.2)
     })
     signRoot.current?.traverse((o) => {
       if (o.userData.z != null) o.visible = under && o.userData.z <= z + 1.2
@@ -647,10 +1002,15 @@ export function Stations({ ug, focus, under, clock }: { ug: Underground; focus: 
         {ug.stations.map((s) => (
           <DepartureBoards key={s.id} station={s} clock={clock} />
         ))}
+        {ug.stations.map((s) => (
+          <NameBoards key={s.id} station={s} />
+        ))}
       </group>
       {ug.stations.map((s) => (
         <Trains key={s.id} station={s} show={under} focus={focus} clock={clock} />
       ))}
+      {riders &&
+        ug.stations.map((s) => <Riders key={s.id} station={s} src={riders} timetable={clock.timetable} offset={clock.offset} focus={focus} show={under} />)}
       {!under && <ExitHoods stations={ug.stations} />}
       {under && <ambientLight intensity={0.6} color="#f4f6ff" />}
     </>

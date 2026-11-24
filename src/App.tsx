@@ -21,6 +21,7 @@ import { useProgressSync } from './game/progress'
 import { Underground, type Station } from './game/station'
 import { Stations, boardRows } from './game/Stations'
 import { useTimetable, type Timetable } from './game/trains'
+import { useRiders } from './game/riders'
 import { buildInteriors } from './game/interior'
 import { Interiors, type Glass } from './game/Interiors'
 import { BarMenu } from './game/BarMenu'
@@ -304,6 +305,8 @@ export default function App() {
     const v: [string, string] = [talkingConv.speakers[0]?.voice ?? '', talkingConv.speakers[1]?.voice ?? '']
     setVoices((old) => (old[talkingConv.spot]?.join() === v.join() ? old : { ...old, [talkingConv.spot]: v }))
   }, [talkingConv])
+  // The people who ride the trains, on the platforms.
+  const riders = useRiders(map?.id, ug?.stations ?? NO_STATIONS)
 
   if (error)
     return (
@@ -395,7 +398,7 @@ export default function App() {
         <fog attach="fog" args={[bg, under ? distance * 2 : distance * 2.5 * sky.fogScale, under ? distance * 4 : distance * 6 * sky.fogScale]} />
         <World map={map} tiles={tiles} focus={focus} sky={sky} when={when} day={week.day} minute={week.minute} surface={!under} distance={distance} />
         {!under && <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />}
-        {ug && <Stations ug={ug} focus={focus} under={under} clock={trainClock} />}
+        {ug && <Stations ug={ug} focus={focus} under={under} clock={trainClock} riders={riders} />}
         {ug && ug.interiors.length > 0 && <Interiors interiors={ug.interiors} focus={focus} under={under} night={sky.night > 0.5} glasses={glasses} />}
         {talk && !under && <Talkers talk={talk} voices={voices} rain={sky.rain > 0.2} />}
         <Player
@@ -828,6 +831,8 @@ const HELP: [string, string][] = [
   ['H', 'This list'],
   ['Tap a word', 'Word card'],
 ]
+
+const NO_STATIONS: Station[] = []
 
 const UNDERGROUND_BG = new THREE.Color('#15171c')
 

@@ -193,6 +193,31 @@ so run it after each ダイヤ改正.
 Start underground with `?at=x,y,z`, e.g. `?at=495,408.8,6.14` (Hibiya
 west gates) or `?at=662,350,-12.08` (Ōedo B7).
 
+### On the platforms
+
+Step onto a platform and the camera comes down to eye level and turns to
+look along it (Q/E still turn it; it stays inside the hall). From there:
+
+- **LED departure boards** (発車案内) hang across the platform: 先発 and
+  次発 with 各停, the time and where each train goes, and a line that
+  alternates Japanese and English and announces the train as it comes in
+  (まもなく…まいります) and as its doors close.
+- **Station name boards** (駅名標) on the wall across the tracks: the
+  station number (H04, E23), 六本木 in kanji, kana and English, and a band
+  with the previous (前) and next (次) stations, the arrow pointing the
+  way this platform's trains go. Stand at the edge in front of one for its
+  card.
+- **Riders** wait at the doors in two lines, get on when the doors open,
+  and get off and head for the stairs, matched to the trains on the
+  timetable. Every rider is someone (`src/game/riders.ts`): people from the
+  day plans in `public/life/<area>/` whose outings start or end at a
+  station exit, plus the everyday tier. Until the everyday tier is in
+  people.json (`"tier": "everyday"`), `src/game/everyday.ts` stands in for
+  it: 3,000 named people with a job, the station they live at and a plan
+  (commuting in, living here and going out, lunch and shopping, a night
+  out, changing lines). It switches off once people.json has everyday
+  people.
+
 ### Walk-in places: Ant 'n Bee
 
 アントンビー (Ant 'n Bee), the craft beer bar in the basement of 5-1-5
