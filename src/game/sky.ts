@@ -93,11 +93,13 @@ export function japaneseTime(date: Date) {
 
 /** A Date at the given Tokyo time today, for ?time=21:30. */
 export function tokyoTimeToday(hhmm: string) {
-  const [h, m] = hhmm.split(':').map(Number)
+  const [h, m, sec] = hhmm.split(':').map(Number)
   if (!Number.isFinite(h)) return null
   const now = new Date()
   const { h: th, m: tm } = tokyoClock(now)
-  const diff = (h * 60 + (m || 0) - (th * 60 + tm)) * 60000
+  let diff = (h * 60 + (m || 0) - (th * 60 + tm)) * 60000
+  // With seconds (21:30:15), to the second: handy for catching a train.
+  if (Number.isFinite(sec)) diff += sec * 1000 - (now.getTime() % 60000)
   return new Date(now.getTime() + diff)
 }
 

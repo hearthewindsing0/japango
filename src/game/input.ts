@@ -18,6 +18,9 @@ const held = new Set<Dir>()
  *  0 = looking along the map's "up"). Q/E turn a quarter, R resets, and a
  *  right-drag on the view turns freely. */
 export const view = { yaw: 0, target: 0 }
+/** On a station platform the camera comes down to eye level: `amount`
+ *  eases from 0 (the usual view from above) to 1 (on the platform). */
+export const platformView = { on: false, amount: 0 }
 export const turnView = (quarters: number) => {
   view.target = Math.round(view.target / (Math.PI / 2) + quarters) * (Math.PI / 2)
 }

@@ -115,7 +115,7 @@ function activeServices(st: Timetable['stations'][string], day: number) {
 /** Weekends and public holidays run the 土休日 (weekend and holiday)
  *  timetable. Holidays come from any feed's calendar: a day that runs a
  *  weekend-only service. */
-function holidayLike(tt: Timetable | null, day: number) {
+export function holidayLike(tt: Timetable | null, day: number) {
   if (weekday(day) >= 5) return true
   for (const st of Object.values(tt?.stations ?? {})) {
     const on = activeServices(st, day)

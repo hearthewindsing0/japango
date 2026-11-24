@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import { PARTS, PLAYER_LOOK, hasPart, paintOf } from './character'
 import * as THREE from 'three'
-import { input, view } from './input'
+import { input, platformView, view } from './input'
 import { circleBlocked, groundAt, isBlocked, type GameMap } from './map'
 import type { Underground } from './station'
 import type { Focus } from './World'
@@ -11,6 +11,13 @@ const WALK_SPEED = 4.5 // m/s
 const RUN_SPEED = 9
 const RADIUS = 0.3
 const CAMERA_PITCH = (63 * Math.PI) / 180
+/** On a platform: a low camera, at about eye height over the player's
+ *  shoulder, looking a little down. */
+const PLATFORM_PITCH = (14 * Math.PI) / 180
+const PLATFORM_EYE = 2.1
+/** The usual narrow lens from above, and a wider one on the platform. */
+const FOV = 38
+const PLATFORM_FOV = 62
 
 interface Props {
   map: GameMap
@@ -41,6 +48,7 @@ export function Player({ map, ug, focus, distance, onMove }: Props) {
   const s = useRef({ heading: 0, phase: 0, speed: 0, ground: 0, lastX: focus.current.x, lastY: focus.current.y, lastUnder: false })
   const camera = useThree((st) => st.camera)
   const placed = useRef(false)
+  const onPlatform = useRef<string | null>(null)
 
   /** One step: on the street, or underground once you've gone down an
    *  exit's stairs. */
@@ -112,11 +120,50 @@ export function Player({ map, ug, focus, distance, onMove }: Props) {
       root.current.rotation.y = st.heading
     }
 
+    // On a station platform, the camera comes down to eye level and, when
+    // you step onto the platform, turns to look along it.
+    const plat = f.under && ug ? ug.platformAt(f.x, f.y, f.z ?? 0) : null
+    const key = plat ? `${plat.station.id}:${plat.frame.i}` : null
+    if (key !== onPlatform.current) {
+      onPlatform.current = key
+      if (plat) {
+        // Of the two ways along the track, the one nearer where you look.
+        const a = Math.atan2(-plat.frame.ux, -plat.frame.uy)
+        const turns = [a, a + Math.PI].map((t) => view.yaw + Math.atan2(Math.sin(t - view.yaw), Math.cos(t - view.yaw)))
+        view.target = Math.abs(turns[0] - view.yaw) < Math.abs(turns[1] - view.yaw) ? turns[0] : turns[1]
+      }
+    }
+    platformView.on = !!plat
+    platformView.amount = placed.current ? damp(platformView.amount, plat ? 1 : 0, 4, dt) : plat ? 1 : 0
+    const k = platformView.amount
+    const cam = camera as THREE.PerspectiveCamera
+    const fov = FOV + (PLATFORM_FOV - FOV) * k
+    const near = 0.5 - 0.3 * k
+    if (Math.abs(cam.fov - fov) > 0.05 || Math.abs(cam.near - near) > 0.01) {
+      cam.fov = fov
+      cam.near = near
+      cam.updateProjectionMatrix()
+    }
+
     // Camera: behind and above the player, turned by the view's yaw.
     view.yaw = placed.current ? damp(view.yaw, view.target, 7, dt) : view.target
-    const back = Math.cos(CAMERA_PITCH) * distance
+    let low = Math.min(9, Math.max(4.5, distance * 0.3))
+    // Don't back through the wall: stay over the platform.
+    if (plat && ug) {
+      for (let d = 1.5; d <= low; d += 0.5) {
+        if (!ug.inHall(f.x + Math.sin(view.yaw) * d, f.y + Math.cos(view.yaw) * d, f.z ?? 0)) {
+          low = Math.max(1.5, d - 0.6)
+          break
+        }
+      }
+    }
+    const pitch = CAMERA_PITCH + (PLATFORM_PITCH - CAMERA_PITCH) * k
+    const dist = distance + (low - distance) * k
+    const back = Math.cos(pitch) * dist
+    // Close in, a little higher, to see over the player's head.
+    const rise = Math.sin(pitch) * dist * (1 - k) + (PLATFORM_EYE + Math.max(0, 4 - low) * 0.2) * k
     const cx = f.x + Math.sin(view.yaw) * back
-    const cy = st.ground + Math.sin(CAMERA_PITCH) * distance
+    const cy = st.ground + rise
     const cz = f.y + Math.cos(view.yaw) * back
     if (!placed.current) {
       camera.position.set(cx, cy, cz)
@@ -126,11 +173,11 @@ export function Player({ map, ug, focus, distance, onMove }: Props) {
       camera.position.y = damp(camera.position.y, cy, 8, dt)
       camera.position.z = damp(camera.position.z, cz, 8, dt)
     }
-    camera.lookAt(
-      camera.position.x - Math.sin(view.yaw) * back,
-      camera.position.y - Math.sin(CAMERA_PITCH) * distance + 0.8,
-      camera.position.z - Math.cos(view.yaw) * back,
-    )
+    // Look at the player's chest from above; on a platform, ahead along it
+    // at about head height, so the boards and signs are in view.
+    const lookY = 0.8 * (1 - k) + 1.5 * k
+    const ahead = back + 8 * k
+    camera.lookAt(camera.position.x - Math.sin(view.yaw) * ahead, cy - rise + lookY + (camera.position.y - cy), camera.position.z - Math.cos(view.yaw) * ahead)
 
     if (Math.hypot(f.x - st.lastX, f.y - st.lastY) > 1 || st.lastUnder !== !!f.under) {
       st.lastX = f.x
