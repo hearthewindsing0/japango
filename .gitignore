@@ -25,3 +25,15 @@ dist-ssr
 
 # Cloudflare local dev state
 .wrangler
+
+# Generated game data lives on the server (R2), not in git: the workflows
+# upload it and `bun run data:pull` downloads it (scripts/data.mjs).
+/public/tiles/
+/public/dict/
+/public/talk/
+/public/life/
+/public/trains/
+/public/sounds/
+/data/*.json
+/data/life/
+!/data/places/
