@@ -14,13 +14,14 @@
 import { readFile, readdir, writeFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { AREA_ID } from '../area.mjs'
-import { loadWalkGrid, route } from './walk.mjs'
+import { crossingsOf, loadWalkGrid, route } from './walk.mjs'
 
 /** Places people go out to (rather than live, work or arrive at). */
 export const PLACE_KINDS_SOCIAL = ['karaoke', 'izakaya', 'bar', 'club', 'noodles', 'restaurant', 'fastfood', 'cafe', 'konbini', 'supermarket', 'drugstore', 'shop', 'park', 'shrine', 'gym', 'sight', 'errand']
 
 const DAY = 2 // Wednesday (hours are Monday first)
-const WALK = 80 // m a minute, with a bit for waiting at lights
+const WALK = 80 // m a minute, walking
+const LIGHT_WAIT = 0.4 // minutes, on average, waiting for the green man at each lit zebra
 const DETOUR = 1.35 // walks are about this much longer than a straight line
 const TALK_MIN = 4 // minutes a meeting takes, standing outside and talking
 
@@ -48,11 +49,11 @@ const detourOk = (extra, direct) => extra <= Math.max(6, direct * 0.5)
 /**
  * Moves a group's meeting spot when it sends someone the long way round:
  * to the spot (one of the places they're going, a station exit, a
- * konbini, a park, ALMOND) that keeps everyone's detour smallest. Claude
+ * konbini, a park, a landmark meeting point like ALMOND or Maman) that keeps everyone's detour smallest. Claude
  * picks plausible spots but doesn't know how far apart things are.
  */
 export function fixMeets(outings, places, walk = roughWalk) {
-  const spots = [...places.values()].filter((p) => p.kind === 'exit' || p.kind === 'konbini' || p.kind === 'park' || p.name === 'ALMOND')
+  const spots = [...places.values()].filter((p) => p.kind === 'exit' || p.kind === 'konbini' || p.kind === 'park' || p.meet || p.name === 'ALMOND')
   for (const o of outings) {
     if (o.people.length < 2 || !Array.isArray(o.from) || !Array.isArray(o.to)) continue
     const legs = o.people.map((k) => [places.get(o.from.find((w) => w.key === k)?.place), places.get(o.to.find((w) => w.key === k)?.place)])
@@ -143,12 +144,17 @@ if (import.meta.main ?? process.argv[1]?.endsWith('plan.mjs')) {
   const routes = new Map()
   const walkBetween = (a, b) => {
     const k = `${a}>${b}`
-    if (!routes.has(k)) routes.set(k, route(grid, byId.get(a).door, byId.get(b).door))
+    if (!routes.has(k)) {
+      const r = route(grid, byId.get(a).door, byId.get(b).door)
+      if (r) r.x = crossingsOf(grid, r.p)
+      routes.set(k, r)
+    }
     return routes.get(k)
   }
+  const minsOf = (r) => Math.ceil(r.len / WALK + LIGHT_WAIT * r.x.filter((c) => c[3]).length)
   const realWalk = (a, b) => {
     const r = walkBetween(a.id, b.id)
-    return r ? Math.ceil(r.len / WALK) : roughWalk(a, b)
+    return r ? minsOf(r) : roughWalk(a, b)
   }
 
   const people = []
@@ -182,8 +188,8 @@ if (import.meta.main ?? process.argv[1]?.endsWith('plan.mjs')) {
         const leg = (a, b, arrive) => {
           if (a === b) return null
           const r = walkBetween(a, b)
-          const mins = r ? Math.ceil(r.len / WALK) : roughWalk(byId.get(a), byId.get(b))
-          return { who: pid(k), from: a, to: b, depart: arrive - mins, arrive, len: r?.len ?? null, p: r?.p ?? null }
+          const mins = r ? minsOf(r) : roughWalk(byId.get(a), byId.get(b))
+          return { who: pid(k), from: a, to: b, depart: arrive - mins, arrive, len: r?.len ?? null, p: r?.p ?? null, x: r?.x ?? [] }
         }
         if (group) {
           // Some come early, some are a minute or two late: the first to

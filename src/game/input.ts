@@ -54,10 +54,14 @@ if (typeof window !== 'undefined') {
   })
 }
 
+/** While on: the player stands still (talking to someone, picking a reply). */
+export const inputLock = { on: false }
+
 export const input = {
   /** Unit vector in map terms (x right, y down on the unturned map), after
    *  turning screen directions by the camera's yaw. Zero when idle. */
   vector(): [number, number] {
+    if (inputLock.on) return [0, 0]
     const x = (held.has('right') ? 1 : 0) - (held.has('left') ? 1 : 0)
     const y = (held.has('down') ? 1 : 0) - (held.has('up') ? 1 : 0)
     const len = Math.hypot(x, y)
