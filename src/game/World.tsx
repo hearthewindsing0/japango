@@ -22,6 +22,8 @@ import { groundAt, tileGroundAt, type GameMap, type MapTile } from './map'
 import { COLORS, T } from './tiles'
 import type { SkyState } from './sky'
 import { Weather as WeatherFx } from './Weather'
+import { Almond, LANDMARK_SIGNS } from './Almond'
+import { seeThroughGlsl, seeThroughUniforms, type SeeThroughUniforms } from './seeThrough'
 
 /** Shared state the world reads every frame: where the player is. */
 export interface Focus {
@@ -290,6 +292,74 @@ function Ground({ tile, clip, night }: { tile: MapTile; clip: THREE.Plane[]; nig
   )
 }
 
+/** The buildings' look: windows, shop fronts, roof panels, and the
+ *  see-through hole around the player (see seeThrough.ts). */
+function buildingMaterial(uniforms: SeeThroughUniforms & { uNight: { value: number } }, opts: Parameters<typeof seeThroughGlsl>[0] = {}) {
+  const m = new THREE.MeshLambertMaterial({ vertexColors: true })
+  m.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms)
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        attribute float aWall; attribute float aU; attribute float aTop; attribute float aBase;
+        varying float vWall; varying float vU; varying float vTop; varying float vBase; varying vec3 vWorld;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vWall = aWall; vU = aU; vTop = aTop; vBase = aBase;
+        vWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
+      )
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform vec3 uPlayer; uniform vec3 uCam; uniform float uNight;
+        varying float vWall; varying float vU; varying float vTop; varying float vBase; varying vec3 vWorld;`,
+      )
+      .replace(
+        '#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+        ${seeThroughGlsl(opts)}`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        float winGlow = 0.0;
+        if (vWall > 0.5) {
+          float y = vWorld.y - vBase;
+          // Ground floor: shop fronts. Above: rows of windows every 3.2 m.
+          float shop = step(0.5, y) * step(y, 2.6) * step(0.15, fract(vU / 4.0)) * step(fract(vU / 4.0), 0.92);
+          float fy = fract((y - 3.0) / 3.2);
+          float row = step(3.0, y) * step(y, vTop - 0.6) * step(0.3, fy) * step(fy, 0.78);
+          float colw = step(0.2, fract(vU / 2.4)) * step(fract(vU / 2.4), 0.8);
+          float win = max(shop, row * colw);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.55, 0.66), win * 0.85);
+          // At night most shop fronts and some windows light up.
+          float cellId = fract(sin(dot(vec2(floor(vU / 2.4), floor((y - 3.0) / 3.2)) + vTop * 7.0, vec2(12.9898, 78.233))) * 43758.5453);
+          float lit = shop > 0.5 ? step(0.15, cellId) : step(0.55, cellId);
+          winGlow = win * lit * uNight;
+          // Darker base and a band under the roof line.
+          if (y < 0.4) diffuseColor.rgb *= 0.7;
+          if (y > vTop - 0.35) diffuseColor.rgb *= 0.85;
+        } else if (vWorld.y - vBase < vTop + 0.05) {
+          // Roofs: weathered concrete panels.
+          vec2 q = vWorld.xz / 3.0;
+          vec2 g = abs(fract(q) - 0.5);
+          float n = fract(sin(dot(floor(q), vec2(127.1, 311.7))) * 43758.5453);
+          diffuseColor.rgb *= 1.0 + (n - 0.5) * 0.08 - step(0.48, max(g.x, g.y)) * 0.06;
+        }`,
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * winGlow * 0.9;`,
+      )
+  }
+  return m
+}
+
 function Buildings({
   map,
   tile,
@@ -312,91 +382,17 @@ function Buildings({
   )
   const camera = useThree((s) => s.camera)
   const uniforms = useMemo(
-    () => ({ uPlayer: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() }, uNight: { value: 0 } }),
+    () => ({ ...seeThroughUniforms(), uNight: { value: 0 } }),
     [],
   )
 
-  const material = useDisposable(() => {
-    const m = new THREE.MeshLambertMaterial({ vertexColors: true })
-    m.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, uniforms)
-      shader.vertexShader = shader.vertexShader
-        .replace(
-          '#include <common>',
-          `#include <common>
-          attribute float aWall; attribute float aU; attribute float aTop; attribute float aBase;
-          varying float vWall; varying float vU; varying float vTop; varying float vBase; varying vec3 vWorld;`,
-        )
-        .replace(
-          '#include <begin_vertex>',
-          `#include <begin_vertex>
-          vWall = aWall; vU = aU; vTop = aTop; vBase = aBase;
-          vWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
-        )
-      shader.fragmentShader = shader.fragmentShader
-        .replace(
-          '#include <common>',
-          `#include <common>
-          uniform vec3 uPlayer; uniform vec3 uCam; uniform float uNight;
-          varying float vWall; varying float vU; varying float vTop; varying float vBase; varying vec3 vWorld;`,
-        )
-        .replace(
-          '#include <clipping_planes_fragment>',
-          `#include <clipping_planes_fragment>
-          // See-through hole between the camera and the player, so buildings
-          // never hide them. Dithered at the edge.
-          {
-            vec3 pa = vWorld - uPlayer;
-            vec3 ba = uCam - uPlayer;
-            float t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-            float d = length(pa - ba * t);
-            // A cone with its tip at the camera: the hole stays the same
-            // size on screen however far the wall is from the player.
-            float r = 3.2 * (1.0 - t);
-            float edge = smoothstep(r * 0.7, r, d);
-            float dither = fract(dot(floor(gl_FragCoord.xy), vec2(0.5, 0.25)) + 0.125);
-            if (t > 0.03 && vWorld.y - vBase > 0.7 && edge < dither) discard;
-          }`,
-        )
-        .replace(
-          '#include <color_fragment>',
-          `#include <color_fragment>
-          float winGlow = 0.0;
-          if (vWall > 0.5) {
-            float y = vWorld.y - vBase;
-            // Ground floor: shop fronts. Above: rows of windows every 3.2 m.
-            float shop = step(0.5, y) * step(y, 2.6) * step(0.15, fract(vU / 4.0)) * step(fract(vU / 4.0), 0.92);
-            float fy = fract((y - 3.0) / 3.2);
-            float row = step(3.0, y) * step(y, vTop - 0.6) * step(0.3, fy) * step(fy, 0.78);
-            float colw = step(0.2, fract(vU / 2.4)) * step(fract(vU / 2.4), 0.8);
-            float win = max(shop, row * colw);
-            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.55, 0.66), win * 0.85);
-            // At night most shop fronts and some windows light up.
-            float cellId = fract(sin(dot(vec2(floor(vU / 2.4), floor((y - 3.0) / 3.2)) + vTop * 7.0, vec2(12.9898, 78.233))) * 43758.5453);
-            float lit = shop > 0.5 ? step(0.15, cellId) : step(0.55, cellId);
-            winGlow = win * lit * uNight;
-            // Darker base and a band under the roof line.
-            if (y < 0.4) diffuseColor.rgb *= 0.7;
-            if (y > vTop - 0.35) diffuseColor.rgb *= 0.85;
-          } else if (vWorld.y - vBase < vTop + 0.05) {
-            // Roofs: weathered concrete panels.
-            vec2 q = vWorld.xz / 3.0;
-            vec2 g = abs(fract(q) - 0.5);
-            float n = fract(sin(dot(floor(q), vec2(127.1, 311.7))) * 43758.5453);
-            diffuseColor.rgb *= 1.0 + (n - 0.5) * 0.08 - step(0.48, max(g.x, g.y)) * 0.06;
-          }`,
-        )
-        .replace(
-          '#include <emissivemap_fragment>',
-          `#include <emissivemap_fragment>
-          totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * winGlow * 0.9;`,
-        )
-    }
-    return m
-  }, [uniforms])
+  const material = useDisposable(() => buildingMaterial(uniforms), [uniforms])
+  // The Shuto decks also open up overhead, so the pavement under them shows.
+  const viaductMaterial = useDisposable(() => buildingMaterial(uniforms, { overhead: 9 }), [uniforms])
   useLayoutEffect(() => {
     material.clippingPlanes = clip
-  }, [material, clip])
+    viaductMaterial.clippingPlanes = clip
+  }, [material, viaductMaterial, clip])
 
   useFrame(() => {
     const { x, y } = focus.current
@@ -409,7 +405,7 @@ function Buildings({
     <>
       <mesh geometry={geo} material={material} castShadow receiveShadow />
       <mesh geometry={bridgeGeo} material={material} castShadow receiveShadow />
-      <mesh geometry={viaductGeo} material={material} castShadow receiveShadow />
+      <mesh geometry={viaductGeo} material={viaductMaterial} castShadow receiveShadow />
     </>
   )
 }
@@ -501,13 +497,15 @@ function Sun({ map, focus, sky }: { map: GameMap; focus: React.RefObject<Focus>;
 function TileView({ map, tile, focus, sky, when, day, minute }: { map: GameMap; tile: MapTile; focus: React.RefObject<Focus>; sky: SkyState; when: FlowTime; day: number; minute: number }) {
   const clip = useClipPlanes(tile)
   const height = useMemo(() => heightFn(tile), [tile])
+  // Landmarks bring their own signs.
+  const signTile = useMemo(() => (tile.signs.some((s) => LANDMARK_SIGNS.has(s.t)) ? { ...tile, signs: tile.signs.filter((s) => !LANDMARK_SIGNS.has(s.t)) } : tile), [tile])
   return (
     <>
       <Ground tile={tile} clip={clip} night={sky.night} />
       <Buildings map={map} tile={tile} clip={clip} focus={focus} night={sky.night} />
       <Trees tile={tile} clip={clip} />
       <Props tile={tile} slopes={map.slopes} clip={clip} night={sky.night} />
-      <Signs tile={tile} clip={clip} height={height} day={day} minute={minute} night={sky.night} />
+      <Signs tile={signTile} clip={clip} height={height} day={day} minute={minute} night={sky.night} />
       <Crowd tile={tile} clip={clip} flow={map.peopleFlow} when={when} rain={sky.rain} />
     </>
   )
@@ -546,6 +544,7 @@ export function World({
         {tiles.map((t) => (
           <TileView key={t.key} map={map} tile={t} focus={focus} sky={sky} when={when} day={day} minute={minute} />
         ))}
+        <Almond map={map} tiles={tiles} focus={focus} night={sky.night} />
         <Cars map={map} tiles={tiles} focus={focus} hour={when.hour} night={sky.night} distance={distance} />
       </group>
       <WeatherFx focus={focus} rain={sky.rain} snow={sky.snow} />

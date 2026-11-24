@@ -189,6 +189,10 @@ export default function App() {
         const at = new URLSearchParams(location.search).get('at')?.split(',').map(Number)
         const start = at && at.length >= 2 && at.every(Number.isFinite) ? { x: at[0], y: at[1] } : m.spawn
         focus.current = { ...start }
+        // Roppongi starts on the pavement in front of ALMOND; turn the camera
+        // round to the Roppongi-dori side so its storefront is the first
+        // thing you see (Q/E or R turn it back to north-up).
+        if (start === m.spawn && AREA_ID === 'roppongi') view.yaw = view.target = Math.PI
         // ?at=x,y,z starts underground at height z (in a station).
         if (at?.length === 3 && Number.isFinite(at[2])) focus.current = { ...start, z: at[2], under: true }
         // The tiles around the start, before the player appears.
