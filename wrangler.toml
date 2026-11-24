@@ -1,5 +1,5 @@
 # Cloudflare Worker that hosts the game: the built site (dist/), map tiles
-# from R2 and a small API backed by D1. Deployed by .github/workflows/deploy.yml.
+# and the rest of the generated data (scripts/data.mjs) from R2, and a small API backed by D1. Deployed by .github/workflows/deploy.yml.
 name = "japango"
 main = "worker/index.ts"
 compatibility_date = "2026-11-01"
@@ -13,10 +13,12 @@ command = "bun run build"
 directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/tiles/*"]
+run_worker_first = [
+  "/api/*", "/tiles/*", "/dict/*", "/talk/*", "/life/*", "/trains/*", "/sounds/*", "/data/*", "/index/*",
+]
 
 [[r2_buckets]]
-binding = "TILES"
+binding = "DATA"
 bucket_name = "japango-tiles"
 
 [[d1_databases]]

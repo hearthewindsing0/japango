@@ -1,7 +1,8 @@
 # Writes the conversations people have at the talking spots (Claude),
 # voices them with VOICEVOX (run here as a service container, nothing to
 # sign up for), then rebuilds the dictionary so their words get furigana and
-# word cards, and commits the result. Run it by hand from the Actions tab;
+# word cards, and uploads the result to the server (R2, see scripts/data.mjs;
+# nothing is committed). Run it by hand from the Actions tab;
 # it also runs when the conversation scripts change on main.
 #
 # Signing in to the Claude API, without a stored key: GitHub gives each run a
@@ -36,7 +37,7 @@ on:
       - .github/workflows/conversations.yml
 
 permissions:
-  contents: write
+  contents: read
   id-token: write # for the identity token
 
 concurrency:
@@ -48,6 +49,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VOICEVOX_URL: http://localhost:50021
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
       FEDERATION_RULE: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID || 'fdrl_01T5XFwJ7McLYY82fDczBjWb' }}
       ORGANIZATION: ${{ vars.ANTHROPIC_ORGANIZATION_ID || '1a3e9e83-d269-4efb-a5c2-45d2526e4aa2' }}
       SERVICE_ACCOUNT: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID || 'svac_015WB58YXMX7QY8Y1r1VUrqB' }}
@@ -93,21 +97,13 @@ jobs:
             echo "ANTHROPIC_API_KEY=$KEY" >> "$GITHUB_ENV"
             echo "Using the ANTHROPIC_API_KEY secret."
           fi
+      - name: The conversations and map so far, from the server
+        run: bun scripts/data.mjs pull sources talk
       - name: Write the conversations
         run: bun scripts/fetch-conversations.mjs ${{ inputs.redo && '--redo' || '' }}
       - name: Voice them with VOICEVOX
         run: bun scripts/voice-conversations.mjs
       - name: Dictionary for the new words
         run: bash scripts/build-dict.sh
-      - name: Commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A public/talk public/dict
-          if git diff --cached --quiet; then
-            echo "Conversations unchanged."
-          else
-            git commit -m "Update conversations at the talking spots"
-            git pull --rebase
-            git push
-          fi
+      - name: Upload to the server
+        run: bun scripts/data.mjs push talk dict

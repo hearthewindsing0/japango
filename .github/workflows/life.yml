@@ -1,6 +1,7 @@
 # Writes the people of the area and their days (Claude), checks every
 # person's day makes sense, works out their walks on the map, and commits
-# the result to public/life/<area>/. Run it by hand from the Actions tab:
+# the result to the server (R2, see scripts/data.mjs: data/life/<area>/ and
+# public/life/<area>/; nothing is committed). Run it by hand from the Actions tab:
 # "circles" is how many new circles of 4 to 8 people to write this run.
 # Signs in to the Claude API the same way as conversations.yml (see there).
 name: Life
@@ -18,7 +19,7 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
   id-token: write # for the identity token
 
 concurrency:
@@ -33,6 +34,9 @@ jobs:
       ORGANIZATION: ${{ vars.ANTHROPIC_ORGANIZATION_ID || '1a3e9e83-d269-4efb-a5c2-45d2526e4aa2' }}
       SERVICE_ACCOUNT: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID || 'svac_015WB58YXMX7QY8Y1r1VUrqB' }}
       WORKSPACE: ${{ vars.ANTHROPIC_WORKSPACE_ID || 'wrkspc_01HZPyjjTo7hpoCcPfiRnSC8' }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -67,6 +71,8 @@ jobs:
             echo "ANTHROPIC_API_KEY=$KEY" >> "$GITHUB_ENV"
             echo "Using the ANTHROPIC_API_KEY secret."
           fi
+      - name: The people so far and the map, from the server
+        run: bun scripts/data.mjs pull sources life
       - name: Write the people and their days
         run: |
           # A long run outlives GitHub's identity token (about 5 minutes),
@@ -86,16 +92,6 @@ jobs:
       - name: Check their days and work out their walks
         if: ${{ !cancelled() }}
         run: bun scripts/life/plan.mjs
-      - name: Commit
+      - name: Upload to the server
         if: ${{ !cancelled() }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A data/life public/life
-          if git diff --cached --quiet; then
-            echo "Nothing new."
-          else
-            git commit -m "Update the people of the area and their days"
-            git pull --rebase
-            git push
-          fi
+        run: bun scripts/data.mjs push life
