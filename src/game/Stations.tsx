@@ -6,6 +6,7 @@ import { gateBoxes, type Station, type StationFloor, type StationRamp, type Stat
 import type { Focus } from './World'
 import { view } from './input'
 import { patternedMaterial } from './patterns'
+import { clockText, departures, nextDepartures, tokyoNow, type Timetable } from './trains'
 
 // The stations, drawn as a cutaway: floors, low walls, stairs and
 // escalators, ticket gates, platform doors, tracks with trains coming and
@@ -291,8 +292,16 @@ function useStationPieces(stations: Station[], ug: Underground) {
   }, [stations, ug])
 }
 
-/** Trains: cars come in, wait with doors open, and leave, on a loop. */
-function Trains({ station, show, focus }: { station: Station; show: boolean; focus: React.RefObject<Focus> }) {
+/** What the trains run on: the timetable (null: approximate schedules
+ *  only) and how far the game clock is from the real one (?time=). */
+export interface TrainClock {
+  timetable: Timetable | null
+  offset: number
+}
+
+/** Trains: cars come in, wait with doors open, and leave, at the times in
+ *  the timetable (src/game/trains.ts). */
+function Trains({ station, show, focus, clock }: { station: Station; show: boolean; focus: React.RefObject<Focus>; clock: TrainClock }) {
   const groups = useRef<(THREE.Group | null)[]>([])
   const bodyMat = useMemo(() => new THREE.MeshLambertMaterial({ color: '#d7dbe0' }), [])
   const stripeMat = useMemo(() => new THREE.MeshLambertMaterial({ color: station.line.colour }), [station])
@@ -323,22 +332,25 @@ function Trains({ station, show, focus }: { station: Station; show: boolean; foc
   useEffect(() => () => mats.forEach((m) => Object.values(m).forEach((x) => x.dispose())), [mats])
 
   useFrame(() => {
-    // On the wall clock, so trains run on the same timetable for everyone.
-    const time = Date.now() / 1000
+    // Tokyo time (shifted by ?time=), so every player sees the same trains.
+    const { day, sec } = tokyoNow(Date.now() + clock.offset)
     station.tracks.forEach((t, i) => {
       const g = groups.current[i]
       if (!g) return
-      // A train every 2½ minutes, each track at its own time.
-      const PERIOD = 150
-      const ph = (time + i * 61 + station.x) % PERIOD
+      // The train due at this platform: it comes in over ARRIVE seconds
+      // before its arrival time, stands with its doors open until its
+      // departure time, then pulls out over LEAVE seconds.
       const ARRIVE = 14
-      const DWELL = 25
       const LEAVE = 14
+      const list = departures(clock.timetable, station, i, day)
+      const d = list.find((x) => x.arr - ARRIVE <= sec && sec <= x.dep + LEAVE)
       const len = Math.hypot(t.bx - t.ax, t.by - t.ay)
       let s: number | null = null // where the train's middle is, from the platform middle
-      if (ph < ARRIVE) s = -((1 - ph / ARRIVE) ** 2) * (len + 40)
-      else if (ph < ARRIVE + DWELL) s = 0
-      else if (ph < ARRIVE + DWELL + LEAVE) s = ((ph - ARRIVE - DWELL) / LEAVE) ** 2 * (len + 40)
+      if (d) {
+        if (sec < d.arr) s = -((1 - (sec - (d.arr - ARRIVE)) / ARRIVE) ** 2) * (len + 40)
+        else if (sec <= d.dep) s = 0
+        else s = ((sec - d.dep) / LEAVE) ** 2 * (len + 40)
+      }
       g.visible = show && s != null && t.z <= (focus.current.z ?? 0) + 1.2
       if (s == null) return
       const mx = (t.ax + t.bx) / 2
@@ -383,7 +395,9 @@ function Trains({ station, show, focus }: { station: Station; show: boolean; foc
 function Signs({ station }: { station: Station }) {
   const items = useMemo(
     () =>
-      station.signs.map((s) => {
+      station.signs
+        .filter((s) => s.k !== 'board')
+        .map((s) => {
         const tex = signTexture(s)
         return { s, tex, mat: new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }) }
       }),
@@ -400,6 +414,111 @@ function Signs({ station }: { station: Station }) {
         <group key={i} position={[s.x, s.z + 2.6, s.y]} userData={{ z: s.z }}>
           <mesh material={mat}>
             <planeGeometry args={[3.2, 0.8]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  )
+}
+
+/** The words on a departure board, for the board and the sign card:
+ *  先発 (the first train to leave) and 次発 (the one after), with the time
+ *  and where each train is going (〜行, "bound for"). */
+export function boardRows(station: Station, platform: number, clock: TrainClock, ms: number) {
+  const { day, sec } = tokyoNow(ms)
+  const next = nextDepartures(clock.timetable, station, platform, day, sec, 2)
+  // After the last train: 本日の運転は終了しました, and the first train
+  // (始発) of the morning.
+  const done = !!next[0] && next[0].dep - sec > 2 * 3600
+  return (done ? next.slice(0, 1) : next).map((d, i) => ({
+    label: done ? '始発' : i ? '次発' : '先発',
+    time: clockText(d.dep),
+    to: `${d.to}行`,
+    toEn: d.toEn,
+    approx: !!d.approx,
+    done,
+  }))
+}
+
+function drawBoard(ctx: CanvasRenderingContext2D, s: StationSign, rows: ReturnType<typeof boardRows>) {
+  const W = 512
+  const H = 192
+  ctx.fillStyle = '#101418'
+  ctx.fillRect(0, 0, W, H)
+  ctx.fillStyle = s.c
+  ctx.fillRect(0, 0, W, 34)
+  ctx.fillStyle = '#ffffff'
+  ctx.textBaseline = 'middle'
+  ctx.font = `700 24px ${FONT}`
+  ctx.fillText('発車案内', 14, 18)
+  ctx.font = `500 18px ${FONT}`
+  ctx.textAlign = 'right'
+  ctx.fillText(rows[0]?.approx ? 'Departures (approx.)' : 'Departures', W - 14, 18)
+  ctx.textAlign = 'left'
+  if (rows[0]?.done) {
+    ctx.fillStyle = '#ffffff'
+    ctx.font = `700 30px ${FONT}`
+    ctx.fillText('本日の運転は終了しました', 14, 66, W - 28)
+    ctx.font = `500 18px ${FONT}`
+    ctx.fillStyle = '#c9d1d9'
+    ctx.fillText('No more trains today', 14, 98)
+  }
+  rows.forEach((r, i) => {
+    const y = r.done ? 110 : 34 + 16 + i * 74
+    ctx.fillStyle = i || r.done ? '#9fd8ff' : '#ffb347'
+    ctx.font = `700 26px ${FONT}`
+    ctx.fillText(r.label, 14, y + 18)
+    ctx.fillStyle = '#ffffff'
+    ctx.font = `700 40px ${FONT}`
+    ctx.fillText(r.time, 92, y + 20)
+    ctx.fillText(r.to, 210, y + 20, W - 224)
+    ctx.fillStyle = '#c9d1d9'
+    ctx.font = `500 18px ${FONT}`
+    if (r.toEn) ctx.fillText(`for ${r.toEn}`, 212, y + 52, W - 226)
+  })
+}
+
+/** Departure boards over the platforms: the next two trains, redrawn when
+ *  they change. Hidden like the signs when the floor is above you. */
+function DepartureBoards({ station, clock }: { station: Station; clock: TrainClock }) {
+  const boards = useMemo(
+    () =>
+      station.signs
+        .filter((s) => s.k === 'board')
+        .map((s) => {
+          const canvas = document.createElement('canvas')
+          canvas.width = 512
+          canvas.height = 192
+          const tex = new THREE.CanvasTexture(canvas)
+          tex.colorSpace = THREE.SRGBColorSpace
+          tex.anisotropy = 4
+          return { s, canvas, tex, mat: new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }), shown: '' }
+        }),
+    [station],
+  )
+  useEffect(() => () => boards.forEach((b) => (b.tex.dispose(), b.mat.dispose())), [boards])
+  const root = useRef<THREE.Group>(null)
+  const last = useRef(0)
+  useFrame(() => {
+    root.current?.children.forEach((c) => c.rotation.set(-0.55, view.yaw, 0, 'YXZ'))
+    const now = Date.now() + clock.offset
+    if (now - last.current < 1000) return
+    last.current = now
+    for (const b of boards) {
+      const rows = boardRows(station, b.s.p ?? 0, clock, now)
+      const key = JSON.stringify(rows)
+      if (key === b.shown) continue
+      b.shown = key
+      drawBoard(b.canvas.getContext('2d')!, b.s, rows)
+      b.tex.needsUpdate = true
+    }
+  })
+  return (
+    <group ref={root}>
+      {boards.map(({ s, mat }, i) => (
+        <group key={i} position={[s.x, s.z + 2.9, s.y]} userData={{ z: s.z }}>
+          <mesh material={mat}>
+            <planeGeometry args={[2.8, 1.05]} />
           </mesh>
         </group>
       ))}
@@ -494,7 +613,7 @@ function ExitHoods({ stations }: { stations: Station[] }) {
 }
 
 /** All the map's stations. `under`: the player is down in one. */
-export function Stations({ ug, focus, under }: { ug: Underground; focus: React.RefObject<Focus>; under: boolean }) {
+export function Stations({ ug, focus, under, clock }: { ug: Underground; focus: React.RefObject<Focus>; under: boolean; clock: TrainClock }) {
   const { pieces, mats } = useStationPieces(ug.stations, ug)
   useEffect(
     () => () => {
@@ -525,9 +644,12 @@ export function Stations({ ug, focus, under }: { ug: Underground; focus: React.R
         {ug.stations.map((s) => (
           <Signs key={s.id} station={s} />
         ))}
+        {ug.stations.map((s) => (
+          <DepartureBoards key={s.id} station={s} clock={clock} />
+        ))}
       </group>
       {ug.stations.map((s) => (
-        <Trains key={s.id} station={s} show={under} focus={focus} />
+        <Trains key={s.id} station={s} show={under} focus={focus} clock={clock} />
       ))}
       {!under && <ExitHoods stations={ug.stations} />}
       {under && <ambientLight intensity={0.6} color="#f4f6ff" />}

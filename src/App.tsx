@@ -18,8 +18,9 @@ import { Player } from './game/Player'
 import { World, type Focus } from './game/World'
 import { loadAround, useTileStream } from './game/stream'
 import { useProgressSync } from './game/progress'
-import { Underground } from './game/station'
-import { Stations } from './game/Stations'
+import { Underground, type Station } from './game/station'
+import { Stations, boardRows } from './game/Stations'
+import { useTimetable, type Timetable } from './game/trains'
 import { buildInteriors } from './game/interior'
 import { Interiors, type Glass } from './game/Interiors'
 import { BarMenu } from './game/BarMenu'
@@ -147,15 +148,19 @@ export default function App() {
   const params = useMemo(() => new URLSearchParams(location.search), [])
   const [now, setNow] = useState(() => new Date())
   const [weather, setWeather] = useState<Weather>({ kind: 'clear', cloud: 0.1 })
-  useEffect(() => {
+  // How far the game clock runs from the real one (0 unless ?time=).
+  const clockOffset = useMemo(() => {
     const fixed = params.get('time')
     const start = fixed ? tokyoTimeToday(fixed) : null
-    const offset = start ? start.getTime() - Date.now() : 0
+    return start ? start.getTime() - Date.now() : 0
+  }, [params])
+  useEffect(() => {
+    const offset = clockOffset
     const tick = () => setNow(new Date(Date.now() + offset))
     tick()
     const id = setInterval(tick, 30000)
     return () => clearInterval(id)
-  }, [params])
+  }, [clockOffset])
   useEffect(() => {
     const forced = params.get('weather')
     if (forced) {
@@ -280,6 +285,8 @@ export default function App() {
   const clock = tokyoClock(now)
   const hour = clock.h + clock.m / 60
   const week = tokyoWeekMinute(now)
+  const timetable = useTimetable(map?.id)
+  const trainClock = useMemo(() => ({ timetable, offset: clockOffset }), [timetable, clockOffset])
   const month = tokyoMonth(now)
   const holiday = isHoliday(now)
   const when = useMemo(() => ({ month, holiday, hour }), [month, holiday, hour])
@@ -324,6 +331,8 @@ export default function App() {
   // On the street, right by a walk-in place's door.
   const door = !under && ug ? ug.interiors.find((it) => Math.hypot(it.place.x - pos.x, it.place.y - pos.y) < 7) : null
   const sign = under && ug ? ug.signNear(pos.x, pos.y, z) : null
+  // A departure board's card reads out its next trains.
+  const board = sign?.s.k === 'board' ? boardRows(sign.st as Station, sign.s.p ?? 0, trainClock, Date.now() + clockOffset) : null
   const bg = under ? UNDERGROUND_BG : sky.background
   const ja = (t: string) => <JaText text={t} dict={dict} furigana={furigana} onWord={setWord} />
   const seg = (t: string) => jaSegments(t, dict)
@@ -342,7 +351,7 @@ export default function App() {
               >
                 Credits
               </PanelTitle>
-              <Credits map={map} dict={dict} talk={talk} soundCredits={soundCredits} liveWeather={!params.get('weather')} />
+              <Credits map={map} dict={dict} talk={talk} soundCredits={soundCredits} liveWeather={!params.get('weather')} timetable={timetable} />
             </Panel>
           ) : (
             <div className="corner-sm pointer-events-auto bg-ink/80 px-2 py-0.5 text-[11px] text-paper-dim">
@@ -386,7 +395,7 @@ export default function App() {
         <fog attach="fog" args={[bg, under ? distance * 2 : distance * 2.5 * sky.fogScale, under ? distance * 4 : distance * 6 * sky.fogScale]} />
         <World map={map} tiles={tiles} focus={focus} sky={sky} when={when} day={week.day} minute={week.minute} surface={!under} distance={distance} />
         {!under && <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />}
-        {ug && <Stations ug={ug} focus={focus} under={under} />}
+        {ug && <Stations ug={ug} focus={focus} under={under} clock={trainClock} />}
         {ug && ug.interiors.length > 0 && <Interiors interiors={ug.interiors} focus={focus} under={under} night={sky.night > 0.5} glasses={glasses} />}
         {talk && !under && <Talkers talk={talk} voices={voices} rain={sky.rain > 0.2} />}
         <Player
@@ -528,8 +537,15 @@ export default function App() {
             <SignCard
               className="pointer-events-auto w-[min(26rem,100%)]"
               kind="station"
-              title={seg(sign.s.t)}
-              english={sign.s.en}
+              title={seg(board?.[0] ? (board[0].done ? `本日の運転は終了しました　始発 ${board[0].time} ${board[0].to}` : `先発 ${board[0].time} ${board[0].to}`) : sign.s.t)}
+              english={
+                board?.[0]
+                  ? (board[0].done
+                      ? `No more trains tonight. First train (始発): ${board[0].time} for ${board[0].toEn || board[0].to}`
+                      : `Next train: ${board[0].time} for ${board[0].toEn || board[0].to}` +
+                        (board[1] ? `. After that (次発): ${board[1].time} for ${board[1].toEn || board[1].to}` : '')) + (board[0].approx ? ' (approximate times)' : '')
+                  : sign.s.en
+              }
               note={sign.s.n ?? SIGN_NOTES[sign.s.k]}
               furigana={furigana}
               onWord={tap}
@@ -672,12 +688,14 @@ function Credits({
   talk,
   soundCredits,
   liveWeather,
+  timetable,
 }: {
   map: GameMap
   dict: Dict | null
   talk: Talk | null
   soundCredits: ReturnType<typeof useSoundCredits>
   liveWeather: boolean
+  timetable: Timetable | null
 }) {
   return (
     <>
@@ -697,6 +715,14 @@ function Credits({
           </a>
         </>
       )}
+      {timetable?.sources.map((src) => (
+        <span key={src.feed}>
+          {' · '}Train timetables: {src.credit} ({src.creditEn}),{' '}
+          <a href={src.licenseUrl} target="_blank" rel="noreferrer">
+            {src.license}
+          </a>
+        </span>
+      ))}
       {liveWeather && (
         <>
           {' · '}
@@ -811,6 +837,7 @@ const SIGN_NOTES: Record<string, string> = {
   gate: '改札口 (かいさつぐち): the ticket gates. Tap your IC card (Suica, PASMO) on the blue reader.',
   platform: '番線 (ばんせん) is the track number, and 方面 (ほうめん) means "toward": trains here head for that end of the line.',
   name: '次 (つぎ) means next. The board shows this station and the next one down the line.',
+  board: '発車案内 (はっしゃあんない): departures. 先発 (せんぱつ) is the next train to leave, 次発 (じはつ) the one after, 〜行 (ゆき) means "bound for", and 始発 (しはつ) is the first train of the day.',
 }
 
 function tokyoMonth(date: Date) {
