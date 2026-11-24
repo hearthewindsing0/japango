@@ -3,16 +3,19 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { UMBRELLAS, crowdAttributes, crowdDepthMaterial, crowdGeometry, crowdMaterial, packColor, randomLook, type Look } from './character'
 import { tileGroundAt, type MapTile } from './map'
+import { streetLevel, type FlowTime, type PeopleFlow } from './people-flow'
 
-// Passers-by walking the sidewalks and footpaths. How many are out depends
-// on the hour in Tokyo (Roppongi is busy at lunch and late into the night)
-// and the weather; in the rain they carry umbrellas.
+// Passers-by walking the sidewalks and footpaths. How many are out comes
+// from measured people counts for the square kilometer around the tile, by
+// month, hour and weekday or holiday (people-flow.ts), less in the rain;
+// in the rain they carry umbrellas.
 
 // Most walkers a tile can hold (a busy 256 m square in Roppongi).
 const MAX = 400
 const PER_WALKER = 25
 
-/** Share of the crowd out at a given Tokyo hour (0-23), 0..1. */
+/** Share of the crowd out at a given Tokyo hour (0-23), 0..1. Only a
+ *  fallback now, for maps fetched before they had people-flow data. */
 export function crowdLevel(hour: number) {
   // Rough shape of Roppongi foot traffic: a morning commute, a lunch peak,
   // and a long evening that runs past midnight.
@@ -61,7 +64,7 @@ function walkLines(map: MapTile) {
     .filter((l) => l.len[l.len.length - 1] > 15)
 }
 
-export function Crowd({ tile, clip, hour, rain }: { tile: MapTile; clip: THREE.Plane[]; hour: number; rain: number }) {
+export function Crowd({ tile, clip, flow, when, rain }: { tile: MapTile; clip: THREE.Plane[]; flow?: PeopleFlow; when: FlowTime; rain: number }) {
   const lines = useMemo(() => walkLines(tile), [tile])
   const walkers = useMemo<Walker[]>(() => {
     // Seeded so the same people appear each visit.
@@ -103,7 +106,8 @@ export function Crowd({ tile, clip, hour, rain }: { tile: MapTile; clip: THREE.P
     return out
   }, [lines])
 
-  const level = crowdLevel(hour) * (rain > 0 ? 0.6 : 1)
+  const measured = streetLevel(flow, (tile.x0 + tile.x1) / 2, (tile.y0 + tile.y1) / 2, when)
+  const level = (measured ?? crowdLevel(when.hour)) * (rain > 0 ? 0.6 : 1)
   const count = Math.round(walkers.length * level)
   const wet = rain > 0
 

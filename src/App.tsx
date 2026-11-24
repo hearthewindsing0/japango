@@ -12,6 +12,7 @@ import { loadDict, type Dict } from './game/dict'
 import { ControlsHelp, DPad, DiscoveryCard, Hotbar, Panel, PanelTitle, PlaceCard, SignCard, StampBook, Toaster, UiRoot, Window, cn, toast } from './ui'
 import { JaText, WordPopup, jaSegments, pickWord, type WordPick } from './game/JaText'
 import { Minimap } from './game/Minimap'
+import { isHoliday } from './game/people-flow'
 import { useHudScale } from './game/hud'
 import { Player } from './game/Player'
 import { World, type Focus } from './game/World'
@@ -286,11 +287,14 @@ export default function App() {
   const week = tokyoWeekMinute(now)
   const timetable = useTimetable(map?.id)
   const trainClock = useMemo(() => ({ timetable, offset: clockOffset }), [timetable, clockOffset])
+  const month = tokyoMonth(now)
+  const holiday = isHoliday(now)
+  const when = useMemo(() => ({ month, holiday, hour }), [month, holiday, hour])
   const ug = useMemo(() => {
     const interiors = buildInteriors(map?.interiors)
     return map?.stations?.length || interiors.length ? new Underground(map?.stations ?? [], interiors) : null
   }, [map])
-  useAmbience({ map, focus, under, hour, month: tokyoMonth(now), night: sky.night, rain: sky.rain, muted, credits: soundCredits })
+  useAmbience({ map, focus, under, when, night: sky.night, rain: sky.rain, muted, credits: soundCredits })
   const caption = useTalk({ map, talk, focus, hour, rain: sky.rain, muted })
   // Each spot's people look like the voices of their latest conversation.
   const [voices, setVoices] = useState<Record<string, [string, string]>>({})
@@ -389,7 +393,7 @@ export default function App() {
       >
         <color attach="background" args={[bg]} />
         <fog attach="fog" args={[bg, under ? distance * 2 : distance * 2.5 * sky.fogScale, under ? distance * 4 : distance * 6 * sky.fogScale]} />
-        <World map={map} tiles={tiles} focus={focus} sky={sky} hour={hour} day={week.day} minute={week.minute} surface={!under} distance={distance} />
+        <World map={map} tiles={tiles} focus={focus} sky={sky} when={when} day={week.day} minute={week.minute} surface={!under} distance={distance} />
         {!under && <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />}
         {ug && <Stations ug={ug} focus={focus} under={under} clock={trainClock} />}
         {ug && ug.interiors.length > 0 && <Interiors interiors={ug.interiors} focus={focus} under={under} night={sky.night > 0.5} glasses={glasses} />}
@@ -782,6 +786,19 @@ function Credits({
               </a>
             </>
           ) : null}
+        </>
+      )}
+      {map.peopleFlow && (
+        <>
+          {' · '}How many people are out:{' '}
+          <a href={map.peopleFlow.url} target="_blank" rel="noreferrer">
+            {map.peopleFlow.attribution}
+          </a>{' '}
+          (
+          <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">
+            CC BY 4.0
+          </a>
+          )
         </>
       )}
       {map.credits?.some((c) => c.includes('PLATEAU')) && (

@@ -15,6 +15,8 @@ const TERRAIN_MARGIN = 64 // meters of terrain kept around each tile
 const input = process.argv[2] ?? `data/${AREA.id}.map.json`
 const outDir = process.argv[3] ?? `public/tiles/${AREA.id}`
 const map = JSON.parse(await readFile(input, 'utf8'))
+// Measured people counts (scripts/fetch-people.mjs), when they've been fetched.
+const flow = await readFile(`data/${map.id}.people.json`, 'utf8').then(JSON.parse, () => null)
 const cols = Math.ceil(map.width / TILE)
 const rows = Math.ceil(map.height / TILE)
 
@@ -152,7 +154,7 @@ const manifest = {
   name: map.name,
   nameEn: map.nameEn,
   attribution: map.attribution,
-  credits: map.credits,
+  credits: [...(map.credits ?? []), ...(flow ? [flow.attribution] : [])],
   fetchedAt: map.fetchedAt,
   builtAt: new Date().toISOString(),
   rotationDeg: map.rotationDeg,
@@ -170,6 +172,7 @@ const manifest = {
   places: map.places ?? [],
   stations: map.stations ?? [],
   interiors: map.interiors ?? [],
+  peopleFlow: flow ? { source: flow.source, url: flow.url, attribution: flow.attribution, license: flow.license, year: flow.year, meshes: flow.meshes } : undefined,
 }
 await writeFile(`${outDir}/manifest.json`, JSON.stringify(manifest))
 console.log(`Cut ${map.width}×${map.height} m into ${tiles.length} tiles of ${TILE} m (${(bytes / 1e6).toFixed(1)} MB) → ${outDir}`)

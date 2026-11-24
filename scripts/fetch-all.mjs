@@ -28,6 +28,8 @@ const SOURCES = {
   // Roof colors are measured over PLATEAU's roof outlines.
   aerial: { script: 'fetch-aerial.mjs', after: ['plateau'] },
   mapillary: { script: 'fetch-mapillary.mjs', needs: 'MAPILLARY_TOKEN' },
+  // How many people are around, hour by hour (MLIT people-flow data).
+  people: { script: 'fetch-people.mjs' },
 }
 
 const wanted = Object.entries(SOURCES).filter(([name, s]) => {

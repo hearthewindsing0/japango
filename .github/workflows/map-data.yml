@@ -1,6 +1,6 @@
 # Builds the game map for each area in areas/: downloads every data source
 # for it at once (OpenStreetMap, PLATEAU buildings/terrain/bridges, GSI
-# aerial roof colors, Mapillary, Wikipedia), builds the map, cuts it into
+# aerial roof colors, Mapillary, Wikipedia, MLIT people flow), builds the map, cuts it into
 # tiles and the dictionary, and uploads all of it to the server (R2, see
 # scripts/data.mjs); none of it goes into git. Only a new or changed
 # areas/<id>.json is committed, to the same branch.
