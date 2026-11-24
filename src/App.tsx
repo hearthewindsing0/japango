@@ -27,7 +27,8 @@ import { BarMenu } from './game/BarMenu'
 import { ANTNBEE, ORDER_SPOT, toLocal } from './game/interiors/antnbee'
 import { Talkers } from './game/Talkers'
 import { LifePeople } from './game/LifePeople'
-import { loadLife, useLifeTalk, type Life } from './game/life'
+import { loadLife, useApproachable, useLifeTalk, type Life } from './game/life'
+import { Approach } from './game/Approach'
 import { TalkCaption } from './game/TalkCaption'
 import { loadTalk, useTalk, type Talk } from './game/talk'
 import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoClock, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
@@ -304,8 +305,11 @@ export default function App() {
   useAmbience({ map, focus, under, when, night: sky.night, rain: sky.rain, muted, credits: soundCredits })
   const spotCaption = useTalk({ map, talk, focus, hour, rain: sky.rain, muted })
   // A group meeting nearby, when no talking spot is.
-  const lifeCaption = useLifeTalk(life, focus, !spotCaption)
-  const caption = spotCaption ?? lifeCaption
+  // Walking up to someone to talk (Space), which pauses listening in.
+  const [chatting, setChatting] = useState(false)
+  const approachable = useApproachable(life, focus, chatting)
+  const lifeCaption = useLifeTalk(life, focus, !spotCaption && !chatting)
+  const caption = chatting ? null : (spotCaption ?? lifeCaption)
   // Each spot's people look like the voices of their latest conversation.
   const [voices, setVoices] = useState<Record<string, [string, string]>>({})
   const talkingConv = spotCaption?.conv
@@ -525,6 +529,9 @@ export default function App() {
             hud.height < 430 ? 'left-3 w-[min(34rem,calc(100%-220px))] items-start' : 'left-1/2 w-[min(34rem,calc(100%-24px))] -translate-x-1/2 items-center',
           )}
         >
+          {!book && !under && (approachable || chatting) && (
+            <Approach near={approachable} dict={dict} furigana={furigana} english={english} onWord={setWord} onChat={setChatting} />
+          )}
           {caption && !book && !(barOpen && inside) && (
             <TalkCaption caption={caption} dict={dict} furigana={furigana} english={english} onWord={setWord} onEnglish={() => setEnglish((v) => !v)} />
           )}
@@ -835,6 +842,7 @@ const HELP: [string, string][] = [
   ['F', 'Furigana'],
   ['N', 'Sound on/off'],
   ['T', 'English under talk'],
+  ['Space', 'Talk to someone nearby'],
   ['[ / ]', 'Smaller / bigger'],
   ['H', 'This list'],
   ['Tap a word', 'Word card'],
