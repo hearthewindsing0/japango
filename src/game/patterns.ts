@@ -55,7 +55,8 @@ export function patternedMaterial(color: string, pattern: Pattern, clip?: THREE.
           vec2 p = vGroundPos;
           float shade = 0.0;
           ${PATTERNS[pattern]}
-          diffuseColor.rgb *= 1.0 + shade;
+          // Diorama: patterns are a soft hint, not a texture.
+          diffuseColor.rgb *= 1.0 + shade * 0.5;
         }`,
       )
   }

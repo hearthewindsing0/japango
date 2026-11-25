@@ -1,3 +1,4 @@
+import { SoftShadows } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -14,7 +15,7 @@ import { JaText, WordPopup, jaSegments, pickWord, type WordPick } from './game/J
 import { Minimap } from './game/Minimap'
 import { isHoliday } from './game/people-flow'
 import { useHudScale } from './game/hud'
-import { Player } from './game/Player'
+import { LENS, Player } from './game/Player'
 import { World, type Focus } from './game/World'
 import { loadAround, useTileStream } from './game/stream'
 import { useProgressSync } from './game/progress'
@@ -436,7 +437,9 @@ export default function App() {
         dpr={[1, 2]}
       >
         <color attach="background" args={[bg]} />
-        <fog attach="fog" args={[bg, under ? distance * 2 : distance * 2.5 * sky.fogScale, under ? distance * 4 : distance * 6 * sky.fogScale]} />
+        <fog attach="fog" args={[bg, under ? distance * 2 : distance * LENS * 2.2 * sky.fogScale, under ? distance * 4 : distance * LENS * 5 * sky.fogScale]} />
+        {/* Soft-edged shadows, for the diorama's gentle light. */}
+        <SoftShadows size={14} samples={10} focus={0.5} />
         <World map={map} tiles={tiles} focus={focus} sky={sky} when={when} day={week.day} minute={week.minute} surface={!under} distance={distance} />
         {!under && <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />}
         {ug && <Stations ug={ug} focus={focus} under={under} clock={trainClock} riders={riders} />}

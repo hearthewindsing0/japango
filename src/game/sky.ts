@@ -138,24 +138,28 @@ export function skyState(date: Date, weather: Weather, rotationDeg: number): Sky
   const north = new THREE.Vector2(Math.sin(th), -Math.cos(th))
   // At night, light comes from a high, fixed "moon" so shadows stay readable.
   const az = day > 0.02 ? azimuth : 200 * RAD
-  const el = day > 0.02 ? Math.max(elevation, 0.12) : 55 * RAD
+  // Diorama: the sun keeps its real direction but never drops below 42°, so
+  // streets stay sunny and shadows short, like a lamp over a model.
+  const el = day > 0.02 ? Math.max(elevation, 42 * RAD) : 55 * RAD
   const horiz = east.multiplyScalar(Math.sin(az)).add(north.multiplyScalar(Math.cos(az)))
   const lightDir = new THREE.Vector3(horiz.x * Math.cos(el), Math.sin(el), horiz.y * Math.cos(el)).normalize()
 
-  const sunColor = mix(c(0xfff4e2), c(0xffb36b), low * day)
+  // Diorama light: a warm, late-afternoon sun all day, warmer still when low.
+  const sunColor = mix(c(0xffe6c4), c(0xffb36b), low * day)
   const moonColor = c(0x9fb4ff)
   const sun = {
     color: day > 0.02 ? sunColor : moonColor,
     intensity: day > 0.02 ? 1.7 * day * (1 - overcast * 0.75) : 0.5,
   }
-  const daySky = mix(c(0xcfe3f2), c(0xc3c8cf), overcast)
+  // A warm cream backdrop by day, like the board behind a model.
+  const daySky = mix(c(0xf2e4cf), c(0xd9d4cc), overcast)
   const duskSky = c(0xf0b98e)
   const nightSky = c(0x1c2540)
   const background = mix(mix(nightSky, daySky, day), duskSky, low * day * (1 - overcast) * 0.6)
   const hemi = {
-    sky: mix(c(0x7486c4), mix(c(0xe3ecff), c(0xd6dae0), overcast), day),
-    ground: mix(c(0x4a4452), c(0xb3a58c), day),
-    intensity: 1.0 + day * (0.15 + overcast * 0.45),
+    sky: mix(c(0x7486c4), mix(c(0xfff4e2), c(0xe2dfda), overcast), day),
+    ground: mix(c(0x4a4452), c(0xb9a389), day),
+    intensity: 1.0 + day * (0.45 + overcast * 0.45),
   }
   const rain = weather.kind === 'rain' ? 1 : weather.kind === 'storm' ? 1.3 : weather.kind === 'drizzle' ? 0.4 : 0
   const snow = weather.kind === 'snow' ? 1 : 0

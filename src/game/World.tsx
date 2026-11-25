@@ -1,6 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Props } from './Props'
 import { Signs } from './Signs'
 import { patternedMaterial, type Pattern } from './patterns'
@@ -303,13 +304,13 @@ function buildingMaterial(uniforms: SeeThroughUniforms & { uNight: { value: numb
       .replace(
         '#include <common>',
         `#include <common>
-        attribute float aWall; attribute float aU; attribute float aTop; attribute float aBase;
-        varying float vWall; varying float vU; varying float vTop; varying float vBase; varying vec3 vWorld;`,
+        attribute float aWall; attribute float aU; attribute float aTop; attribute float aBase; attribute vec2 aSeg;
+        varying float vWall; varying float vU; varying float vTop; varying float vBase; varying vec3 vWorld; varying vec2 vSeg;`,
       )
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-        vWall = aWall; vU = aU; vTop = aTop; vBase = aBase;
+        vWall = aWall; vU = aU; vTop = aTop; vBase = aBase; vSeg = aSeg;
         vWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
       )
     shader.fragmentShader = shader.fragmentShader
@@ -317,7 +318,8 @@ function buildingMaterial(uniforms: SeeThroughUniforms & { uNight: { value: numb
         '#include <common>',
         `#include <common>
         uniform vec3 uPlayer; uniform vec3 uCam; uniform float uNight;
-        varying float vWall; varying float vU; varying float vTop; varying float vBase; varying vec3 vWorld;`,
+        varying float vWall; varying float vU; varying float vTop; varying float vBase; varying vec3 vWorld; varying vec2 vSeg;
+        float roundBox(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }`,
       )
       .replace(
         '#include <clipping_planes_fragment>',
@@ -328,28 +330,51 @@ function buildingMaterial(uniforms: SeeThroughUniforms & { uNight: { value: numb
         '#include <color_fragment>',
         `#include <color_fragment>
         float winGlow = 0.0;
-        if (vWall > 0.5) {
+        // Diorama: lift every color toward warm white and give it a little
+        // more color, like painted clay rather than concrete.
+        {
+          float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+          diffuseColor.rgb = mix(vec3(l), diffuseColor.rgb, 1.2);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.95, 0.88), 0.15);
+        }
+        if (vWall > 1.5) {
+          // Cornice trim: plain, with a light edge at the corners.
+          float d = min(vU - vSeg.x, vSeg.y - vU);
+          diffuseColor.rgb *= 1.0 + 0.1 * (1.0 - smoothstep(0.0, 0.3, d));
+        } else if (vWall > 0.5) {
           float y = vWorld.y - vBase;
-          // Ground floor: shop fronts. Above: rows of windows every 3.2 m.
-          float shop = step(0.5, y) * step(y, 2.6) * step(0.15, fract(vU / 4.0)) * step(fract(vU / 4.0), 0.92);
+          // Ground floor: shop fronts with rounded tops. Above: rows of
+          // rounded windows every 3.2 m.
+          vec2 sp = vec2((fract(vU / 4.0) - 0.535) * 4.0, y - 1.55);
+          float shop = 1.0 - smoothstep(-0.02, 0.02, roundBox(sp, vec2(1.54, 1.05), 0.3));
           float fy = fract((y - 3.0) / 3.2);
-          float row = step(3.0, y) * step(y, vTop - 0.6) * step(0.3, fy) * step(fy, 0.78);
-          float colw = step(0.2, fract(vU / 2.4)) * step(fract(vU / 2.4), 0.8);
-          float win = max(shop, row * colw);
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.55, 0.66), win * 0.85);
+          vec2 wp = vec2((fract(vU / 2.4) - 0.5) * 2.4, (fy - 0.54) * 3.2);
+          float wd = roundBox(wp, vec2(0.68, 0.74), 0.26);
+          float rowOk = step(3.0, y) * step(y, vTop - 0.6);
+          float row = rowOk * (1.0 - smoothstep(-0.02, 0.02, wd));
+          // A soft frame round each window.
+          float frame = rowOk * (1.0 - smoothstep(0.06, 0.11, abs(wd - 0.04)));
+          float win = max(shop, row);
+          diffuseColor.rgb *= 1.0 - frame * 0.08;
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.74, 0.82), win * 0.85);
           // At night most shop fronts and some windows light up.
           float cellId = fract(sin(dot(vec2(floor(vU / 2.4), floor((y - 3.0) / 3.2)) + vTop * 7.0, vec2(12.9898, 78.233))) * 43758.5453);
           float lit = shop > 0.5 ? step(0.15, cellId) : step(0.55, cellId);
           winGlow = win * lit * uNight;
-          // Darker base and a band under the roof line.
-          if (y < 0.4) diffuseColor.rgb *= 0.7;
-          if (y > vTop - 0.35) diffuseColor.rgb *= 0.85;
+          // Bevel: walls catch a little light near their corners and top,
+          // so the blocks look rounded off.
+          if (vSeg.y > vSeg.x) {
+            float d = min(vU - vSeg.x, vSeg.y - vU);
+            diffuseColor.rgb *= 1.0 + 0.09 * (1.0 - smoothstep(0.0, 0.5, d));
+          }
+          // Soft shade at the foot of the wall, as if from the ground.
+          diffuseColor.rgb *= mix(0.82, 1.0, smoothstep(0.0, 1.6, y));
         } else if (vWorld.y - vBase < vTop + 0.05) {
-          // Roofs: weathered concrete panels.
+          // Roofs: big soft panels.
           vec2 q = vWorld.xz / 3.0;
           vec2 g = abs(fract(q) - 0.5);
           float n = fract(sin(dot(floor(q), vec2(127.1, 311.7))) * 43758.5453);
-          diffuseColor.rgb *= 1.0 + (n - 0.5) * 0.08 - step(0.48, max(g.x, g.y)) * 0.06;
+          diffuseColor.rgb *= 1.0 + (n - 0.5) * 0.04 - step(0.48, max(g.x, g.y)) * 0.03;
         }`,
       )
       .replace(
@@ -358,6 +383,8 @@ function buildingMaterial(uniforms: SeeThroughUniforms & { uNight: { value: numb
         totalEmissiveRadiance += vec3(1.0, 0.78, 0.45) * winGlow * 0.9;`,
       )
   }
+  // Different see-through options need their own shader program.
+  m.customProgramCacheKey = () => `building-${JSON.stringify(opts)}`
   return m
 }
 
@@ -389,7 +416,9 @@ function Buildings({
 
   const material = useDisposable(() => buildingMaterial(uniforms), [uniforms])
   // The Shuto decks also open up overhead, so the pavement under them shows.
-  const viaductMaterial = useDisposable(() => buildingMaterial(uniforms, { overhead: 9 }), [uniforms])
+  // The diorama's lower, longer view looks across a lot of deck, so all of
+  // it in front of the player opens up.
+  const viaductMaterial = useDisposable(() => buildingMaterial(uniforms, { overhead: 60 }), [uniforms])
   useLayoutEffect(() => {
     material.clippingPlanes = clip
     viaductMaterial.clippingPlanes = clip
@@ -415,8 +444,17 @@ function Trees({ tile, clip }: { tile: MapTile; clip: THREE.Plane[] }) {
   const trunks = useRef<THREE.InstancedMesh>(null)
   const crowns = useRef<THREE.InstancedMesh>(null)
   const count = tile.trees.length / 3
-  const trunkGeo = useDisposable(() => new THREE.CylinderGeometry(0.12, 0.18, 1.8, 6).translate(0, 0.9, 0), [])
-  const crownGeo = useDisposable(() => new THREE.IcosahedronGeometry(1.3, 1).scale(1, 1.15, 1).translate(0, 2.8, 0), [])
+  const trunkGeo = useDisposable(() => new THREE.CylinderGeometry(0.14, 0.18, 1.8, 8).translate(0, 0.9, 0), [])
+  // Diorama trees: a cluster of faceted gems, like the model-railway kind.
+  const crownGeo = useDisposable(
+    () =>
+      mergeGeometries([
+        new THREE.IcosahedronGeometry(1.2, 0).translate(0, 2.9, 0),
+        new THREE.IcosahedronGeometry(0.85, 0).rotateY(0.6).translate(0.6, 2.5, 0.35),
+        new THREE.IcosahedronGeometry(0.8, 0).rotateY(1.3).translate(-0.55, 2.55, -0.25),
+      ]),
+    [],
+  )
 
   useLayoutEffect(() => {
     const m = new THREE.Matrix4()

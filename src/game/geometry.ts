@@ -239,6 +239,60 @@ function inside(ring: [number, number][], x: number, z: number) {
   return hit
 }
 
+/** Cornice size: how far it sticks out, rises above the roof line and hangs below it. */
+const CAP_OUT = 0.22
+const CAP_UP = 0.3
+const CAP_DOWN = 0.12
+const WHITE = new THREE.Color(0xfff8ee)
+
+/** A ring moved outward (grow) or inward by d, corners mitered (capped so
+ *  sharp corners don't spike). */
+function offsetRing(ring: [number, number][], d: number, grow: boolean) {
+  const n = ring.length
+  const move = (sign: number) =>
+    ring.map(([x, z], i) => {
+      const [px, pz] = ring[(i - 1 + n) % n]
+      const [nx, nz] = ring[(i + 1) % n]
+      let ax = x - px
+      let az = z - pz
+      let bx = nx - x
+      let bz = nz - z
+      const la = Math.hypot(ax, az) || 1
+      const lb = Math.hypot(bx, bz) || 1
+      ax /= la
+      az /= la
+      bx /= lb
+      bz /= lb
+      // Edge normals (left of travel), then the corner's bisector.
+      const mx = -az - bz
+      const mz = ax + bx
+      const ml = Math.hypot(mx, mz) || 1
+      const cos = (mx / ml) * -az + (mz / ml) * ax
+      const k = Math.min(2, 1 / Math.max(0.5, cos))
+      return [x + (mx / ml) * d * k * sign, z + (mz / ml) * d * k * sign] as [number, number]
+    })
+  const a = move(1)
+  const bigger = Math.abs(signedArea(a)) > Math.abs(signedArea(ring))
+  return bigger === grow ? a : move(-1)
+}
+
+/** Diorama hues (peach, sand, mint, sky, lilac, rose) for walls whose
+ *  real color is a plain grey. */
+const PASTEL_HUES = [0.07, 0.11, 0.38, 0.57, 0.72, 0.97]
+const hsl = { h: 0, s: 0, l: 0 }
+
+/** A wall color made into the diorama's soft, light paint: the real hue is
+ *  kept when it has one; greys get a pastel tint so streets aren't drab. */
+function pastel(c: THREE.Color, v: number) {
+  c.getHSL(hsl)
+  if (hsl.s < 0.12) {
+    hsl.h = PASTEL_HUES[v % PASTEL_HUES.length]
+    hsl.s = 0.28
+  } else hsl.s = Math.min(0.55, hsl.s * 1.2 + 0.08)
+  hsl.l = 0.6 + hsl.l * 0.26
+  return new THREE.Color().setHSL(hsl.h, hsl.s, hsl.l)
+}
+
 const ROOF = [0x7d7187, 0x9a7b6a, 0x6c7f96, 0xa29c8c, 0x768a7a, 0xa8786a, 0x7c7d86, 0x8c96ab].map((c) => new THREE.Color(c))
 const WALL = [0xe8e2d8, 0xd8cbbd, 0xc9d1dc, 0xf0ece4, 0xd5dccf, 0xe6d3c8, 0xcfcfd4, 0xdcdfe6].map((c) => new THREE.Color(c))
 
@@ -272,16 +326,18 @@ export function buildingsGeometry(
   const us: number[] = []
   const tops: number[] = []
   const bases: number[] = []
+  const segs: number[] = []
   // Each building stands on the lowest ground under its outline; walls run
   // from there, so on a slope the uphill side is partly buried, as in life.
   let base = 0
-  const vert = (x: number, y: number, z: number, c: THREE.Color, w: number, u: number, top: number) => {
+  const vert = (x: number, y: number, z: number, c: THREE.Color, w: number, u: number, top: number, s0 = 0, s1 = 0) => {
     pos.push(x, y + base, z)
     col.push(c.r, c.g, c.b)
     wall.push(w)
     us.push(u)
     tops.push(top)
     bases.push(base)
+    segs.push(s0, s1)
   }
   const baseByBuilding = buildings.map((b) => buildingBase(b.p, height))
   for (const [bi, b] of buildings.entries()) {
@@ -295,13 +351,21 @@ export function buildingsGeometry(
       ? new THREE.Color().setRGB(b.rc[0] / 255, b.rc[1] / 255, b.rc[2] / 255, THREE.SRGBColorSpace)
       : ROOF[b.v % ROOF.length]
     // Use the color measured from street photos when there is one.
-    const wallC = b.c
-      ? new THREE.Color().setRGB(b.c[0] / 255, b.c[1] / 255, b.c[2] / 255, THREE.SRGBColorSpace)
-      : WALL[b.v % WALL.length]
+    const wallC = pastel(
+      b.c ? new THREE.Color().setRGB(b.c[0] / 255, b.c[1] / 255, b.c[2] / 255, THREE.SRGBColorSpace) : WALL[b.v % WALL.length],
+      b.v,
+    )
+
+    // Diorama trim: a cornice that sticks out a little round the top, so
+    // each building reads as a solid toy block. The roof sits on top of it.
+    const capOuter = offsetRing(outer, CAP_OUT, true)
+    const capHoles = holes.map((r) => offsetRing(r, CAP_OUT, false))
+    const capTop = h + CAP_UP
+    const trim = wallC.clone().lerp(WHITE, 0.45)
 
     // Roof.
-    const contour = outer.map(([x, z]) => new THREE.Vector2(x, z))
-    const holeVs = holes.map((ring) => ring.map(([x, z]) => new THREE.Vector2(x, z)))
+    const contour = capOuter.map(([x, z]) => new THREE.Vector2(x, z))
+    const holeVs = capHoles.map((ring) => ring.map(([x, z]) => new THREE.Vector2(x, z)))
     const all = [...contour, ...holeVs.flat()]
     for (const [a, bb, c] of THREE.ShapeUtils.triangulateShape(contour, holeVs)) {
       const A = all[a]
@@ -309,7 +373,28 @@ export function buildingsGeometry(
       const C = all[c]
       const cross = (B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x)
       const order = cross < 0 ? [A, B, C] : [A, C, B]
-      for (const v of order) vert(v.x, h, v.y, roof, 0, 0, h)
+      for (const v of order) vert(v.x, capTop, v.y, roof, 0, 0, capTop)
+    }
+    // The cornice's sides (aWall 2: plain trim, no windows).
+    for (const [ring, isHole] of [[capOuter, false], ...capHoles.map((r) => [r, true] as const)] as const) {
+      const flip = signedArea(ring) > 0 !== isHole
+      let u = 0
+      for (let i = 0; i < ring.length; i++) {
+        const [ax, az] = ring[i]
+        const [bx, bz] = ring[(i + 1) % ring.length]
+        const len = Math.hypot(bx - ax, bz - az)
+        const quad: [number, number, number, number][] = [
+          [ax, h - CAP_DOWN, az, u],
+          [bx, h - CAP_DOWN, bz, u + len],
+          [bx, capTop, bz, u + len],
+          [ax, capTop, az, u],
+        ]
+        for (const k of flip ? [0, 2, 1, 0, 3, 2] : [0, 1, 2, 0, 2, 3]) {
+          const [x, y, z, uu] = quad[k]
+          vert(x, y, z, trim, 2, uu, capTop, u, u + len)
+        }
+        u += len
+      }
     }
 
     // Walls, wound to face outward from the solid.
@@ -333,7 +418,7 @@ export function buildingsGeometry(
         const tri = flip ? [0, 2, 1, 0, 3, 2] : [0, 1, 2, 0, 2, 3]
         for (const k of tri) {
           const [x, y, z, uu] = quad[k]
-          vert(x, y, z, wallC, 1, uu, h)
+          vert(x, y, z, wallC, 1, uu, h, u0, u1)
         }
       }
     }
@@ -380,7 +465,7 @@ export function buildingsGeometry(
       k++
       const c = grey[Math.floor(rand() * grey.length)]
       for (let i = 0; i < unit.count; i++) {
-        vert(cx + unit.getX(i) * sx, b.h + (unit.getY(i) + 0.5) * sy, cz + unit.getZ(i) * sz, c, 0, 0, b.h)
+        vert(cx + unit.getX(i) * sx, b.h + CAP_UP + (unit.getY(i) + 0.5) * sy, cz + unit.getZ(i) * sz, c, 0, 0, b.h + CAP_UP)
       }
     }
   }
@@ -391,6 +476,7 @@ export function buildingsGeometry(
     aU: { data: us, size: 1 },
     aTop: { data: tops, size: 1 },
     aBase: { data: bases, size: 1 },
+    aSeg: { data: segs, size: 2 },
   })
   return g
 }
@@ -444,6 +530,7 @@ export function surfacesGeometry(rings: Flat[], color: THREE.ColorRepresentation
     aU: { data: fill(0), size: 1 },
     aTop: { data: fill(-1000), size: 1 },
     aBase: { data: fill(0), size: 1 },
+    aSeg: { data: fill(0).concat(fill(0)), size: 2 },
   })
 }
 
@@ -561,5 +648,6 @@ export function viaductsGeometry(
     aU: { data: fill(0), size: 1 },
     aTop: { data: fill(-1000), size: 1 },
     aBase: { data: fill(0), size: 1 },
+    aSeg: { data: fill(0).concat(fill(0)), size: 2 },
   })
 }
