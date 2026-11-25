@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 // One character build shared by the player and the people on the street, so
@@ -26,45 +27,95 @@ export interface PartSpec {
 }
 
 const n = (segments: number, detail: number, min = 3) => Math.max(min, Math.round(segments * detail))
-const capsule = (r: number, len: number, cap: number, radial: number, d: number) => new THREE.CapsuleGeometry(r, len, n(cap, d, 1), n(radial, d, 5))
 
-export const PARTS: PartSpec[] = [
-  // Legs hang from the hips.
-  { name: 'legL', paint: 'pants', pivot: [-0.11, 0.78, 0], swing: 1, shadow: true, make: (d) => capsule(0.085, 0.6, 4, 8, d).translate(-0.11, 0.4, 0) },
-  { name: 'legR', paint: 'pants', pivot: [0.11, 0.78, 0], swing: -1, shadow: true, make: (d) => capsule(0.085, 0.6, 4, 8, d).translate(0.11, 0.4, 0) },
-  { name: 'torso', paint: 'shirt', shadow: true, make: (d) => capsule(0.2, 0.42, 4, 12, d).translate(0, 1.1, 0) },
-  { name: 'backpack', paint: 'bag', optional: true, shadow: true, make: () => new THREE.BoxGeometry(0.32, 0.4, 0.14).translate(0, 1.15, -0.2) },
+// Diorama toy figures (see /looks/, option 2): soft rounded blocks, a big
+// soft-cube head, dot eyes. About three heads tall.
+const rbox = (w: number, h: number, d: number, r: number, detail: number) =>
+  new RoundedBoxGeometry(w, h, d, Math.max(1, Math.round(3 * detail)), Math.min(r, Math.min(w, h, d) / 2 - 0.001))
+/** Non-indexed, like RoundedBoxGeometry, so all parts merge together. */
+const flat = (g: THREE.BufferGeometry) => {
+  if (!g.index) return g
+  const out = g.toNonIndexed()
+  g.dispose()
+  return out
+}
+const merge = (parts: THREE.BufferGeometry[]) => {
+  const out = mergeGeometries(parts.map(flat))
+  parts.forEach((g) => g.dispose())
+  return out
+}
+/** A leg with its shoe, standing at x. */
+const leg = (x: number, d: number) => merge([rbox(0.19, 0.46, 0.21, 0.07, d).translate(x, 0.33, 0), rbox(0.21, 0.14, 0.3, 0.06, d).translate(x, 0.07, 0.03)])
+/** An arm with its hand, hanging from the shoulder at x. */
+const arm = (x: number, d: number) => rbox(0.14, 0.42, 0.16, 0.065, d).translate(x, 0.84, 0)
+
+const TOY_PARTS: PartSpec[] = [
+  // Legs (and shoes) hang from the hips.
+  { name: 'legL', paint: 'pants', pivot: [-0.12, 0.56, 0], swing: 1, shadow: true, make: (d) => leg(-0.12, d) },
+  { name: 'legR', paint: 'pants', pivot: [0.12, 0.56, 0], swing: -1, shadow: true, make: (d) => leg(0.12, d) },
+  { name: 'torso', paint: 'shirt', shadow: true, make: (d) => rbox(0.52, 0.56, 0.34, 0.13, d).translate(0, 0.82, 0) },
+  { name: 'backpack', paint: 'bag', optional: true, shadow: true, make: (d) => rbox(0.36, 0.4, 0.16, 0.07, d).translate(0, 0.86, -0.24) },
   // Arms hang from the shoulders and swing against the legs.
-  { name: 'armL', paint: 'shirt', pivot: [-0.27, 1.32, 0], swing: -0.8, shadow: true, make: (d) => capsule(0.065, 0.42, 4, 8, d).translate(-0.27, 1.07, 0) },
-  { name: 'armR', paint: 'shirt', pivot: [0.27, 1.32, 0], swing: 0.8, shadow: true, make: (d) => capsule(0.065, 0.42, 4, 8, d).translate(0.27, 1.07, 0) },
-  { name: 'head', paint: 'skin', shadow: true, make: (d) => new THREE.SphereGeometry(0.2, n(20, d), n(16, d)).translate(0, 1.62, 0) },
+  { name: 'armL', paint: 'shirt', pivot: [-0.34, 1.04, 0], swing: -0.8, shadow: true, make: (d) => arm(-0.34, d) },
+  { name: 'armR', paint: 'shirt', pivot: [0.34, 1.04, 0], swing: 0.8, shadow: true, make: (d) => arm(0.34, d) },
+  // Head and hands, in skin.
+  {
+    name: 'head',
+    paint: 'skin',
+    shadow: true,
+    make: (d) =>
+      merge([
+        rbox(0.56, 0.52, 0.5, 0.2, d).translate(0, 1.37, 0),
+        new THREE.SphereGeometry(0.075, n(12, d), n(8, d)).translate(-0.34, 0.6, 0),
+        new THREE.SphereGeometry(0.075, n(12, d), n(8, d)).translate(0.34, 0.6, 0),
+      ]),
+  },
+  // Short hair: a cap on top, a block at the back and a fringe.
   {
     name: 'hair',
     paint: 'hair',
-    make: (d) => new THREE.SphereGeometry(0.2, n(20, d), n(12, d), 0, Math.PI * 2, 0, Math.PI / 2).scale(1.05, 0.9, 1.08).translate(0, 1.66, -0.02),
+    make: (d) =>
+      merge([
+        rbox(0.6, 0.2, 0.55, 0.09, d).translate(0, 1.6, -0.02),
+        rbox(0.6, 0.32, 0.14, 0.06, d).translate(0, 1.47, -0.2),
+        rbox(0.46, 0.1, 0.08, 0.035, d).translate(0.06, 1.53, 0.23),
+      ]),
   },
-  // Shoulder-length hair down the back of the head.
-  { name: 'longHair', paint: 'hair', optional: true, make: () => new THREE.BoxGeometry(0.4, 0.34, 0.16).translate(0, 1.5, -0.12) },
+  // Long hair down the back, with locks framing the face.
+  {
+    name: 'longHair',
+    paint: 'hair',
+    optional: true,
+    make: (d) =>
+      merge([
+        rbox(0.6, 0.62, 0.16, 0.07, d).translate(0, 1.33, -0.19),
+        rbox(0.1, 0.5, 0.42, 0.045, d).translate(-0.27, 1.3, 0.02),
+        rbox(0.1, 0.5, 0.42, 0.045, d).translate(0.27, 1.3, 0.02),
+      ]),
+  },
   {
     name: 'eyes',
     paint: 'eyes',
-    make: (d) => {
-      const a = new THREE.SphereGeometry(0.025, n(8, d), n(8, d)).translate(-0.07, 1.63, 0.18)
-      const b = new THREE.SphereGeometry(0.025, n(8, d), n(8, d)).translate(0.07, 1.63, 0.18)
-      const out = mergeGeometries([a, b])
-      a.dispose()
-      b.dispose()
-      return out
-    },
+    make: (d) => merge([new THREE.CapsuleGeometry(0.028, 0.04, 2, n(8, d)).translate(-0.11, 1.38, 0.252), new THREE.CapsuleGeometry(0.028, 0.04, 2, n(8, d)).translate(0.11, 1.38, 0.252)]),
   },
   {
     name: 'umbrella',
     paint: 'umbrella',
     optional: true,
     shadow: true,
-    make: (d) => new THREE.ConeGeometry(0.6, 0.3, n(10, d, 6)).translate(0.1, 2.15, 0.05),
+    make: (d) => flat(new THREE.ConeGeometry(0.62, 0.3, n(10, d, 6)).translate(0.1, 2.15, 0.05)),
   },
 ]
+
+/** Toys are drawn a bit bigger than life so people read from the diorama
+ *  camera. */
+const TOY_SCALE = 1.15
+
+export const PARTS: PartSpec[] = TOY_PARTS.map((p) => ({
+  ...p,
+  pivot: p.pivot?.map((v) => v * TOY_SCALE) as PartSpec['pivot'],
+  make: (d: number) => p.make(d).scale(TOY_SCALE, TOY_SCALE, TOY_SCALE),
+}))
 
 /** The player's look. */
 export const PLAYER_LOOK: Look = {
