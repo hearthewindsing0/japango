@@ -20,6 +20,7 @@ interface KindMeshes {
 }
 
 const hidden = new THREE.Matrix4().makeScale(0, 0, 0)
+const WARM = new THREE.Color('#fff4e6')
 
 export function Cars({
   map,
@@ -135,7 +136,8 @@ export function Cars({
       m.body.setMatrixAt(c.slot, tmp.m)
       if (m.painted[c.slot] !== c.color) {
         m.painted[c.slot] = c.color
-        m.body.setColorAt(c.slot, tmp.c.set(c.color))
+        // Diorama paint: lifted toward warm white.
+        m.body.setColorAt(c.slot, tmp.c.set(c.color).lerp(WARM, 0.2))
         m.body.instanceColor!.needsUpdate = true
       }
       seen.set(c.kind, Math.max(seen.get(c.kind)!, c.slot + 1))

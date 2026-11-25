@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { tileGroundAt, type MapTile, type PropKind, type Slope } from './map'
 
 // Street furniture, drawn where Mapillary's detectors found it in street
@@ -16,8 +17,9 @@ interface Part {
   basic?: boolean
 }
 
-const cyl = (r: number, h: number, seg = 8) => () => new THREE.CylinderGeometry(r, r, h, seg)
-const box = (x: number, y: number, z: number) => () => new THREE.BoxGeometry(x, y, z)
+// Diorama: chunky, rounded-off toy pieces.
+const cyl = (r: number, h: number, seg = 12) => () => new THREE.CylinderGeometry(r * 1.3, r * 1.3, h, seg)
+const box = (x: number, y: number, z: number) => () => new RoundedBoxGeometry(x, y, z, 2, Math.min(0.08, Math.min(x, y, z) / 2 - 0.005))
 
 const PARTS: Record<PropKind, Part[]> = {
   // Minato-ku's slope signs: a short stone post with the name on a plate.
@@ -46,7 +48,7 @@ const PARTS: Record<PropKind, Part[]> = {
   ],
   sign: [
     { geo: cyl(0.04, 2.7), color: '#9aa0a6', at: [0, 1.35, 0] },
-    { geo: () => new THREE.CylinderGeometry(0.3, 0.3, 0.04, 20).rotateZ(Math.PI / 2), color: '#2f63d9', at: [0.03, 2.45, 0] },
+    { geo: () => new THREE.CylinderGeometry(0.32, 0.32, 0.08, 24).rotateZ(Math.PI / 2), color: '#5b86e0', at: [0.05, 2.45, 0] },
   ],
   bench: [
     { geo: box(0.45, 0.07, 1.6), color: '#9b6b43', at: [0, 0.45, 0] },
@@ -70,6 +72,10 @@ const PARTS: Record<PropKind, Part[]> = {
     { geo: box(1.05, 0.12, 1.05), color: '#5f9e72', at: [0, 2.26, 0] },
   ],
 }
+
+const WARM = new THREE.Color('#fff4e6')
+/** Diorama paint: every color lifted a little toward warm white. */
+const toyPaint = (c: string) => new THREE.Color(c).lerp(WARM, 0.18)
 
 function PropKindMesh({ tile, items, parts, clip }: { tile: MapTile; items: MapTile['props']; parts: Part[]; clip: THREE.Plane[] }) {
   const refs = useRef<(THREE.InstancedMesh | null)[]>([])
@@ -112,7 +118,7 @@ function PropKindMesh({ tile, items, parts, clip }: { tile: MapTile; items: MapT
           {part.basic ? (
             <meshBasicMaterial color={part.color} clippingPlanes={clip} />
           ) : (
-            <meshLambertMaterial color={part.color} clippingPlanes={clip} />
+            <meshLambertMaterial color={toyPaint(part.color)} clippingPlanes={clip} />
           )}
         </instancedMesh>
       ))}

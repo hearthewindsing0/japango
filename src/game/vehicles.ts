@@ -5,6 +5,7 @@
 // Model space: the front points to +z, the car's left is +x (where the
 // passenger sits in Japan), the ground is y = 0. Sizes are in meters.
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 export const KINDS = ['sedan', 'taxi', 'kei', 'van', 'truck', 'bus'] as const
@@ -26,9 +27,10 @@ interface Spec {
   paints: string[]
 }
 
-const GLASS = '#26313b'
-const TYRE = '#1c1d20'
-const BUMPER = '#3c3f44'
+// Diorama: softer glass and trim, rounded toy bodies.
+const GLASS = '#4d6577'
+const TYRE = '#2e2f34'
+const BUMPER = '#6b6e75'
 const HEAD = '#fff4d2'
 const TAIL = '#e3262b'
 
@@ -151,7 +153,7 @@ function build(parts: Part[], white = false) {
   const pieces = parts.map((p) => {
     const g = p.wheel
       ? new THREE.CylinderGeometry(p.size[0], p.size[0], p.size[1], 12).rotateZ(Math.PI / 2)
-      : new THREE.BoxGeometry(...p.size)
+      : new RoundedBoxGeometry(...p.size, 2, Math.min(0.22, Math.min(...p.size) / 2 - 0.005))
     g.translate(...p.at)
     const geo = g.index ? g.toNonIndexed() : g
     c.set(white ? '#ffffff' : (p.color ?? '#ffffff'))
