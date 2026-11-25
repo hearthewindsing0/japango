@@ -75,6 +75,39 @@
         "https://en.wikipedia.org/wiki/National_Art_Center,_Tokyo",
         "https://www.nact.jp/english/"
       ]
+    },
+    {
+      "id": "midtown-tower",
+      "ja": "東京ミッドタウン タワー",
+      "en": "Tokyo Midtown Tower",
+      "life": "office",
+      "osm": 103007069,
+      "osmType": "way",
+      "model": "src/game/landmarks/Midtown.tsx",
+      "note": "SOM's 248 m tower (2007) at the heart of Tokyo Midtown, its faces pale louvers over glass like shoji screens, with the Ritz-Carlton in the top floors. The Galleria (shops) and the Plaza under its glass canopy are at its foot.",
+      "sources": [
+        "https://www.som.com/projects/tokyo-midtown/",
+        "https://www.architecturalrecord.com/articles/8062-tokyo-midtown"
+      ]
+    },
+    {
+      "id": "starbucks-midtown",
+      "ja": "スターバックス コーヒー 東京ミッドタウン店",
+      "en": "Starbucks Coffee Tokyo Midtown",
+      "life": "cafe",
+      "meet": true,
+      "lat": 35.6655,
+      "lon": 139.7313,
+      "model": "src/game/landmarks/Midtown.tsx",
+      "interior": "src/game/interiors/starbucks.ts",
+      "note": "On the ground floor of Midtown's Plaza (Henry's old local, also in roppongi.json), with terrace tables out on the plaza. You can walk in.",
+      "sources": [
+        "https://www.timeout.jp/tokyo/ja/レストラン/スターバックスコーヒー-東京ミッドタウン-コンプレックス-スタジオ店"
+      ],
+      "door": {
+        "lat": 35.665476,
+        "lon": 139.731101
+      }
     }
   ]
 }

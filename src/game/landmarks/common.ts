@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { MapTile, Poi } from '../map'
+import { isBlocked, type GameMap, type MapTile, type Poi } from '../map'
 import { seeThroughGlsl, type SeeThroughUniforms } from '../seeThrough'
 
 // Shared bits for hand-made landmarks (ALMOND, Maman, Mori Tower, ...):
@@ -98,5 +98,102 @@ export class Bin {
   dispose() {
     this.items.forEach((d) => d.dispose())
     this.items = []
+  }
+}
+
+/** The building nearest a point: the one it's in, or one within `r` m. */
+export function buildingNear(tile: MapTile, x: number, y: number, r = 6) {
+  const hit = buildingAt(tile, x, y)
+  if (hit) return hit
+  let best: MapTile['buildings'][number] | undefined
+  let bd = r
+  for (const b of tile.buildings) {
+    const g = ringOf(b.p)
+    for (let i = 0; i < g.length; i++) {
+      const [ax, ay] = g[i]
+      const [bx, by] = g[(i + 1) % g.length]
+      const d = segDist(x, y, ax, ay, bx, by)
+      if (d < bd) [bd, best] = [d, b]
+    }
+  }
+  return best
+}
+
+/** One wall with open ground in front: its ends as seen from outside
+ *  (left, right), length and outward normal. */
+export interface OpenWall {
+  l: [number, number]
+  r: [number, number]
+  len: number
+  n: [number, number]
+}
+
+/** The walls of a building that face open ground (no building in front,
+ *  on this tile or any other). */
+export function openWalls(map: GameMap, tile: MapTile, b: MapTile['buildings'][number], minLen = 1.5): OpenWall[] {
+  const ring = ringOf(b.p)
+  const ccw = ringArea(ring) > 0
+  const others = tile.buildings.filter((o) => o !== b).map((o) => ringOf(o.p))
+  const out: OpenWall[] = []
+  for (let i = 0; i < ring.length; i++) {
+    const [ax, ay] = ring[i]
+    const [bx, by] = ring[(i + 1) % ring.length]
+    const len = Math.hypot(bx - ax, by - ay)
+    if (len < minLen) continue
+    const dx = (bx - ax) / len
+    const dy = (by - ay) / len
+    const n: [number, number] = ccw ? [dy, -dx] : [-dy, dx]
+    const mx = (ax + bx) / 2
+    const my = (ay + by) / 2
+    const open = (d: number) => !isBlocked(map, mx + n[0] * d, my + n[1] * d) && !others.some((o) => inside(o, mx + n[0] * d, my + n[1] * d))
+    if (!open(1.2) || !open(3)) continue
+    const aLeft = (bx - ax) * n[1] + (by - ay) * -n[0] > 0
+    out.push({
+      l: aLeft ? [ax, ay] : [bx, by],
+      r: aLeft ? [bx, by] : [ax, ay],
+      len,
+      n,
+    })
+  }
+  return out
+}
+
+/**
+ * A rectangular ground-floor room behind a stretch of wall: the door at
+ * `at` on the wall (map meters), `a` along the wall and `b` into the
+ * building, as large as fits inside the outline up to the limits given.
+ */
+export function fitRoom(ring: Ring, w: OpenWall, at: [number, number], maxHalf: number, maxDepth: number) {
+  // Into the building is -n; (-uy, ux) = -n.
+  const ux = -w.n[1]
+  const uy = w.n[0]
+  const [mx, my] = at
+  const toMap = (a: number, bb: number): [number, number] => [mx + a * ux - bb * uy, my + a * uy + bb * ux]
+  const isIn = (a: number, bb: number) => inside(ring, ...toMap(a, bb))
+  // How far the wall reaches either side of the door.
+  const along = (x: number, y: number) => (x - mx) * ux + (y - my) * uy
+  const ends = [along(...w.l), along(...w.r)].sort((p, q) => p - q)
+  let a0 = Math.max(-maxHalf, ends[0] + 0.4)
+  let a1 = Math.min(maxHalf, ends[1] - 0.4)
+  let depth = 2
+  for (let d = 2.5; d <= maxDepth; d += 0.5) {
+    let ok = true
+    for (let a = a0; a <= a1 + 1e-6; a += 0.5) if (!isIn(a, d + 0.4)) ok = false
+    if (!ok) break
+    depth = d
+  }
+  while (a1 - a0 > 5 && ![0.5, depth / 2, depth].every((d) => isIn(a0 - 0.3, d) && isIn(a1 + 0.3, d))) {
+    a0 += 0.25
+    a1 -= 0.25
+  }
+  return {
+    x: mx,
+    y: my,
+    ux,
+    uy,
+    a0: +a0.toFixed(2),
+    a1: +a1.toFixed(2),
+    depth,
+    toMap,
   }
 }

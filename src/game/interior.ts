@@ -7,6 +7,7 @@ import type { StationFloor, StationRamp, StationSign } from './station'
 import { antnbeeLayout, ANTNBEE } from './interiors/antnbee'
 import { donkiLayout, DONKI } from './interiors/donki'
 import { nactLayout, NACT } from './interiors/nact'
+import { starbucksLayout, STARBUCKS } from './interiors/starbucks'
 
 /** Where a place's front door is, from the map build. */
 export interface InteriorPlace {
@@ -81,6 +82,7 @@ const KNOWN: Record<string, { layout: (p: InteriorPlace) => InteriorLayout; info
   },
   donki: { layout: donkiLayout, info: DONKI },
   nact: { layout: nactLayout, info: NACT },
+  starbucks: { layout: starbucksLayout, info: STARBUCKS },
 }
 
 export function buildInteriors(places: InteriorPlace[] | undefined): Interior[] {

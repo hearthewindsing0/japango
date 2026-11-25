@@ -5,6 +5,7 @@ import { PARTS, hasPart, paintOf, type Look } from './character'
 import type { Interior } from './interior'
 import { DonkiRoom } from './interiors/DonkiRoom'
 import { NactRoom } from './interiors/NactRoom'
+import { StarbucksRoom } from './interiors/StarbucksRoom'
 import { ANTNBEE, BARTENDER, CHAIRS, COUNTER, DEPTH, ROOM, SOLID, STAIR_A, STAIR_BOTTOM, STAIR_TOP, STAIR_W, STOOLS, toLocal } from './interiors/antnbee'
 import { FONT } from './Stations'
 import type { Focus } from './World'
@@ -591,6 +592,12 @@ export function Interiors({ interiors, focus, under, night, glasses }: { interio
         const len = Math.hypot(it.place.ux, it.place.uy) || 1
         const ry = Math.atan2(-it.place.uy / len, it.place.ux / len)
         if (it.id === 'nact') return under ? <NactRoom key={it.id} it={it} /> : null
+        if (it.id === 'starbucks')
+          return under ? (
+            <group key={it.id} position={[it.place.x, it.z, it.place.y]} rotation-y={ry}>
+              <StarbucksRoom it={it} />
+            </group>
+          ) : null
         if (it.id === 'donki')
           return under ? (
             <group key={it.id} position={[it.place.x, it.z, it.place.y]} rotation-y={ry}>

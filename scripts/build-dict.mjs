@@ -49,7 +49,7 @@ for (const d of map.discoveries ?? []) {
 // Shop words the game shows next to places (src/game/hours.ts, App.tsx).
 for (const p of map.pois ?? []) add(p.cu)
 // Places you can walk into (src/game/interiors/).
-for (const f of ['antnbee', 'donki', 'nact']) {
+for (const f of ['antnbee', 'donki', 'nact', 'starbucks']) {
   const it = JSON.parse(await readFile(`src/game/interiors/${f}.json`, 'utf8'))
   for (const t of [it.name, it.kind, it.floor, it.hours, it.door?.t]) add(t)
   for (const b of it.beers ?? []) add(b.ja), add(b.brewery), add(b.pref)
@@ -57,6 +57,8 @@ for (const f of ['antnbee', 'donki', 'nact']) {
   for (const p of [...(it.phrases ?? []), ...Object.values(it.staff ?? {})]) add(p.ja.replace(/\{[a-zA-Z]+\}/g, ''))
   for (const s of Object.values(it.signs)) add(s.t)
   for (const t of it.pops ?? []) add(t)
+  for (const [ja] of it.menu ?? []) add(ja)
+  for (const t of it.sizes ?? []) add(t)
 }
 for (const t of ['営業中', '準備中', '本日', '本日定休日', '24時間営業']) add(t)
 // What people say at the talking spots (scripts/fetch-conversations.mjs).
