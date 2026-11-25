@@ -16,6 +16,7 @@ import { Minimap } from './game/Minimap'
 import { isHoliday } from './game/people-flow'
 import { useHudScale } from './game/hud'
 import { LENS, Player } from './game/Player'
+import { Toy } from './game/Toy'
 import { World, type Focus } from './game/World'
 import { loadAround, useTileStream } from './game/stream'
 import { useProgressSync } from './game/progress'
@@ -442,8 +443,10 @@ export default function App() {
         <SoftShadows size={14} samples={10} focus={0.5} />
         <World map={map} tiles={tiles} focus={focus} sky={sky} when={when} day={week.day} minute={week.minute} surface={!under} distance={distance} />
         {!under && <Discoveries map={map} tiles={tiles} found={found} stamps={stamps} />}
-        {ug && <Stations ug={ug} focus={focus} under={under} clock={trainClock} riders={riders} />}
-        {ug && ug.interiors.length > 0 && <Interiors interiors={ug.interiors} focus={focus} under={under} night={sky.night > 0.5} glasses={glasses} />}
+        <Toy>
+          {ug && <Stations ug={ug} focus={focus} under={under} clock={trainClock} riders={riders} />}
+          {ug && ug.interiors.length > 0 && <Interiors interiors={ug.interiors} focus={focus} under={under} night={sky.night > 0.5} glasses={glasses} />}
+        </Toy>
         {talk && !under && <Talkers talk={talk} voices={voices} rain={sky.rain > 0.2} />}
         {life && map && !under && <LifePeople life={life} map={map} focus={focus} rain={sky.rain > 0.2} />}
         <Player

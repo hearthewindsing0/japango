@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import { toyLift } from './Toy'
 import { tileGroundAt, type MapTile, type PropKind, type Slope } from './map'
 
 // Street furniture, drawn where Mapillary's detectors found it in street
@@ -73,9 +74,8 @@ const PARTS: Record<PropKind, Part[]> = {
   ],
 }
 
-const WARM = new THREE.Color('#fff4e6')
 /** Diorama paint: every color lifted a little toward warm white. */
-const toyPaint = (c: string) => new THREE.Color(c).lerp(WARM, 0.18)
+const toyPaint = (c: string) => toyLift(new THREE.Color(c), 0.18)
 
 function PropKindMesh({ tile, items, parts, clip }: { tile: MapTile; items: MapTile['props']; parts: Part[]; clip: THREE.Plane[] }) {
   const refs = useRef<(THREE.InstancedMesh | null)[]>([])

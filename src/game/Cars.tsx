@@ -1,6 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
+import { toyLift } from './Toy'
 import { buildNetwork, Traffic as Sim, type Network } from './traffic'
 import { KINDS, vehicleGeometries, type VehicleKind } from './vehicles'
 import { groundAt, type GameMap, type MapTile } from './map'
@@ -20,7 +21,6 @@ interface KindMeshes {
 }
 
 const hidden = new THREE.Matrix4().makeScale(0, 0, 0)
-const WARM = new THREE.Color('#fff4e6')
 
 export function Cars({
   map,
@@ -137,7 +137,7 @@ export function Cars({
       if (m.painted[c.slot] !== c.color) {
         m.painted[c.slot] = c.color
         // Diorama paint: lifted toward warm white.
-        m.body.setColorAt(c.slot, tmp.c.set(c.color).lerp(WARM, 0.2))
+        m.body.setColorAt(c.slot, toyLift(tmp.c.set(c.color), 0.15))
         m.body.instanceColor!.needsUpdate = true
       }
       seen.set(c.kind, Math.max(seen.get(c.kind)!, c.slot + 1))

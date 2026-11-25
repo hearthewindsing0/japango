@@ -25,6 +25,7 @@ import type { SkyState } from './sky'
 import { Weather as WeatherFx } from './Weather'
 import { LANDMARK_SIGNS } from './Almond'
 import { Landmarks } from './Landmarks'
+import { Toy } from './Toy'
 import { seeThroughGlsl, seeThroughUniforms, type SeeThroughUniforms } from './seeThrough'
 
 /** Shared state the world reads every frame: where the player is. */
@@ -583,7 +584,9 @@ export function World({
         {tiles.map((t) => (
           <TileView key={t.key} map={map} tile={t} focus={focus} sky={sky} when={when} day={day} minute={minute} />
         ))}
-        <Landmarks map={map} tiles={tiles} focus={focus} night={sky.night} />
+        <Toy>
+          <Landmarks map={map} tiles={tiles} focus={focus} night={sky.night} />
+        </Toy>
         <Cars map={map} tiles={tiles} focus={focus} hour={when.hour} night={sky.night} distance={distance} />
       </group>
       <WeatherFx focus={focus} rain={sky.rain} snow={sky.snow} />
