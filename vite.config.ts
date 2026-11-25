@@ -45,10 +45,12 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), serverData()],
   build: {
     rollupOptions: {
-      // The game, and the UI kit playground at /playground/.
+      // The game, the UI kit playground at /playground/, and art-direction
+      // samples at /looks/.
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
         playground: resolve(import.meta.dirname, 'playground/index.html'),
+        looks: resolve(import.meta.dirname, 'looks/index.html'),
       },
     },
   },
