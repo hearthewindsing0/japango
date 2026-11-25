@@ -1,9 +1,9 @@
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { buildNetwork, Traffic as Sim, type Network } from './traffic'
 import { KINDS, vehicleGeometries, type VehicleKind } from './vehicles'
-import type { GameMap, MapTile } from './map'
+import { groundAt, type GameMap, type MapTile } from './map'
 import type { Focus } from './World'
 
 // Cars, taxis, vans, trucks and buses driving the streets around the player
@@ -99,6 +99,7 @@ export function Cars({
     [meshes, bodyMat, trimMat, lampMat],
   )
 
+  const camera = useThree((s) => s.camera)
   const tmp = useMemo(
     () => ({ m: new THREE.Matrix4(), q: new THREE.Quaternion(), p: new THREE.Vector3(), s: new THREE.Vector3(1, 1, 1), up: new THREE.Vector3(0, 1, 0), c: new THREE.Color() }),
     [],
@@ -116,8 +117,18 @@ export function Cars({
       for (let i = 0; i < m.used; i++) m.body.setMatrixAt(i, hidden)
       seen.set(k, 0)
     }
+    // Cars up on the Shuto in front of the player are hidden with the deck
+    // there (see the viaducts' see-through in World).
+    const ground = groundAt(map, f.x, f.y)
+    const vx = camera.position.x - f.x
+    const vz = camera.position.z - f.y
     for (const c of sim.cars) {
       const m = meshes[c.kind]
+      if (c.z - ground > 4 && (c.x - f.x) * vx + (c.y - f.y) * vz > 0) {
+        m.body.setMatrixAt(c.slot, hidden)
+        seen.set(c.kind, Math.max(seen.get(c.kind)!, c.slot + 1))
+        continue
+      }
       tmp.p.set(c.x, c.z + 0.02, c.y)
       tmp.q.setFromAxisAngle(tmp.up, c.heading)
       tmp.m.compose(tmp.p, tmp.q, tmp.s)

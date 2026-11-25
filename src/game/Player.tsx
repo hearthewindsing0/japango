@@ -10,14 +10,17 @@ import type { Focus } from './World'
 const WALK_SPEED = 4.5 // m/s
 const RUN_SPEED = 9
 const RADIUS = 0.3
-const CAMERA_PITCH = (63 * Math.PI) / 180
+const CAMERA_PITCH = (54 * Math.PI) / 180
 /** On a platform: a low camera, at about eye height over the player's
  *  shoulder, looking a little down. */
 const PLATFORM_PITCH = (14 * Math.PI) / 180
 const PLATFORM_EYE = 2.1
-/** The usual narrow lens from above, and a wider one on the platform. */
-const FOV = 38
+/** The usual long lens from above (it flattens the city into a diorama),
+ *  and a wider one on the platform. */
+const FOV = 24
 const PLATFORM_FOV = 62
+/** How much further back the long lens sits than the old 38° one, to frame the same view. */
+export const LENS = Math.tan((38 / 2) * (Math.PI / 180)) / Math.tan((FOV / 2) * (Math.PI / 180))
 
 interface Props {
   map: GameMap
@@ -158,7 +161,8 @@ export function Player({ map, ug, focus, distance, onMove }: Props) {
       }
     }
     const pitch = CAMERA_PITCH + (PLATFORM_PITCH - CAMERA_PITCH) * k
-    const dist = distance + (low - distance) * k
+    // The long lens sits further back to frame the same "distance".
+    const dist = distance * LENS + (low - distance * LENS) * k
     const back = Math.cos(pitch) * dist
     // Close in, a little higher, to see over the player's head.
     const rise = Math.sin(pitch) * dist * (1 - k) + (PLATFORM_EYE + Math.max(0, 4 - low) * 0.2) * k

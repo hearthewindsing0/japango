@@ -19,21 +19,23 @@ export const T = {
 export const BLOCKED = new Set<number>([T.VOID, T.BUILDING, T.WATER, T.TREE])
 
 /** Shared palette for the 3D world and the minimap. */
+// The diorama palette (see /looks/, option 2): warm, soft, a little pastel,
+// like painted clay on a model board.
 export const COLORS = {
-  ground: '#d6d3cc',
-  road: '#5d6068',
-  sidewalk: '#cbc4b8',
-  footway: '#dfcdab',
-  crossing: '#f2f2f0',
-  laneLine: '#f4f4f0',
-  grass: '#8cc46a',
-  woods: '#6fa95a',
-  pitch: '#7cbd64',
-  water: '#6eb2e4',
-  parking: '#b8b8be',
-  shrine: '#dccfac',
-  trunk: '#7a5a3c',
-  leaves: ['#4f9a4a', '#5aa652', '#3f8a44', '#68b05a'],
+  ground: '#e6d8c2',
+  road: '#7b7c88',
+  sidewalk: '#efe2cf',
+  footway: '#ead8bb',
+  crossing: '#f7efe2',
+  laneLine: '#f7efe2',
+  grass: '#93c871',
+  woods: '#7ab862',
+  pitch: '#88c46c',
+  water: '#7fc0e6',
+  parking: '#a9a9b4',
+  shrine: '#e3d3ae',
+  trunk: '#a0704a',
+  leaves: ['#6cb257', '#7cc062', '#5ea64f', '#8bc96a'],
 }
 
 const rgb = (hex: string): [number, number, number] => [
