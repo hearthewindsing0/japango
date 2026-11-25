@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { createContext, useContext, useMemo, useRef, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { PARTS, PLAYER_LOOK, paintOf } from '../game/character'
+import { ToyPeople } from './people'
 import { signTexture } from './signs'
 
 // One small Roppongi-like corner, drawn the same way in every look: a main
@@ -56,6 +57,8 @@ export interface LookStyle {
   night?: boolean
   /** Draw the city past the block (off for a cut-out diorama). */
   surroundings?: boolean
+  /** Chunky toy figures (and a few more of them) instead of the game's people. */
+  toyPeople?: boolean
   /** Trees as faceted gems instead of soft balls. */
   facetedTrees?: boolean
 }
@@ -133,11 +136,11 @@ function Rod({ a, b, r, role, color }: { a: V3; b: V3; r: number; role: Role; co
 // ---- layout -------------------------------------------------------------
 // x east, z south, y up, meters. Main road (Roppongi-dori-like) runs east-
 // west at z -6..6; the side street runs north-south at x -4..4.
-const ROAD_Z = 6
+export const ROAD_Z = 6
 const SIDE_X = 4
 const WALK = 3.5
 const EDGE = 34
-const CURB = 0.15
+export const CURB = 0.15
 
 function Ground() {
   const look = useLook()
@@ -535,7 +538,7 @@ export function Block() {
       <Vending p={[-7.4, CURB, -ROAD_Z - 7]} color="#2a6fb0" turn={Math.PI / 2} />
       <Rail x0={8} x1={16} z={ROAD_Z + 0.5} />
       <Rail x0={-32} x1={-24} z={-ROAD_Z - 0.5} />
-      <Person />
+      {look.toyPeople ? <ToyPeople /> : <Person />}
     </group>
   )
 }

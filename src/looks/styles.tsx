@@ -31,15 +31,15 @@ function adjust(c: string, f: (h: { h: number; s: number; l: number }) => void) 
   return '#' + color.setHSL(hsl.h, Math.min(1, Math.max(0, hsl.s)), Math.min(1, Math.max(0, hsl.l))).getHexString()
 }
 
-function Controls({ minPolar = 0.35, maxPolar = 1.2 }: { minPolar?: number; maxPolar?: number }) {
-  return <OrbitControls makeDefault target={FOCUS} minPolarAngle={minPolar} maxPolarAngle={maxPolar} enableDamping maxDistance={160} minDistance={6} />
+function Controls({ minPolar = 0.35, maxPolar = 1.2, target = FOCUS }: { minPolar?: number; maxPolar?: number; target?: [number, number, number] }) {
+  return <OrbitControls makeDefault target={target} minPolarAngle={minPolar} maxPolarAngle={maxPolar} enableDamping maxDistance={160} minDistance={6} />
 }
 
 /** A camera position at a distance, compass angle (0 = from the south) and height angle. */
-function orbit(dist: number, yawDeg: number, pitchDeg: number): [number, number, number] {
+function orbit(dist: number, yawDeg: number, pitchDeg: number, focus = FOCUS): [number, number, number] {
   const yaw = (yawDeg * Math.PI) / 180
   const pitch = (pitchDeg * Math.PI) / 180
-  return [FOCUS[0] + Math.sin(yaw) * Math.cos(pitch) * dist, FOCUS[1] + Math.sin(pitch) * dist, FOCUS[2] + Math.cos(yaw) * Math.cos(pitch) * dist]
+  return [focus[0] + Math.sin(yaw) * Math.cos(pitch) * dist, focus[1] + Math.sin(pitch) * dist, focus[2] + Math.cos(yaw) * Math.cos(pitch) * dist]
 }
 
 function Sun({ pos, color = '#ffffff', intensity = 2.5, size = 60, mapSize = 4096, bias = -0.0004, radius }: { pos: [number, number, number]; color?: string; intensity?: number; size?: number; mapSize?: number; bias?: number; radius?: number }) {
@@ -128,11 +128,16 @@ function DioramaMat({ color, map, glow, role }: MatProps) {
   return <meshStandardMaterial color={color} map={map} roughness={role === 'glass' ? 0.25 : 0.82} metalness={0} emissive={glow ? color : '#000000'} emissiveIntensity={glow ? 0.25 : 0} />
 }
 
+/** ?focus=people zooms the diorama in on the people chatting outside the konbini. */
+const PEOPLE_FOCUS: [number, number, number] = [-13.2, 1.3, -8.2]
+const closeUp = new URLSearchParams(location.search).get('focus') === 'people'
+
 function DioramaStage() {
+  const focus = closeUp ? PEOPLE_FOCUS : FOCUS
   return (
     <>
-      <OrthographicCamera makeDefault zoom={20} position={orbit(120, -38, 38)} near={-200} far={600} />
-      <Controls minPolar={0.4} maxPolar={1.25} />
+      <OrthographicCamera makeDefault zoom={closeUp ? 95 : 20} position={orbit(120, closeUp ? -28 : -38, closeUp ? 24 : 38, focus)} near={-200} far={600} />
+      <Controls minPolar={0.4} maxPolar={1.25} target={focus} />
       <SoftShadows size={18} samples={14} focus={0.6} />
       <hemisphereLight args={['#fff4e2', '#b9a389', 1.4]} />
       <Sun pos={[-55, 45, 30]} intensity={2.4} color="#ffd9a8" size={50} />
@@ -158,10 +163,12 @@ const diorama: LookDef = {
       if (role === 'walk') return '#efe2cf'
       if (role === 'glass') return '#a9cfe6'
       if (role === 'dirt') return '#a77c57'
+      if (role === 'hair') return adjust(c, (h) => (h.l = h.l * 0.85 + 0.08))
       return adjust(c, (h) => ((h.s = h.s * 0.85 + 0.12), (h.l = h.l * 0.7 + 0.3)))
     },
     rounded: 0.35,
     facetedTrees: true,
+    toyPeople: true,
     surroundings: false,
   },
   Stage: DioramaStage,

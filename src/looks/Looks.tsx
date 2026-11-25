@@ -1,6 +1,8 @@
+import { OrbitControls, OrthographicCamera } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import { useEffect, useState } from 'react'
 import * as THREE from 'three'
+import { Lineup } from './people'
 import { Block, LookProvider } from './scene'
 import { LOOKS } from './styles'
 
@@ -9,6 +11,22 @@ import { LOOKS } from './styles'
 // URL: ?look=<id> opens one; &ui=0 hides the panel (for screenshots).
 
 const params = new URLSearchParams(location.search)
+// ?focus=lineup shows the people on their own, like a character sheet.
+const lineup = params.get('focus') === 'lineup'
+
+function LineupStage() {
+  return (
+    <>
+      <OrthographicCamera makeDefault zoom={100} position={[0, 5, 20]} near={-50} far={100} />
+      <OrbitControls makeDefault target={[0, 1.4, 0]} />
+      <hemisphereLight args={['#fff4e2', '#b9a389', 1.5]} />
+      <directionalLight position={[-8, 12, 10]} intensity={2.2} color="#ffd9a8" castShadow shadow-mapSize={[2048, 2048]}>
+        <orthographicCamera attach="shadow-camera" args={[-10, 10, 10, -10, 1, 60]} />
+      </directionalLight>
+      <Lineup />
+    </>
+  )
+}
 
 export function Looks() {
   const [index, setIndex] = useState(() => Math.max(0, LOOKS.findIndex((l) => l.id === params.get('look'))))
@@ -40,8 +58,14 @@ export function Looks() {
         gl={{ antialias: true, alpha: !!look.backdrop, preserveDrawingBuffer: true, toneMapping: look.flat ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping }}
       >
         <LookProvider value={look.style}>
-          <look.Stage />
-          <Block />
+          {lineup ? (
+            <LineupStage />
+          ) : (
+            <>
+              <look.Stage />
+              <Block />
+            </>
+          )}
         </LookProvider>
       </Canvas>
       {showUi && (
