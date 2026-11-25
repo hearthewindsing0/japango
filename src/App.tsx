@@ -378,6 +378,11 @@ export default function App() {
   const tap = pickWord(setWord)
   // Room for the credits in the bottom-left corner, beside the hotbar.
   const wide = hud.width >= 700
+  // Something is showing in the bottom-middle stack (talk, a sign, a
+  // discovery). On a short screen the "nearby" card steps aside for it, so
+  // the left column and the bottom stack never grow into each other.
+  const bottomBusy = !book && !!(caption || here || sign || door || (!under && (approachable || chatting)))
+  const tight = hud.height < 640 || hud.width < 520
   const creditsBox = credits ? (
             <Panel size="sm" className="hud-scroll pointer-events-auto max-h-[calc(var(--hud-h)*0.5)] w-[min(32rem,calc(var(--hud-w)-24px))] overflow-y-auto px-3 py-2.5 text-xs leading-relaxed [&_a]:text-sora [&_a]:underline">
               <PanelTitle
@@ -500,7 +505,7 @@ export default function App() {
               </div>
             )}
           </Panel>
-          {place && (
+          {place && !(tight && bottomBusy) && (
             <PlaceCard
               className="pointer-events-auto w-full p-3"
               name={seg(place.name)}
@@ -513,12 +518,6 @@ export default function App() {
               onWord={tap}
             />
           )}
-          {wordHint && dict && (
-            <div className="corner-sm animate-pulse bg-kin px-3 py-1.5 text-sm text-sumi drop-hard-sm motion-reduce:animate-none">
-              👆 Tap an <u>underlined</u> Japanese word for its word card: meaning, kanji and an example.
-            </div>
-          )}
-          {!wide && <div className="flex flex-col items-start" onClick={(e) => e.stopPropagation()}>{creditsBox}</div>}
         </div>
 
         {/* Top right: the map, with the A−/A+ buttons under it. */}
@@ -542,6 +541,9 @@ export default function App() {
             }
             onToggleBig={() => setBigMap((b) => !b)}
           />
+          {/* On a narrow screen the credits go under the map, out of the way of
+              the info boxes on the left, and only while nothing is showing below. */}
+          {!wide && (credits || !bottomBusy) && <div className="mt-2 flex flex-col items-end">{creditsBox}</div>}
         </div>
 
         {/* Bottom middle: overheard talk, a discovery, a sign. Stacked so
@@ -554,6 +556,11 @@ export default function App() {
             hud.height < 430 ? 'left-3 w-[min(34rem,calc(100%-220px))] items-start' : 'left-1/2 w-[min(34rem,calc(100%-24px))] -translate-x-1/2 items-center',
           )}
         >
+          {wordHint && dict && !book && (caption || approachable || chatting) && (
+            <div className="corner-sm w-full animate-pulse bg-kin px-3 py-1.5 text-sm text-sumi drop-hard-sm motion-reduce:animate-none">
+              👆 Tap an <u>underlined</u> Japanese word for its word card: meaning, kanji and an example.
+            </div>
+          )}
           {!book && !under && (approachable || chatting) && (
             <Approach near={approachable} dict={dict} furigana={furigana} english={english} onWord={setWord} onChat={setChatting} />
           )}
