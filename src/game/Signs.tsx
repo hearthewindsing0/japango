@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { buildingBase, type HeightFn } from './geometry'
 import { is24h, isOpen } from './hours'
 import type { MapTile } from './map'
+import { drawAwning, drawBoard, drawNoren, drawVerticalBoard, fontLoads, signStyle, type SignStyle } from './signStyle'
 
 // Shop signs: a lit board over each shop front with its name, and for bars
 // and restaurants in taller buildings a vertical sign (袖看板) sticking out
@@ -15,113 +16,62 @@ import type { MapTile } from './map'
 
 const FONT = '"M PLUS 1 Variable", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif'
 
-// Diorama: signs are little rounded toy boards with a cream rim. Corners
-// are cut out by alphaTest.
-function board(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, bg: string) {
-  ctx.beginPath()
-  ctx.roundRect(x + 2, y + 2, w - 4, h - 4, r)
-  ctx.fillStyle = '#fbf3e4'
-  ctx.fill()
-  ctx.beginPath()
-  ctx.roundRect(x + 6, y + 6, w - 12, h - 12, Math.max(2, r - 4))
-  ctx.fillStyle = bg
-  ctx.fill()
-}
 const ATLAS = 1024 // atlas width; its height fits the tile's signs
-const H_SLOT = { w: 256, h: 64 } // horizontal boards
+const H_SLOT = { w: 256, h: 64 } // horizontal boards, awnings, noren, lanterns
 const V_SLOT = { w: 64, h: 256 } // vertical signs
 
-type Kind = MapTile['signs'][number]['k']
-
-function colorsFor(text: string, kind: Kind): [string, string] {
-  if (/ファミリーマート|FamilyMart/i.test(text)) return ['#ffffff', '#0b7a3e']
-  if (/ローソン|LAWSON/i.test(text)) return ['#1e5fb4', '#ffffff']
-  if (/セブン|7-Eleven|7-ELEVEN/i.test(text)) return ['#ffffff', '#e3342f']
-  switch (kind) {
-    case 'konbini':
-      return ['#2b6cb0', '#ffffff']
-    case 'food':
-      return ['#b91c1c', '#fff7e6']
-    case 'cafe':
-      return ['#5b3a29', '#f5e6c8']
-    case 'bar':
-      return ['#1f1235', '#ff7ad9']
-    default:
-      return ['#f4f1ea', '#222222']
-  }
-}
-
-function drawHorizontal(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, kind: Kind) {
-  const [bg, fg] = colorsFor(text, kind)
-  board(ctx, x, y, H_SLOT.w, H_SLOT.h, 16, bg)
-  ctx.fillStyle = fg
-  let size = 36
-  ctx.font = `800 ${size}px ${FONT}`
-  const w = ctx.measureText(text).width
-  if (w > H_SLOT.w - 28) {
-    size = Math.max(14, Math.floor((size * (H_SLOT.w - 28)) / w))
-    ctx.font = `800 ${size}px ${FONT}`
-  }
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(text, x + H_SLOT.w / 2, y + H_SLOT.h / 2 + 2, H_SLOT.w - 24)
-}
-
-function drawVertical(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, kind: Kind) {
-  const [bg, fg] = colorsFor(text, kind)
-  board(ctx, x, y, V_SLOT.w, V_SLOT.h, 16, bg)
-  ctx.fillStyle = fg
-  // Japanese reads top to bottom on vertical signs: one character per line.
-  const chars = [...text].slice(0, 8)
-  const size = Math.min(40, Math.floor((V_SLOT.h - 24) / chars.length))
-  ctx.font = `800 ${size}px ${FONT}`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  chars.forEach((ch, i) => ctx.fillText(ch, x + V_SLOT.w / 2, y + (V_SLOT.h - size * chars.length) / 2 + size * (i + 0.5), V_SLOT.w - 14))
-}
-
 /** Mostly Japanese names suit vertical signs; long Latin names don't. */
-const verticalOk = (t: string) => [...t].length <= 8 && /[぀-ヿ一-鿿]/.test(t)
+const verticalOk = (t: string) => [...t].length <= 8 && /[\u3040-\u30ff\u4e00-\u9fff]/.test(t)
 
-export function Signs({
-  tile,
-  clip,
-  height,
-  day,
-  minute,
-  night,
-}: {
-  tile: MapTile
-  clip: THREE.Plane[]
-  height: HeightFn
-  day: number
-  minute: number
-  night: number
-}) {
-  // The sign font loads its glyphs on demand: draw again once this tile's
+/** Paper lanterns (提灯): two on one slot, a red body with dark caps and ribs. */
+function drawLanterns(ctx: CanvasRenderingContext2D, x: number, y: number, color: string) {
+  for (const ox of [0, 128]) {
+    const cx = x + ox + 64
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.ellipse(cx, y + 32, 26, 27, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(0,0,0,0.18)'
+    for (const dy of [-14, 0, 14]) ctx.fillRect(cx - 26, y + 32 + dy, 52, 2)
+    ctx.fillStyle = '#2a2320'
+    ctx.fillRect(cx - 14, y + 2, 28, 6)
+    ctx.fillRect(cx - 14, y + 56, 28, 6)
+  }
+}
+
+export function Signs({ tile, clip, height, day, minute, night }: { tile: MapTile; clip: THREE.Plane[]; height: HeightFn; day: number; minute: number; night: number }) {
+  const styles = useMemo(() => tile.signs.map((s) => signStyle(s.t, s.k)), [tile])
+  // Sign fonts load their glyphs on demand: draw again once this tile's
   // characters are in.
   const [fontV, setFontV] = useState(0)
   useEffect(() => {
     if (typeof document === 'undefined' || !tile.signs.length) return
     let live = true
-    document.fonts
-      .load(`800 36px "M PLUS 1 Variable"`, tile.signs.map((s) => s.t).join(''))
-      .then((f) => live && f.length > 0 && setFontV((v) => v + 1))
+    Promise.all(fontLoads(tile.signs.map((s, i) => ({ text: s.t, st: styles[i] }))))
+      .then(() => live && setFontV((v) => v + 1))
       .catch(() => {})
     return () => {
       live = false
     }
-  }, [tile])
+  }, [tile, styles])
   const built = useMemo(() => {
     void fontV
     const signs = tile.signs
     if (!signs.length || typeof document === 'undefined') return null
-    // Horizontal boards first, then a band of vertical signs below them.
-    const isVertical = (s: (typeof signs)[number]) => (s.k === 'bar' || s.k === 'food') && verticalOk(s.t) && (tile.buildings[s.b]?.h ?? 6) >= 8
+    const isVertical = (i: number) => {
+      const s = signs[i]
+      const st = styles[i]
+      const tall = (tile.buildings[s.b]?.h ?? 6) >= 8
+      if (st.vertical !== undefined) return st.vertical && tall
+      return (s.k === 'bar' || s.k === 'food') && verticalOk(st.vtext ?? s.t) && tall
+    }
+    // Horizontal slots: a board each, plus one per awning, noren and lantern pair.
+    const extras = (st: SignStyle) => (st.awning ? 1 : 0) + (st.noren ? 1 : 0) + (st.lanterns ? 1 : 0)
+    const hCount = signs.reduce((n, _, i) => n + 1 + extras(styles[i]), 0)
     const hCols = ATLAS / H_SLOT.w
     const vCols = ATLAS / V_SLOT.w
-    const H_ROWS = Math.ceil(signs.length / hCols)
-    const vRows = Math.ceil(signs.filter(isVertical).length / vCols)
+    const H_ROWS = Math.ceil(hCount / hCols)
+    const vRows = Math.ceil(signs.filter((_, i) => isVertical(i)).length / vCols)
     const atlasH = 2 ** Math.ceil(Math.log2(Math.max(64, H_ROWS * H_SLOT.h + vRows * V_SLOT.h)))
     const canvas = document.createElement('canvas')
     canvas.width = ATLAS
@@ -132,15 +82,8 @@ export function Signs({
     const pos: number[] = []
     const uv: number[] = []
     const up = new THREE.Vector3(0, 1, 0)
-    // A quad facing `normal`, with u running along up × normal.
-    const quad = (c: THREE.Vector3, normal: THREE.Vector3, w: number, h: number, r: [number, number, number, number]) => {
-      const right = new THREE.Vector3().crossVectors(up, normal).multiplyScalar(w / 2)
-      const top = up.clone().multiplyScalar(h / 2)
+    const corners = (BL: THREE.Vector3, BR: THREE.Vector3, TR: THREE.Vector3, TL: THREE.Vector3, r: [number, number, number, number]) => {
       const [u0, v0, u1, v1] = r
-      const BL = c.clone().sub(right).sub(top)
-      const BR = c.clone().add(right).sub(top)
-      const TR = c.clone().add(right).add(top)
-      const TL = c.clone().sub(right).add(top)
       for (const [p, u, v] of [
         [BL, u0, v0],
         [BR, u1, v0],
@@ -153,47 +96,86 @@ export function Signs({
         uv.push(u, v)
       }
     }
+    // A quad facing `normal`, with u running along up × normal.
+    const quad = (c: THREE.Vector3, normal: THREE.Vector3, w: number, h: number, r: [number, number, number, number]) => {
+      const right = new THREE.Vector3().crossVectors(up, normal).multiplyScalar(w / 2)
+      const top = up.clone().multiplyScalar(h / 2)
+      corners(c.clone().sub(right).sub(top), c.clone().add(right).sub(top), c.clone().add(right).add(top), c.clone().sub(right).add(top), r)
+    }
     // Slot rectangle in UV space (flipY: v = 1 at the top of the canvas).
-    const rect = (x: number, y: number, w: number, h: number): [number, number, number, number] => [
-      x / ATLAS,
-      1 - (y + h) / atlasH,
-      (x + w) / ATLAS,
-      1 - y / atlasH,
-    ]
-
+    const rect = (x: number, y: number, w: number, h: number): [number, number, number, number] => [x / ATLAS, 1 - (y + h) / atlasH, (x + w) / ATLAS, 1 - y / atlasH]
     let nh = 0
     let nv = 0
+    const hSlot = () => {
+      const x = (nh % hCols) * H_SLOT.w
+      const y = Math.floor(nh / hCols) * H_SLOT.h
+      nh++
+      return [x, y] as const
+    }
+
     // Vertex range of each sign's quads, to dim it when the shop is closed.
     const ranges: [number, number][] = []
-    for (const s of signs) {
+    signs.forEach((s, i) => {
+      const st = styles[i]
       const first = pos.length / 3
       const b = tile.buildings[s.b]
       const base = b ? buildingBase(b.p, height) : height(s.x, s.y)
       const top = b ? b.h : 6
       const n = new THREE.Vector3(Math.cos(s.r), 0, Math.sin(s.r))
+      const across = new THREE.Vector3().crossVectors(up, n)
+      const at = (out: number, y: number, side = 0) => new THREE.Vector3(s.x + n.x * out + across.x * side, base + y, s.y + n.z * out + across.z * side)
       // Board over the shop front.
-      const sx = (nh % hCols) * H_SLOT.w
-      const sy = Math.floor(nh / hCols) * H_SLOT.h
-      drawHorizontal(ctx, sx, sy, s.t, s.k)
-      const w = Math.min(s.w, 3.2)
-      quad(new THREE.Vector3(s.x + n.x * 0.06, base + 3.05, s.y + n.z * 0.06), n, w, w / 4, rect(sx, sy, H_SLOT.w, H_SLOT.h))
-      nh++
-      // A vertical sign for bars and restaurants with floors above.
-      if (isVertical(s)) {
+      const [sx, sy] = hSlot()
+      drawBoard(ctx, sx, sy, H_SLOT.w, H_SLOT.h, s.t, st)
+      const w = Math.min(s.w * (st.size && st.size > 1 ? 1.15 : 1), 4.2 * (st.size ?? 1))
+      const bh = w / 4
+      const boardY = Math.max(3.05, 2.75 + bh / 2)
+      quad(at(0.06, boardY), n, w, bh, rect(sx, sy, H_SLOT.w, H_SLOT.h))
+      // Awning under the board, sloping out over the pavement.
+      if (st.awning) {
+        const [ax, ay] = hSlot()
+        drawAwning(ctx, ax, ay, H_SLOT.w, H_SLOT.h, st)
+        const aw = w + 0.3
+        const y0 = boardY - bh / 2 - 0.05
+        const r = rect(ax, ay, H_SLOT.w, H_SLOT.h)
+        corners(at(0.85, y0 - 0.45, aw / 2), at(0.85, y0 - 0.45, -aw / 2), at(0.05, y0, -aw / 2), at(0.05, y0, aw / 2), [r[2], r[1], r[0], r[3]])
+        // Its hanging front edge.
+        quad(at(0.86, y0 - 0.57), n, aw, 0.24, [r[0], r[1], r[2], r[1] + (r[3] - r[1]) * 0.3])
+      }
+      // Noren in the doorway.
+      if (st.noren) {
+        const [nx, ny] = hSlot()
+        // Half a slot: 2:1, about 1.6 m × 0.8 m.
+        drawNoren(ctx, nx, ny, H_SLOT.w / 2, H_SLOT.h, s.t, st)
+        quad(at(0.14, 1.85), n, 1.6, 0.8, rect(nx, ny, H_SLOT.w / 2, H_SLOT.h))
+      }
+      // Paper lanterns either side of the door.
+      if (st.lanterns) {
+        const [lx, ly] = hSlot()
+        drawLanterns(ctx, lx, ly, st.lanterns)
+        const one = (k: number) => rect(lx + k * 128 + 32, ly, 64, H_SLOT.h)
+        for (const [k, side] of [
+          [0, -1],
+          [1, 1],
+        ] as const) {
+          const c = at(0.4, 2.2, side * Math.min(w / 2 + 0.1, 1.6))
+          quad(c, n, 0.55, 0.55, one(k))
+          quad(c, across, 0.55, 0.55, one(k))
+        }
+      }
+      // A vertical sign sticking out from the wall, off to one side of the board.
+      if (isVertical(i)) {
         const vx = (nv % vCols) * V_SLOT.w
         const vy = H_ROWS * H_SLOT.h + Math.floor(nv / vCols) * V_SLOT.h
-        drawVertical(ctx, vx, vy, s.t, s.k)
-        // Off to one side of the board, sticking out from the wall.
-        const side = new THREE.Vector3().crossVectors(up, n).multiplyScalar(w / 2 + 0.6)
-        const c = new THREE.Vector3(s.x + n.x * 0.55 + side.x, base + Math.min(top - 1.6, 5.6), s.y + n.z * 0.55 + side.z)
-        const across = new THREE.Vector3().crossVectors(up, n)
+        drawVerticalBoard(ctx, vx, vy, V_SLOT.w, V_SLOT.h, s.t, st)
+        const c = at(0.55, Math.min(top - 1.6, 5.6), w / 2 + 0.6)
         const r = rect(vx, vy, V_SLOT.w, V_SLOT.h)
         quad(c.clone().addScaledVector(across, 0.03), across, 0.6, 2.4, r)
         quad(c.clone().addScaledVector(across, -0.03), across.clone().negate(), 0.6, 2.4, r)
         nv++
       }
       ranges.push([first, pos.length / 3])
-    }
+    })
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
@@ -204,7 +186,7 @@ export function Signs({
     tex.anisotropy = 4
     const mat = new THREE.MeshBasicMaterial({ map: tex, clippingPlanes: clip, vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide })
     return { geo, tex, mat, ranges }
-  }, [tile, clip, height, fontV])
+  }, [tile, styles, clip, height, fontV])
 
   useEffect(
     () => () => {

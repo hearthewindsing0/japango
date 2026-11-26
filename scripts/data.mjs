@@ -57,8 +57,12 @@ export const SETS = {
   trains: (a) => [`public/trains/${a}.`],
   // fetch-sounds.mjs (Map data workflow, when asked); shared by every area
   sounds: () => [`public/sounds/`],
+  // fetch-sign-photos.mjs (Sign photos workflow): reference photos of shop signs
+  signphotos: (a) => [`data/signphotos/${a}/`],
 }
 const SHARED = new Set(['sounds'])
+// Reference material nobody needs to run the game: only pulled when named.
+const ON_REQUEST = new Set(['signphotos'])
 
 /** The R2 key (and URL path) for a file in this folder. */
 export const keyOf = (path) => (path.startsWith('public/') ? path.slice('public/'.length) : path)
@@ -227,7 +231,7 @@ if (import.meta.main) {
   const opts = { root, local: v.local, allowEmpty: v['allow-empty'] }
   const unknown = names.filter((n) => !SETS[n])
   if (unknown.length) throw new Error(`Unknown set ${unknown.join(', ')}. Sets: ${Object.keys(SETS).join(', ')}`)
-  const sets = names.length ? names : Object.keys(SETS)
+  const sets = names.length ? names : Object.keys(SETS).filter((n) => !ON_REQUEST.has(n))
   if (cmd === 'pull') for (const n of sets) await pull(n, area, opts)
   else if (cmd === 'status') for (const n of sets) await status(n, area, opts)
   else if (cmd === 'push') {

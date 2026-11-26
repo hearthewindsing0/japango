@@ -1,0 +1,50 @@
+# Street photos of every shop sign (scripts/fetch-sign-photos.mjs), uploaded
+# to the server under data/signphotos/<area>/ as reference for drawing each
+# shop's real sign. The game never loads them. Runs by hand (Actions → Sign
+# photos), or when the script or this file changes on a branch.
+name: Sign photos
+
+on:
+  workflow_dispatch:
+    inputs:
+      area:
+        description: Area id
+        default: roppongi
+      only:
+        description: 'Only these sign numbers, like "12,40" (default: all)'
+        required: false
+  push:
+    paths:
+      - scripts/fetch-sign-photos.mjs
+      - .github/workflows/sign-photos.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sign-photos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  photos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      AREA: ${{ github.event.inputs.area || 'roppongi' }}
+      SIGN_ONLY: ${{ github.event.inputs.only }}
+      MAPILLARY_TOKEN: ${{ secrets.MAPILLARY_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.x
+      - run: bun install --frozen-lockfile
+      - name: The map's signs
+        run: bun scripts/data.mjs pull tiles
+      - name: Find and crop a photo of each sign
+        run: bun scripts/fetch-sign-photos.mjs
+      - name: Upload to the server
+        run: bun scripts/data.mjs push signphotos
