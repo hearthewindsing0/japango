@@ -13,6 +13,8 @@
 // loads them. Needs MAPILLARY_TOKEN. Imagery © Mapillary contributors, CC BY-SA 4.0.
 import { existsSync, readdirSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { VectorTile } from '@mapbox/vector-tile'
+import Pbf from 'pbf'
 import sharp from 'sharp'
 import { AREA } from './area.mjs'
 import { frameToLatLon, latLonToFrame } from './geo.mjs'
@@ -102,6 +104,108 @@ await pool(
 )
 console.log(`${photos.size} photos near signs`)
 
+// --- Store-sign detections ----------------------------------------------------
+// Mapillary's detector marked store signs in its photos: each detection is an
+// outline in one photo. Cropping around that outline shows the sign itself,
+// which beats guessing from where the camera stood and which way it looked.
+const storeSigns = new Map()
+await pool(
+  [...boxes.keys()].map((key) => async () => {
+    const [i, j] = key.split(',').map(Number)
+    const corners = [
+      [i * 60 - 20, j * 60 - 20],
+      [i * 60 + 80, j * 60 + 80],
+      [i * 60 - 20, j * 60 + 80],
+      [i * 60 + 80, j * 60 - 20],
+    ].map(([x, y]) => frameToLatLon(AREA, x, y))
+    const lats = corners.map((c) => c[0])
+    const lons = corners.map((c) => c[1])
+    const bbox = [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)].map((v) => v.toFixed(6)).join(',')
+    const json = await get('/map_features', { bbox, fields: 'id,geometry,object_value', object_values: 'object--sign--store', limit: 2000 })
+    for (const f of json.data ?? []) {
+      if (f.object_value !== 'object--sign--store' || !f.geometry?.coordinates) continue
+      const [x, y] = latLonToFrame(AREA, f.geometry.coordinates[1], f.geometry.coordinates[0])
+      storeSigns.set(f.id, { id: f.id, x, y })
+    }
+  }),
+)
+console.log(`${storeSigns.size} store-sign detections near signs`)
+
+/** A detection's outline as a box in 0..1 image coordinates. */
+function detectionBox(b64) {
+  const tile = new VectorTile(new Pbf(Buffer.from(b64, 'base64')))
+  for (const name of Object.keys(tile.layers)) {
+    const layer = tile.layers[name]
+    if (!layer.length) continue
+    const f = layer.feature(0)
+    let x0 = Infinity
+    let y0 = Infinity
+    let x1 = -Infinity
+    let y1 = -Infinity
+    for (const ring of f.loadGeometry())
+      for (const p of ring) {
+        x0 = Math.min(x0, p.x)
+        y0 = Math.min(y0, p.y)
+        x1 = Math.max(x1, p.x)
+        y1 = Math.max(y1, p.y)
+      }
+    const e = f.extent || layer.extent || 4096
+    return [x0 / e, y0 / e, x1 / e, y1 / e]
+  }
+  return null
+}
+
+/** The best detection crops of a sign: the biggest outlines, one per photo. */
+async function detections(s) {
+  const near = [...storeSigns.values()].map((f) => ({ f, d: Math.hypot(f.x - s.x, f.y - s.y) })).filter((o) => o.d < 10)
+  near.sort((a, b) => a.d - b.d)
+  const found = []
+  for (const { f } of near.slice(0, 3)) {
+    const json = await get(`/${f.id}/detections`, { fields: 'image,geometry' }).catch(() => null)
+    for (const det of json?.data ?? []) {
+      if (!det.geometry || !det.image?.id) continue
+      let box
+      try {
+        box = detectionBox(det.geometry)
+      } catch {
+        continue
+      }
+      if (!box) continue
+      found.push({ image: det.image.id, box, area: (box[2] - box[0]) * (box[3] - box[1]) })
+    }
+  }
+  found.sort((a, b) => b.area - a.area)
+  const out = []
+  for (const d of found) {
+    if (out.some((o) => o.image === d.image)) continue
+    out.push(d)
+    if (out.length === 2) break
+  }
+  return out
+}
+
+/** Crop around a detection outline, with room to see the shop front. */
+async function cropDetection(d) {
+  const meta = await get(`/${d.image}`, { fields: 'thumb_2048_url,captured_at' })
+  if (!meta.thumb_2048_url) return null
+  const res = await fetch(meta.thumb_2048_url)
+  if (!res.ok) return null
+  const img = sharp(Buffer.from(await res.arrayBuffer()))
+  const { width: W, height: H } = await img.metadata()
+  const [x0, y0, x1, y1] = d.box
+  const cx = ((x0 + x1) / 2) * W
+  const cy = ((y0 + y1) / 2) * H
+  const w = Math.max((x1 - x0) * W * 2.2, 200)
+  const h = Math.max((y1 - y0) * H * 3.2, w * 0.6)
+  const left = Math.max(0, Math.round(cx - w / 2))
+  const top = Math.max(0, Math.round(cy - h / 2))
+  const width = Math.min(W - left, Math.round(w))
+  const height = Math.min(H - top, Math.round(h))
+  if (width < 40 || height < 30) return null
+  const buf = await img.extract({ left, top, width, height }).resize({ width: 640, height: 480, fit: 'inside' }).webp({ quality: 80 }).toBuffer()
+  return { buf, at: new Date(meta.captured_at).toISOString().slice(0, 10) }
+}
+
 // Compass heading → frame direction (x right, y down).
 const th = ((AREA.rotationDeg ?? 0) * Math.PI) / 180
 const dirOf = (h) => {
@@ -175,12 +279,26 @@ await pool(
     if (ONLY && !ONLY.has(n)) return
     const entry = { n, t: s.t, k: s.k, x: s.x, y: s.y, photos: [] }
     index.push(entry)
-    for (const [k, c] of candidates(s).entries()) {
+    // Detection crops first, then camera-angle crops to make up two.
+    for (const d of await detections(s).catch(() => [])) {
+      try {
+        const got = await cropDetection(d)
+        if (!got) continue
+        const file = `${n}-${entry.photos.length}.webp`
+        await writeFile(`${OUT}/${file}`, got.buf)
+        entry.photos.push({ file, id: d.image, at: got.at, det: 1 })
+      } catch (e) {
+        console.warn(`${n} ${s.t}: ${e.message}`)
+      }
+    }
+    for (const c of candidates(s)) {
+      if (entry.photos.length >= 2) break
       try {
         const buf = await crop(c, s)
         if (!buf) continue
-        await writeFile(`${OUT}/${n}-${k}.webp`, buf)
-        entry.photos.push({ file: `${n}-${k}.webp`, id: c.p.id, at: new Date(c.p.at).toISOString().slice(0, 10), d: Math.round(c.d) })
+        const file = `${n}-${entry.photos.length}.webp`
+        await writeFile(`${OUT}/${file}`, buf)
+        entry.photos.push({ file, id: c.p.id, at: new Date(c.p.at).toISOString().slice(0, 10), d: Math.round(c.d) })
       } catch (e) {
         console.warn(`${n} ${s.t}: ${e.message}`)
       }
@@ -189,7 +307,7 @@ await pool(
   }),
 )
 index.sort((a, b) => a.n - b.n)
-console.log(`${index.filter((e) => e.photos.length).length}/${index.length} signs have a photo`)
+console.log(`${index.filter((e) => e.photos.length).length}/${index.length} signs have a photo, ${index.filter((e) => e.photos.some((p) => p.det)).length} from a sign detection`)
 await writeFile(`${OUT}/index.json`, JSON.stringify({ area: AREA.id, credit: 'Imagery © Mapillary contributors, CC BY-SA 4.0', signs: index }, null, 1))
 
 // --- Contact sheets -----------------------------------------------------------
@@ -206,6 +324,8 @@ for (let s = 0; s * PER < index.length; s++) {
     for (const [k, ph] of e.photos.entries()) {
       const input = await sharp(`${OUT}/${ph.file}`).resize({ width: CW, height: CH, fit: 'contain', background: '#222' }).toBuffer()
       layers.push({ input, left: ox + k * CW, top: oy })
+      // A green bar under crops cut around a sign detection.
+      if (ph.det) layers.push({ input: Buffer.from(`<svg width="${CW}" height="6"><rect width="${CW}" height="6" fill="#22c55e"/></svg>`), left: ox + k * CW, top: oy + CH - 6 })
     }
     const label = Buffer.from(
       `<svg width="90" height="44"><rect width="90" height="44" rx="8" fill="#ffd400"/><text x="45" y="32" font-size="30" font-family="sans-serif" font-weight="bold" text-anchor="middle" fill="#000">${e.n}</text></svg>`,

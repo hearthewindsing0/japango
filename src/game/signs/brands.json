@@ -4,11 +4,12 @@
     {
       "match": "^ナチュラルローソン|NATURAL LAWSON",
       "text": "NATURAL LAWSON",
-      "bg": "#5a2a1e",
-      "fg": "#f3e7cf",
+      "bg": "#8a1538",
+      "fg": "#ffffff",
       "font": "serif",
       "weight": 700,
-      "note": "Dark brown fascia, cream serif wordmark."
+      "note": "Maroon band, white serif NATURAL LAWSON, tree logo (photos n159, n392).",
+      "sub": "Bakery & Wine"
     },
     {
       "match": "ローソン|LAWSON",
@@ -17,7 +18,9 @@
       "bg": "#0a5cb8",
       "fg": "#ffffff",
       "spacing": 0.08,
-      "note": "Blue fascia, white LAWSON wordmark, milk-can mark. (photos n63, n114, n348)"
+      "note": "Blue fascia, white LAWSON wordmark, milk-can mark, blue and white striped awning (photos n63, n114, n181, n348).",
+      "awning": "#0a5cb8",
+      "awningStripe": "#ffffff"
     },
     {
       "match": "セブン|7-Eleven",
@@ -46,12 +49,13 @@
     {
       "match": "デイリーヤマザキ",
       "text": "Daily YAMAZAKI",
-      "bg": "#ffffff",
+      "bg": "#ffd400",
       "fg": "#e60012",
-      "bands": ["#ff9a00", "#e60012"],
+      "bands": ["#e60012"],
+      "bandsTop": ["#e60012"],
       "weight": 900,
       "italic": true,
-      "note": "White fascia, red italic wordmark, orange and red stripes."
+      "note": "Yellow board, red Daily wordmark, red border stripes (photo n200)."
     },
     {
       "match": "まいばすけっと",
@@ -148,15 +152,16 @@
     {
       "match": "^松屋$",
       "text": "松屋",
-      "bg": "#ffd200",
-      "fg": "#0b318f",
+      "bg": "#f39800",
+      "fg": "#ffffff",
+      "weight": 900,
       "mark": {
-        "shape": "square",
+        "shape": "circle",
         "bg": "#e60012",
         "fg": "#ffffff",
         "text": "松"
       },
-      "note": "Yellow board, blue 松屋 letters, red mark."
+      "note": "Orange board, white 松屋, red round mark (photos n11, n360)."
     },
     {
       "match": "吉野家",
@@ -210,11 +215,12 @@
     {
       "match": "デニーズ|Denny",
       "text": "Denny's",
-      "bg": "#fdb913",
+      "bg": "#fff6e0",
       "fg": "#d6001c",
       "font": "script",
-      "note": "Yellow board, red script, レストラン (photo n7).",
-      "sub": "レストラン"
+      "shape": "letters",
+      "size": 1.3,
+      "note": "Big red script Denny's letters on the building (photo n7)."
     },
     {
       "match": "日高屋",
@@ -241,7 +247,7 @@
       "bg": "#ffd200",
       "fg": "#5c2d0c",
       "weight": 900,
-      "note": "Yellow board, brown lettering."
+      "note": "Yellow board, brown lettering (photo n241)."
     },
     {
       "match": "ゴーゴーカレー",
@@ -339,10 +345,11 @@
     {
       "match": "とり鉄",
       "text": "とり鉄",
-      "bg": "#2b1a12",
-      "fg": "#ffffff",
+      "bg": "#e08a1e",
+      "fg": "#111111",
       "font": "brush",
-      "lanterns": "#e60012"
+      "lanterns": "#e60012",
+      "note": "Ochre-orange board, black brush letters (photo)."
     },
     {
       "match": "つるまる",
@@ -438,6 +445,16 @@
       "awning": "#2e6b3a"
     },
     {
+      "match": "^Kojima|コジマ",
+      "text": "KOJIMA",
+      "sub": "六本木本店",
+      "bg": "#0f5a3a",
+      "fg": "#e60012",
+      "weight": 900,
+      "bands": ["#c8102e"],
+      "note": "Dark green band, red KOJIMA letters (photo n316)."
+    },
+    {
       "match": "KOMEHYO",
       "text": "KOMEHYO",
       "bg": "#1a1a1a",
@@ -470,11 +487,11 @@
     },
     {
       "match": "^Picard",
-      "text": "Picard",
-      "bg": "#003da5",
-      "fg": "#ffffff",
-      "font": "serif",
-      "weight": 700
+      "text": "picard",
+      "bg": "#6b6e73",
+      "fg": "#6f6cff",
+      "weight": 900,
+      "note": "Grey fascia, blue-violet lit lowercase picard (photos n370, n373)."
     },
     {
       "match": "Louis Vuitton",
@@ -485,7 +502,8 @@
       "font": "gothic",
       "weight": 500,
       "spacing": 0.15,
-      "size": 1.3
+      "size": 1.3,
+      "note": "White caps on a black band over the windows (photo n306)."
     },
     {
       "match": "Herm[eè]s",
@@ -513,10 +531,13 @@
     {
       "match": "Tiffany",
       "text": "TIFFANY & CO.",
-      "bg": "#81d8d0",
-      "fg": "#111111",
+      "bg": "#1c1c1c",
+      "fg": "#ffffff",
       "font": "serif",
-      "weight": 700
+      "weight": 700,
+      "shape": "letters",
+      "spacing": 0.06,
+      "note": "TIFFANY & CO. letters on a dark facade (photo n293)."
     },
     {
       "match": "Burberry",
@@ -525,7 +546,8 @@
       "fg": "#ffffff",
       "font": "serif",
       "shape": "letters",
-      "spacing": 0.1
+      "spacing": 0.1,
+      "note": "White lit letters on a black band (photo n300)."
     },
     {
       "match": "^Ferrari",
@@ -558,9 +580,10 @@
     {
       "match": "Intimissimi",
       "text": "intimissimi",
-      "bg": "#111111",
-      "fg": "#ffffff",
-      "font": "serif"
+      "bg": "#ffffff",
+      "fg": "#111111",
+      "font": "serif",
+      "note": "White board, black serif intimissimi (photo n101)."
     },
     {
       "match": "^Enoteca",
@@ -593,12 +616,19 @@
     },
     {
       "match": "クリーニング ?ポニー|^ポニー$",
-      "text": "ポニークリーニング",
-      "bg": "#ffffff",
-      "fg": "#e60012",
-      "bands": ["#0068b7"],
-      "font": "round",
-      "note": "Pony Cleaning: white board, red and blue."
+      "text": "クリーニング",
+      "sub": "PONY",
+      "bg": "#0068b7",
+      "fg": "#ffffff",
+      "bands": ["#ffd400"],
+      "weight": 900,
+      "mark": {
+        "shape": "circle",
+        "bg": "#ffd400",
+        "fg": "#0068b7",
+        "text": "P"
+      },
+      "note": "Blue クリーニング board with yellow pony mark (photos n289, n410)."
     },
     {
       "match": "交番|KOBAN",
