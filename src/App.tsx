@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AREA_ID } from './game/area'
 import { hoursToday, isOpen, tokyoWeekMinute } from './game/hours'
-import { input, turnView, view } from './game/input'
+import { autopilot, input, turnView, view } from './game/input'
 import { LabelLayerSync, Labels } from './game/Labels'
 import { discoveryNear, loadMap, nearestPoi, slopeNear, streetNear, type GameMap } from './game/map'
 import { Discoveries } from './game/Discoveries'
@@ -37,10 +37,21 @@ import { loadLife, useApproachable, useLifeTalk, type Life } from './game/life'
 import { Approach } from './game/Approach'
 import { TalkCaption } from './game/TalkCaption'
 import { loadTalk, useTalk, type Talk } from './game/talk'
+import { DEFAULT_AVATAR, loadAvatar, saveAvatar, type Avatar } from './game/avatar'
+import { Creator } from './onboarding/Creator'
+import { Title } from './onboarding/Title'
+import { TitleCamera } from './onboarding/TitleCamera'
+import { arrivalPath } from './onboarding/arrival'
 import { WEATHER_WORDS, fetchWeather, japaneseTime, skyState, tokyoClock, tokyoTimeToday, weatherKind, type Weather, type WeatherKind } from './game/sky'
 
 const MIN_DIST = 10
 const MAX_DIST = 160
+/** Camera distance (for tiles and fog) while the title circles the city. */
+const TITLE_DIST = 90
+
+/** Onboarding, then the game: the title over the turning city, the
+ *  character creator, walking up out of the station, then playing. */
+type Phase = 'title' | 'create' | 'arrive' | 'play'
 
 export default function App() {
   const [map, setMap] = useState<GameMap | null>(null)
@@ -49,10 +60,23 @@ export default function App() {
   // Down in a station (off the street).
   const [under, setUnder] = useState(false)
   // ?dist=m sets the camera distance (handy for screenshots).
-  const [distance, setDistance] = useState(() => {
+  const [playDistance, setDistance] = useState(() => {
     const d = Number(new URLSearchParams(location.search).get('dist'))
     return d >= MIN_DIST && d <= MAX_DIST ? d : 32
   })
+  // The player's character, made in the creator and kept in this browser.
+  const [avatar, setAvatar] = useState<Avatar | null>(loadAvatar)
+  // ?play (or ?at=) skips the title, for testing and screenshots; with no
+  // saved character the default one plays.
+  const [phase, setPhase] = useState<Phase>(() => {
+    const q = new URLSearchParams(location.search)
+    return q.has('play') || q.has('at') ? 'play' : 'title'
+  })
+  const phaseRef = useRef(phase)
+  phaseRef.current = phase
+  const onboarding = phase === 'title' || phase === 'create'
+  // Closer in for the walk up out of the station.
+  const distance = phase === 'title' ? TITLE_DIST : phase === 'arrive' ? Math.min(playDistance, 22) : playDistance
   const focus = useRef<Focus>({ x: 0, y: 0 })
   // In development, expose where you are for testing (screenshots, scripts).
   if (import.meta.env.DEV) (window as unknown as { __focus: typeof focus }).__focus = focus
@@ -222,6 +246,9 @@ export default function App() {
   useEffect(() => {
     const zoomBy = (f: number) => setDistance((d) => Math.min(MAX_DIST, Math.max(MIN_DIST, d * f)))
     const onKey = (e: KeyboardEvent) => {
+      // Typing a name, or still on the title or in the creator.
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (phaseRef.current === 'title' || phaseRef.current === 'create') return
       // Ctrl/Cmd +/− would zoom the whole page (and shrink the map and info
       // boxes with it); zoom the camera instead.
       const zoomKey = ['+', '=', '-', '_', '0'].includes(e.key)
@@ -243,6 +270,10 @@ export default function App() {
     // pinch arrives as a wheel event with ctrlKey set; it has to be stopped
     // in a non-passive listener or the browser zooms the page out.
     const onWheel = (e: WheelEvent) => {
+      if (phaseRef.current === 'title' || phaseRef.current === 'create') {
+        if (e.ctrlKey) e.preventDefault()
+        return
+      }
       if ((e.target as HTMLElement | null)?.closest?.('.hud-scroll, [role=dialog]')) {
         if (e.ctrlKey) e.preventDefault()
         else return
@@ -359,6 +390,48 @@ export default function App() {
   if (!map || !pos) return <div className="center-msg">読み込み中… Loading</div>
 
   const words = WEATHER_WORDS[weather.kind]
+  const player = avatar ?? DEFAULT_AVATAR
+
+  /** Into the game at the start, for a returning player. */
+  const play = () => {
+    focus.current = { ...map.spawn }
+    if (AREA_ID === 'roppongi') view.yaw = view.target = Math.PI
+    setPos({ ...map.spawn })
+    setUnder(false)
+    setPhase('play')
+  }
+  /** A new character: save it, and walk up out of the station. */
+  const arrive = (a: Avatar) => {
+    saveAvatar(a)
+    setAvatar(a)
+    const scene = arrivalPath(map, ug)
+    if (!scene) return play()
+    focus.current = { x: scene.start.x, y: scene.start.y, z: scene.start.z, under: true }
+    // Camera behind the player, looking up the stairs.
+    view.yaw = view.target = Math.atan2(-scene.ux, -scene.uy)
+    autopilot.heading = Math.atan2(scene.ux, scene.uy)
+    autopilot.path = scene.path
+    autopilot.done = () => {
+      autopilot.done = undefined
+      // Turn round to the usual first view (ALMOND, in Roppongi).
+      if (AREA_ID === 'roppongi') view.target = Math.PI
+      setPhase('play')
+      toast({ kind: 'stamp', title: 'ようこそ、六本木へ！', body: `Welcome to Roppongi, ${a.kana}さん (${a.name}-san)`, duration: 6000 })
+    }
+    setPos({ x: scene.start.x, y: scene.start.y })
+    setUnder(true)
+    setPhase('arrive')
+  }
+  const skipArrival = () => {
+    const end = autopilot.path[autopilot.path.length - 1]
+    if (end) {
+      focus.current = { x: end[0], y: end[1] }
+      setPos({ x: end[0], y: end[1] })
+      setUnder(false)
+    }
+    autopilot.path = []
+    autopilot.done?.()
+  }
   const rally = (map.discoveries ?? []).filter((d) => d.stamp)
   const street = under ? null : streetNear(map, pos.x, pos.y)
   const place = under ? null : nearestPoi(map, pos.x, pos.y)
@@ -432,6 +505,8 @@ export default function App() {
       }}
     >
       <Canvas
+        // Paused behind the creator (it has its own small scene).
+        frameloop={phase === 'create' ? 'never' : 'always'}
         shadows
         camera={{ fov: 38, near: 0.5, far: 2000 }}
         gl={{ antialias: true, localClippingEnabled: true }}
@@ -449,262 +524,287 @@ export default function App() {
         </Toy>
         {talk && !under && <Talkers talk={talk} voices={voices} rain={sky.rain > 0.2} />}
         {life && map && !under && <LifePeople life={life} map={map} focus={focus} rain={sky.rain > 0.2} />}
-        <Player
-          map={map}
-          ug={ug}
-          focus={focus}
-          distance={distance}
-          onMove={(x, y, u) => {
-            setPos({ x, y })
-            setUnder(u)
-          }}
-        />
+        {onboarding && <TitleCamera map={map} at={map.spawn} distance={TITLE_DIST * LENS} />}
+        {!onboarding && (
+          <Player
+            avatar={player}
+            map={map}
+            ug={ug}
+            focus={focus}
+            distance={distance}
+            onMove={(x, y, u) => {
+              setPos({ x, y })
+              setUnder(u)
+            }}
+          />
+        )}
         <LabelLayerSync layer={labelLayer} />
       </Canvas>
 
-      {!under && <Labels scale={hud.labelScale} map={map} tiles={tiles} x={pos.x} y={pos.y} distance={distance} layer={labelLayer} />}
+      {!under && phase === 'play' && <Labels scale={hud.labelScale} map={map} tiles={tiles} x={pos.x} y={pos.y} distance={distance} layer={labelLayer} />}
 
-      <UiRoot
-        scale={hud.scale}
-        className="pointer-events-none absolute top-0 left-0"
-        style={{ width: hud.width, height: hud.height, '--hud-w': `${hud.width}px`, '--hud-h': `${hud.height}px` } as React.CSSProperties}
-      >
-        {/* Top left: where you are, and the place you're next to. */}
-        <div className="absolute top-3 left-3 flex w-[min(22rem,calc(100%-220px))] min-w-[150px] flex-col gap-2">
-          <Panel size="sm" className="pointer-events-auto px-3.5 py-2.5">
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-pixel text-2xl leading-tight">{ja(map.name)}</span>
-              <span className="text-sm text-paper-dim">{map.nameEn}</span>
-            </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2">
-              <span className="font-pixel text-gold">{japaneseTime(now)}</span>
-              <span>
-                {words.icon} {ja(words.ja)}
-              </span>
-              <span className="text-[0.85em] text-paper-dim">
-                {words.kana} ({words.en}){weather.tempC != null && `, ${Math.round(weather.tempC)}°C`}
-              </span>
-            </div>
-            {street && (
-              <div className="mt-1 border-t border-paper/15 pt-1">
-                {ja(street.name)} {street.nameEn && <span className="text-[0.85em] text-paper-dim">{street.nameEn}</span>}
+      {phase === 'title' && <Title saved={avatar} scale={hud.scale} width={hud.width} height={hud.height} onStart={() => setPhase('create')} onContinue={play} />}
+      {phase === 'create' && <Creator initial={avatar ?? DEFAULT_AVATAR} scale={hud.scale} width={hud.width} height={hud.height} onDone={arrive} onBack={() => setPhase('title')} />}
+      {phase === 'arrive' && (
+        <UiRoot scale={hud.scale} className="pointer-events-none absolute top-0 left-0" style={{ width: hud.width, height: hud.height }}>
+          <div className="absolute inset-x-0 bottom-6 flex justify-center px-3">
+            <Panel className="pointer-events-auto flex items-center gap-4 px-5 py-3">
+              <div className="text-center">
+                <div className="font-pixel text-2xl leading-tight" lang="ja">
+                  六本木駅
+                </div>
+                <div className="text-sm text-paper-dim">Roppongi Station · heading up to the street</div>
               </div>
-            )}
-            {station && (
-              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 border-t border-paper/15 pt-1">
-                <Chip color={station.line.colour}>{station.line.ref}</Chip>
-                {ja(`${station.name}駅`)} {ja(station.line.ja)}
-                <span className="text-[0.85em] text-paper-dim">
-                  {station.nameEn} Station, {station.line.en}
-                </span>
-              </div>
-            )}
-            {inside && (
-              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 border-t border-paper/15 pt-1">
-                <Chip color="var(--color-kin)">
-                  {inside.chip}
-                </Chip>
-                {ja(inside.name)} {ja(inside.kind)}
-                <span className="text-[0.85em] text-paper-dim">
-                  {inside.nameEn}, {inside.kindEn} ({inside.floor}, {inside.floorEn})
-                </span>
-              </div>
-            )}
-          </Panel>
-          {place && !(tight && bottomBusy) && (
-            <PlaceCard
-              className="pointer-events-auto w-full p-3"
-              name={seg(place.name)}
-              nameEn={place.nameEn}
-              status={place.gone ? 'gone' : place.oh ? (isOpen(place.oh, week.day, week.minute) ? 'open' : 'closed') : undefined}
-              cuisine={place.cu ? seg(place.cu) : undefined}
-              cuisineEn={place.cuEn}
-              hours={place.oh ? hoursToday(place.oh, week.day) : undefined}
-              furigana={furigana}
-              onWord={tap}
-            />
-          )}
-        </div>
-
-        {/* Top right: the map, with the A−/A+ buttons under it. */}
-        <div className={cn('absolute top-3 right-3 max-w-[calc(100%-24px)]', bigMap && 'z-[5]')} onClick={(e) => e.stopPropagation()}>
-          <Minimap
-            map={map}
-            tiles={tiles}
-            x={pos.x}
-            y={pos.y}
-            big={bigMap}
-            label={bigMap ? (under ? '地下 · underground' : (street?.nameEn ?? map.nameEn)) : null}
-            actions={
-              <>
-                <SizeButton onClick={() => hud.step(-1)} disabled={hud.size <= 1} label="Smaller map and boxes ([)">
-                  A−
-                </SizeButton>
-                <SizeButton onClick={() => hud.step(1)} disabled={hud.size >= 4} label="Bigger map and boxes (])">
-                  A+
-                </SizeButton>
-              </>
-            }
-            onToggleBig={() => setBigMap((b) => !b)}
-          />
-          {/* On a narrow screen the credits go under the map, out of the way of
-              the info boxes on the left, and only while nothing is showing below. */}
-          {!wide && (credits || !bottomBusy) && <div className="mt-2 flex flex-col items-end">{creditsBox}</div>}
-        </div>
-
-        {/* Bottom middle: overheard talk, a discovery, a sign. Stacked so
-            they never overlap, above the hotbar. */}
-        <div
-          className={cn(
-            'absolute flex flex-col gap-3',
-            coarse && hud.width < 680 ? 'bottom-[228px]' : 'bottom-[76px]',
-            // On a short screen, beside the map instead of under it.
-            hud.height < 430 ? 'left-3 w-[min(34rem,calc(100%-220px))] items-start' : 'left-1/2 w-[min(34rem,calc(100%-24px))] -translate-x-1/2 items-center',
-          )}
+              <button className="corner-sm bg-ink-3 px-3 py-1.5 text-sm hover:bg-ink-4" onClick={skipArrival}>
+                Skip ▸
+              </button>
+            </Panel>
+          </div>
+        </UiRoot>
+      )}
+      {phase === 'play' && (
+        <UiRoot
+          scale={hud.scale}
+          className="pointer-events-none absolute top-0 left-0"
+          style={{ width: hud.width, height: hud.height, '--hud-w': `${hud.width}px`, '--hud-h': `${hud.height}px` } as React.CSSProperties}
         >
-          {wordHint && dict && !book && (caption || approachable || chatting) && (
-            <div className="corner-sm w-full animate-pulse bg-kin px-3 py-1.5 text-sm text-sumi drop-hard-sm motion-reduce:animate-none">
-              👆 Tap an <u>underlined</u> Japanese word for its word card: meaning, kanji and an example.
-            </div>
-          )}
-          {!book && !under && (approachable || chatting) && (
-            <Approach near={approachable} dict={dict} furigana={furigana} english={english} onWord={setWord} onChat={setChatting} />
-          )}
-          {caption && !book && !(barOpen && inside) && (
-            <TalkCaption caption={caption} dict={dict} furigana={furigana} english={english} onWord={setWord} onEnglish={() => setEnglish((v) => !v)} />
-          )}
-          {here && !book && !(barOpen && inside) && (
-            <DiscoveryCard
-              className="pointer-events-auto w-full"
-              name={seg(here.ja)}
-              nameEn={here.en}
-              stamp={!!here.stamp}
-              textJa={here.jt ? seg(here.jt) : undefined}
-              textEn={here.et}
-              links={[
-                { label: `Wikipedia 日本語${here.ew ? '' : ' (CC BY-SA)'}`, href: `https://ja.wikipedia.org/wiki/${encodeURIComponent(here.jw)}` },
-                ...(here.ew ? [{ label: 'English (CC BY-SA)', href: `https://en.wikipedia.org/wiki/${encodeURIComponent(here.ew)}` }] : []),
-              ]}
-              furigana={furigana}
-              onWord={tap}
-            />
-          )}
-          {sign && !(barOpen && inside) && (
-            <SignCard
-              className="pointer-events-auto w-[min(26rem,100%)]"
-              kind="station"
-              title={seg(board?.[0] ? (board[0].done ? `本日の運転は終了しました　始発 ${board[0].time} ${board[0].to}` : `先発 ${board[0].time} ${board[0].to}`) : sign.s.t)}
-              english={
-                board?.[0]
-                  ? (board[0].done
-                      ? `No more trains tonight. First train (始発): ${board[0].time} for ${board[0].toEn || board[0].to}`
-                      : `Next train: ${board[0].time} for ${board[0].toEn || board[0].to}` +
-                        (board[1] ? `. After that (次発): ${board[1].time} for ${board[1].toEn || board[1].to}` : '')) + (board[0].approx ? ' (approximate times)' : '')
-                  : sign.s.en
+          {/* Top left: where you are, and the place you're next to. */}
+          <div className="absolute top-3 left-3 flex w-[min(22rem,calc(100%-220px))] min-w-[150px] flex-col gap-2">
+            <Panel size="sm" className="pointer-events-auto px-3.5 py-2.5">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className="font-pixel text-2xl leading-tight">{ja(map.name)}</span>
+                <span className="text-sm text-paper-dim">{map.nameEn}</span>
+              </div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2">
+                <span className="font-pixel text-gold">{japaneseTime(now)}</span>
+                <span>
+                  {words.icon} {ja(words.ja)}
+                </span>
+                <span className="text-[0.85em] text-paper-dim">
+                  {words.kana} ({words.en}){weather.tempC != null && `, ${Math.round(weather.tempC)}°C`}
+                </span>
+              </div>
+              {street && (
+                <div className="mt-1 border-t border-paper/15 pt-1">
+                  {ja(street.name)} {street.nameEn && <span className="text-[0.85em] text-paper-dim">{street.nameEn}</span>}
+                </div>
+              )}
+              {station && (
+                <div className="mt-1 flex flex-wrap items-center gap-x-1.5 border-t border-paper/15 pt-1">
+                  <Chip color={station.line.colour}>{station.line.ref}</Chip>
+                  {ja(`${station.name}駅`)} {ja(station.line.ja)}
+                  <span className="text-[0.85em] text-paper-dim">
+                    {station.nameEn} Station, {station.line.en}
+                  </span>
+                </div>
+              )}
+              {inside && (
+                <div className="mt-1 flex flex-wrap items-center gap-x-1.5 border-t border-paper/15 pt-1">
+                  <Chip color="var(--color-kin)">
+                    {inside.chip}
+                  </Chip>
+                  {ja(inside.name)} {ja(inside.kind)}
+                  <span className="text-[0.85em] text-paper-dim">
+                    {inside.nameEn}, {inside.kindEn} ({inside.floor}, {inside.floorEn})
+                  </span>
+                </div>
+              )}
+            </Panel>
+            {place && !(tight && bottomBusy) && (
+              <PlaceCard
+                className="pointer-events-auto w-full p-3"
+                name={seg(place.name)}
+                nameEn={place.nameEn}
+                status={place.gone ? 'gone' : place.oh ? (isOpen(place.oh, week.day, week.minute) ? 'open' : 'closed') : undefined}
+                cuisine={place.cu ? seg(place.cu) : undefined}
+                cuisineEn={place.cuEn}
+                hours={place.oh ? hoursToday(place.oh, week.day) : undefined}
+                furigana={furigana}
+                onWord={tap}
+              />
+            )}
+          </div>
+  
+          {/* Top right: the map, with the A−/A+ buttons under it. */}
+          <div className={cn('absolute top-3 right-3 max-w-[calc(100%-24px)]', bigMap && 'z-[5]')} onClick={(e) => e.stopPropagation()}>
+            <Minimap
+              map={map}
+              tiles={tiles}
+              x={pos.x}
+              y={pos.y}
+              big={bigMap}
+              label={bigMap ? (under ? '地下 · underground' : (street?.nameEn ?? map.nameEn)) : null}
+              actions={
+                <>
+                  <SizeButton onClick={() => hud.step(-1)} disabled={hud.size <= 1} label="Smaller map and boxes ([)">
+                    A−
+                  </SizeButton>
+                  <SizeButton onClick={() => hud.step(1)} disabled={hud.size >= 4} label="Bigger map and boxes (])">
+                    A+
+                  </SizeButton>
+                </>
               }
-              note={sign.s.n ?? SIGN_NOTES[sign.s.k]}
-              furigana={furigana}
-              onWord={tap}
+              onToggleBig={() => setBigMap((b) => !b)}
             />
-          )}
-          {door && !sign && (
-            <SignCard
-              className="pointer-events-auto w-[min(26rem,100%)]"
-              kind="door"
-              title={[...seg(door.name), [' '], ...seg(door.door.t)]}
-              english={`${door.nameEn}: ${door.door.en}. ${door.enter}`}
-              note={door.door.n}
-              furigana={furigana}
-              onWord={tap}
-            />
-          )}
-          {slope && !here && !door && !caption && (
-            <SignCard
-              className="pointer-events-auto w-[min(26rem,100%)]"
-              kind="slope"
-              title={seg(slope.slope.name)}
-              kana={slope.slope.kana}
-              english={slope.slope.en && `${slope.slope.en}: “${slope.slope.gloss}”`}
-              note={`坂 (さか) means slope.${slope.slope.rise >= 2 ? ` It ${slope.top ? 'drops' : 'climbs'} about ${Math.round(slope.slope.rise)} m from here.` : ''}`}
-              furigana={furigana}
-              onWord={tap}
-            />
-          )}
-        </div>
-
-        {inside?.id === 'antnbee' && (
-          <BarMenu
-            open={barOpen}
-            onOpenChange={setBarOpen}
-            atCounter={atCounter}
-            dict={dict}
-            furigana={furigana}
-            onWord={setWord}
-            onServe={(color) => setGlasses((g) => [...g.slice(-8), { b: barAt ? Math.min(ORDER_SPOT.b1 - 1, Math.max(ORDER_SPOT.b0 + 0.3, barAt[1])) : 7, color }])}
-            onPaid={() => setGlasses([])}
-          />
-        )}
-
-        {wide && (
-          <div className="absolute bottom-3 left-3 flex flex-col items-start" onClick={(e) => e.stopPropagation()}>
-            {creditsBox}
+            {/* On a narrow screen the credits go under the map, out of the way of
+                the info boxes on the left, and only while nothing is showing below. */}
+            {!wide && (credits || !bottomBusy) && <div className="mt-2 flex flex-col items-end">{creditsBox}</div>}
           </div>
-        )}
-
-        {/* Bottom: the hotbar, and the D-pad on touch screens. */}
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2" onClick={(e) => e.stopPropagation()}>
-          <Hotbar
-            compact
-            className="pointer-events-auto"
-            slots={[
-              { id: 'map', icon: '🗺', label: 'Map', shortcut: 'M', active: bigMap, onClick: () => setBigMap((b) => !b) },
-              ...(rally.length > 0
-                ? [{ id: 'stamps', icon: '🎴', label: 'Stamps', shortcut: 'B', active: book, badge: `${rally.filter((d) => stamps.has(d.id)).length}/${rally.length}`, onClick: () => setBook((b) => !b) }]
-                : []),
-              { id: 'furigana', icon: 'あ', label: 'ふりがな', shortcut: 'F', active: furigana, onClick: () => setFurigana((f) => !f) },
-              { id: 'english', icon: 'EN', label: 'English', shortcut: 'T', active: english, onClick: () => setEnglish((v) => !v) },
-              { id: 'sound', icon: muted ? '🔇' : '🔊', label: muted ? 'Muted' : 'Sound', shortcut: 'N', active: !muted, onClick: () => setMuted((m) => !m) },
-              ...(coarse
-                ? []
-                : [
-                    {
-                      id: 'keys',
-                      icon: '⌨',
-                      label: 'Keys',
-                      shortcut: 'H',
-                      active: help,
-                      onClick: () => {
-                        setHelp((h) => !h)
-                        setCredits(false)
+  
+          {/* Bottom middle: overheard talk, a discovery, a sign. Stacked so
+              they never overlap, above the hotbar. */}
+          <div
+            className={cn(
+              'absolute flex flex-col gap-3',
+              coarse && hud.width < 680 ? 'bottom-[228px]' : 'bottom-[76px]',
+              // On a short screen, beside the map instead of under it.
+              hud.height < 430 ? 'left-3 w-[min(34rem,calc(100%-220px))] items-start' : 'left-1/2 w-[min(34rem,calc(100%-24px))] -translate-x-1/2 items-center',
+            )}
+          >
+            {wordHint && dict && !book && (caption || approachable || chatting) && (
+              <div className="corner-sm w-full animate-pulse bg-kin px-3 py-1.5 text-sm text-sumi drop-hard-sm motion-reduce:animate-none">
+                👆 Tap an <u>underlined</u> Japanese word for its word card: meaning, kanji and an example.
+              </div>
+            )}
+            {!book && !under && (approachable || chatting) && (
+              <Approach near={approachable} dict={dict} furigana={furigana} english={english} onWord={setWord} onChat={setChatting} />
+            )}
+            {caption && !book && !(barOpen && inside) && (
+              <TalkCaption caption={caption} dict={dict} furigana={furigana} english={english} onWord={setWord} onEnglish={() => setEnglish((v) => !v)} />
+            )}
+            {here && !book && !(barOpen && inside) && (
+              <DiscoveryCard
+                className="pointer-events-auto w-full"
+                name={seg(here.ja)}
+                nameEn={here.en}
+                stamp={!!here.stamp}
+                textJa={here.jt ? seg(here.jt) : undefined}
+                textEn={here.et}
+                links={[
+                  { label: `Wikipedia 日本語${here.ew ? '' : ' (CC BY-SA)'}`, href: `https://ja.wikipedia.org/wiki/${encodeURIComponent(here.jw)}` },
+                  ...(here.ew ? [{ label: 'English (CC BY-SA)', href: `https://en.wikipedia.org/wiki/${encodeURIComponent(here.ew)}` }] : []),
+                ]}
+                furigana={furigana}
+                onWord={tap}
+              />
+            )}
+            {sign && !(barOpen && inside) && (
+              <SignCard
+                className="pointer-events-auto w-[min(26rem,100%)]"
+                kind="station"
+                title={seg(board?.[0] ? (board[0].done ? `本日の運転は終了しました　始発 ${board[0].time} ${board[0].to}` : `先発 ${board[0].time} ${board[0].to}`) : sign.s.t)}
+                english={
+                  board?.[0]
+                    ? (board[0].done
+                        ? `No more trains tonight. First train (始発): ${board[0].time} for ${board[0].toEn || board[0].to}`
+                        : `Next train: ${board[0].time} for ${board[0].toEn || board[0].to}` +
+                          (board[1] ? `. After that (次発): ${board[1].time} for ${board[1].toEn || board[1].to}` : '')) + (board[0].approx ? ' (approximate times)' : '')
+                    : sign.s.en
+                }
+                note={sign.s.n ?? SIGN_NOTES[sign.s.k]}
+                furigana={furigana}
+                onWord={tap}
+              />
+            )}
+            {door && !sign && (
+              <SignCard
+                className="pointer-events-auto w-[min(26rem,100%)]"
+                kind="door"
+                title={[...seg(door.name), [' '], ...seg(door.door.t)]}
+                english={`${door.nameEn}: ${door.door.en}. ${door.enter}`}
+                note={door.door.n}
+                furigana={furigana}
+                onWord={tap}
+              />
+            )}
+            {slope && !here && !door && !caption && (
+              <SignCard
+                className="pointer-events-auto w-[min(26rem,100%)]"
+                kind="slope"
+                title={seg(slope.slope.name)}
+                kana={slope.slope.kana}
+                english={slope.slope.en && `${slope.slope.en}: “${slope.slope.gloss}”`}
+                note={`坂 (さか) means slope.${slope.slope.rise >= 2 ? ` It ${slope.top ? 'drops' : 'climbs'} about ${Math.round(slope.slope.rise)} m from here.` : ''}`}
+                furigana={furigana}
+                onWord={tap}
+              />
+            )}
+          </div>
+  
+          {inside?.id === 'antnbee' && (
+            <BarMenu
+              open={barOpen}
+              onOpenChange={setBarOpen}
+              atCounter={atCounter}
+              dict={dict}
+              furigana={furigana}
+              onWord={setWord}
+              onServe={(color) => setGlasses((g) => [...g.slice(-8), { b: barAt ? Math.min(ORDER_SPOT.b1 - 1, Math.max(ORDER_SPOT.b0 + 0.3, barAt[1])) : 7, color }])}
+              onPaid={() => setGlasses([])}
+            />
+          )}
+  
+          {wide && (
+            <div className="absolute bottom-3 left-3 flex flex-col items-start" onClick={(e) => e.stopPropagation()}>
+              {creditsBox}
+            </div>
+          )}
+  
+          {/* Bottom: the hotbar, and the D-pad on touch screens. */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2" onClick={(e) => e.stopPropagation()}>
+            <Hotbar
+              compact
+              className="pointer-events-auto"
+              slots={[
+                { id: 'map', icon: '🗺', label: 'Map', shortcut: 'M', active: bigMap, onClick: () => setBigMap((b) => !b) },
+                ...(rally.length > 0
+                  ? [{ id: 'stamps', icon: '🎴', label: 'Stamps', shortcut: 'B', active: book, badge: `${rally.filter((d) => stamps.has(d.id)).length}/${rally.length}`, onClick: () => setBook((b) => !b) }]
+                  : []),
+                { id: 'furigana', icon: 'あ', label: 'ふりがな', shortcut: 'F', active: furigana, onClick: () => setFurigana((f) => !f) },
+                { id: 'english', icon: 'EN', label: 'English', shortcut: 'T', active: english, onClick: () => setEnglish((v) => !v) },
+                { id: 'sound', icon: muted ? '🔇' : '🔊', label: muted ? 'Muted' : 'Sound', shortcut: 'N', active: !muted, onClick: () => setMuted((m) => !m) },
+                ...(coarse
+                  ? []
+                  : [
+                      {
+                        id: 'keys',
+                        icon: '⌨',
+                        label: 'Keys',
+                        shortcut: 'H',
+                        active: help,
+                        onClick: () => {
+                          setHelp((h) => !h)
+                          setCredits(false)
+                        },
                       },
-                    },
-                  ]),
-            ]}
-          />
-        </div>
-        {coarse && (
-          <div className={`pointer-events-auto absolute right-3 ${hud.width >= 680 ? 'bottom-3' : 'bottom-[76px]'}`} onClick={(e) => e.stopPropagation()}>
-            <DPad size={140} onPress={input.press} onRelease={input.release} onTurn={turnView} />
+                    ]),
+              ]}
+            />
           </div>
-        )}
-
-        {word && dict && <WordPopup key={word.key} pick={word} dict={dict} furigana={furigana} onWord={setWord} onClose={() => setWord(null)} />}
-
-        <Window
-          open={book}
-          onOpenChange={setBook}
-          tone="paper"
-          width={560}
-          title="スタンプラリー"
-          subtitle="Stamp rally · B closes"
-        >
-          <StampBook stampSize={68} spots={rally.map((d) => ({ id: d.id, ja: d.ja, en: d.en, got: stamps.has(d.id) }))} found={found.size} total={map.discoveries?.length ?? 0} />
-        </Window>
-        <Window open={help && !coarse} onOpenChange={setHelp} width={440} title="操作" subtitle="Controls · H closes">
-          <ControlsHelp controls={HELP} />
-        </Window>
-        <Toaster />
-      </UiRoot>
+          {coarse && (
+            <div className={`pointer-events-auto absolute right-3 ${hud.width >= 680 ? 'bottom-3' : 'bottom-[76px]'}`} onClick={(e) => e.stopPropagation()}>
+              <DPad size={140} onPress={input.press} onRelease={input.release} onTurn={turnView} />
+            </div>
+          )}
+  
+          {word && dict && <WordPopup key={word.key} pick={word} dict={dict} furigana={furigana} onWord={setWord} onClose={() => setWord(null)} />}
+  
+          <Window
+            open={book}
+            onOpenChange={setBook}
+            tone="paper"
+            width={560}
+            title="スタンプラリー"
+            subtitle="Stamp rally · B closes"
+          >
+            <StampBook stampSize={68} spots={rally.map((d) => ({ id: d.id, ja: d.ja, en: d.en, got: stamps.has(d.id) }))} found={found.size} total={map.discoveries?.length ?? 0} />
+          </Window>
+          <Window open={help && !coarse} onOpenChange={setHelp} width={440} title="操作" subtitle="Controls · H closes">
+            <ControlsHelp controls={HELP} />
+          </Window>
+          <Toaster />
+        </UiRoot>
+      )}
     </div>
   )
 }

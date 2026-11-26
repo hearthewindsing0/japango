@@ -1,8 +1,9 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useMemo, useRef } from 'react'
-import { PARTS, PLAYER_LOOK, hasPart, paintOf } from './character'
+import { useRef } from 'react'
+import { AvatarFigure, emptyRig, type AvatarRig } from './AvatarFigure'
+import type { Avatar } from './avatar'
 import * as THREE from 'three'
-import { input, platformView, view } from './input'
+import { autopilot, input, platformView, view } from './input'
 import { circleBlocked, groundAt, isBlocked, type GameMap } from './map'
 import type { Underground } from './station'
 import type { Focus } from './World'
@@ -23,6 +24,8 @@ const PLATFORM_FOV = 62
 export const LENS = Math.tan((38 / 2) * (Math.PI / 180)) / Math.tan((FOV / 2) * (Math.PI / 180))
 
 interface Props {
+  /** How the player looks (made in the character creator). */
+  avatar: Avatar
   map: GameMap
   /** The map's stations, for walking down into them. */
   ug: Underground | null
@@ -37,18 +40,10 @@ const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 -
 
 /** Free movement with sliding collisions, a small 3D walker, and a camera
  *  that follows from behind and above. */
-export function Player({ map, ug, focus, distance, onMove }: Props) {
+export function Player({ avatar, map, ug, focus, distance, onMove }: Props) {
   const root = useRef<THREE.Group>(null)
-  const body = useRef<THREE.Group>(null)
-  const legL = useRef<THREE.Group>(null)
-  const legR = useRef<THREE.Group>(null)
-  const armL = useRef<THREE.Group>(null)
-  const armR = useRef<THREE.Group>(null)
-  const limbs = { legL, legR, armL, armR }
-  // Same build as the people on the street (see character.ts).
-  const parts = useMemo(() => PARTS.filter((p) => hasPart(PLAYER_LOOK, p.name, false)).map((spec) => ({ spec, geo: spec.make(1) })), [])
-  useEffect(() => () => parts.forEach((p) => p.geo.dispose()), [parts])
-  const s = useRef({ heading: 0, phase: 0, speed: 0, ground: 0, lastX: focus.current.x, lastY: focus.current.y, lastUnder: false })
+  const rig = useRef<AvatarRig>(emptyRig())
+  const s = useRef({ heading: autopilot.heading ?? 0, phase: 0, speed: 0, ground: 0, lastX: focus.current.x, lastY: focus.current.y, lastUnder: false, stuck: 0 })
   const camera = useThree((st) => st.camera)
   const placed = useRef(false)
   const onPlatform = useRef<string | null>(null)
@@ -89,8 +84,25 @@ export function Player({ map, ug, focus, distance, onMove }: Props) {
     const dt = Math.min(dtRaw, 0.05)
     const st = s.current
     const f = focus.current
-    const [ix, iy] = input.vector()
-    const target = ix || iy ? (input.running() ? RUN_SPEED : WALK_SPEED) : 0
+    let [ix, iy] = input.vector()
+    // Walking on its own (the arrival scene): toward the next point.
+    const auto = autopilot.path[0]
+    if (auto) {
+      const dx = auto[0] - f.x
+      const dy = auto[1] - f.y
+      const d = Math.hypot(dx, dy)
+      st.stuck += dt
+      if (d < 0.35 || st.stuck > 4) {
+        autopilot.path.shift()
+        st.stuck = 0
+        if (!autopilot.path.length) autopilot.done?.()
+        ix = iy = 0
+      } else {
+        ix = dx / d
+        iy = dy / d
+      }
+    }
+    const target = ix || iy ? (input.running() && !auto ? RUN_SPEED : auto ? WALK_SPEED * 0.75 : WALK_SPEED) : 0
     st.speed = damp(st.speed, target, 14, dt)
 
     if (ix || iy) {
@@ -109,11 +121,12 @@ export function Player({ map, ug, focus, distance, onMove }: Props) {
     const moving = st.speed > 0.3
     st.phase += dt * st.speed * 2.4
     const swing = moving ? Math.sin(st.phase) * Math.min(1, st.speed / WALK_SPEED) * 0.7 : 0
-    if (legL.current) legL.current.rotation.x = swing
-    if (legR.current) legR.current.rotation.x = -swing
-    if (armL.current) armL.current.rotation.x = -swing * 0.8
-    if (armR.current) armR.current.rotation.x = swing * 0.8
-    if (body.current) body.current.position.y = moving ? Math.abs(Math.cos(st.phase)) * 0.05 : 0
+    const r = rig.current
+    if (r.legL) r.legL.rotation.x = swing
+    if (r.legR) r.legR.rotation.x = -swing
+    if (r.armL) r.armL.rotation.x = -swing * 0.8
+    if (r.armR) r.armR.rotation.x = swing * 0.8
+    if (r.body) r.body.position.y = moving ? Math.abs(Math.cos(st.phase)) * 0.05 : 0
 
     // Follow the ground smoothly up and down slopes.
     const gh = f.under ? (f.z ?? 0) : groundAt(map, f.x, f.y)
@@ -198,28 +211,7 @@ export function Player({ map, ug, focus, distance, onMove }: Props) {
         <circleGeometry args={[0.42, 24]} />
         <meshBasicMaterial color="#000" transparent opacity={0.22} depthWrite={false} />
       </mesh>
-      <group ref={body}>
-        {parts.map(({ spec, geo }) => {
-          const mat = spec.paint === 'eyes' ? <meshBasicMaterial color={paintOf(PLAYER_LOOK, spec.paint)} /> : <meshLambertMaterial color={paintOf(PLAYER_LOOK, spec.paint)} />
-          if (!spec.pivot)
-            return (
-              <mesh key={spec.name} geometry={geo} castShadow={spec.shadow}>
-                {mat}
-              </mesh>
-            )
-          // Limbs pivot at the hip or shoulder.
-          const [px, py, pz] = spec.pivot
-          return (
-            <group key={spec.name} ref={limbs[spec.name as Limb]} position={spec.pivot}>
-              <mesh geometry={geo} position={[-px, -py, -pz]} castShadow={spec.shadow}>
-                {mat}
-              </mesh>
-            </group>
-          )
-        })}
-      </group>
+      <AvatarFigure avatar={avatar} rig={rig} />
     </group>
   )
 }
-
-type Limb = 'legL' | 'legR' | 'armL' | 'armR'

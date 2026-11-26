@@ -74,3 +74,8 @@ export const input = {
   press,
   release,
 }
+
+/** The player walks on their own along `path` (map x, y points), as in the
+ *  arrival scene; `done` is called at the end. `heading` is which way the
+ *  player faces when they first appear. */
+export const autopilot: { path: [number, number][]; done?: () => void; heading?: number } = { path: [] }
