@@ -40,3 +40,4 @@ dist-ssr
 
 # GTFS zips (scripts/trains/build-timetables.mjs reads them if present)
 data/gtfs/
+/data/signphotos/

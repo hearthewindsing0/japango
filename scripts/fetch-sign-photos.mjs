@@ -207,7 +207,9 @@ for (let s = 0; s * PER < index.length; s++) {
       const input = await sharp(`${OUT}/${ph.file}`).resize({ width: CW, height: CH, fit: 'contain', background: '#222' }).toBuffer()
       layers.push({ input, left: ox + k * CW, top: oy })
     }
-    const label = Buffer.from(`<svg width="90" height="44"><rect width="90" height="44" rx="8" fill="#ffd400"/><text x="45" y="32" font-size="30" font-family="sans-serif" font-weight="bold" text-anchor="middle" fill="#000">${e.n}</text></svg>`)
+    const label = Buffer.from(
+      `<svg width="90" height="44"><rect width="90" height="44" rx="8" fill="#ffd400"/><text x="45" y="32" font-size="30" font-family="sans-serif" font-weight="bold" text-anchor="middle" fill="#000">${e.n}</text></svg>`,
+    )
     layers.push({ input: label, left: ox + 4, top: oy + 4 })
   }
   const rows = Math.ceil(group.length / 2)

@@ -1,0 +1,744 @@
+{
+  "about": "Chain shops' signs, matched against the map name by `match` (a case-insensitive regular expression). Same fields as SignStyle in src/game/signStyle.ts. `note`: what the look is based on.",
+  "brands": [
+    {
+      "match": "^ナチュラルローソン|NATURAL LAWSON",
+      "text": "NATURAL LAWSON",
+      "bg": "#5a2a1e",
+      "fg": "#f3e7cf",
+      "font": "serif",
+      "weight": 700,
+      "note": "Dark brown fascia, cream serif wordmark."
+    },
+    {
+      "match": "ローソン|LAWSON",
+      "text": "LAWSON",
+      "sub": "ローソン",
+      "bg": "#0a5cb8",
+      "fg": "#ffffff",
+      "spacing": 0.08,
+      "note": "Blue fascia, white LAWSON wordmark, milk-can mark. (photos n63, n114, n348)"
+    },
+    {
+      "match": "セブン|7-Eleven",
+      "text": "7-ELEVEn",
+      "bg": "#ffffff",
+      "fg": "#008c45",
+      "bands": ["#f58220", "#e60012", "#008c45"],
+      "mark": {
+        "shape": "square",
+        "bg": "#f58220",
+        "fg": "#ffffff",
+        "text": "7"
+      },
+      "note": "White fascia with orange, red and green stripes; orange 7 mark."
+    },
+    {
+      "match": "ファミリーマート|FamilyMart",
+      "text": "FamilyMart",
+      "bg": "#ffffff",
+      "fg": "#0a5aa5",
+      "bandsTop": ["#00a040"],
+      "bands": ["#0a5aa5"],
+      "weight": 900,
+      "note": "White fascia, green band over blue band, blue wordmark."
+    },
+    {
+      "match": "デイリーヤマザキ",
+      "text": "Daily YAMAZAKI",
+      "bg": "#ffffff",
+      "fg": "#e60012",
+      "bands": ["#ff9a00", "#e60012"],
+      "weight": 900,
+      "italic": true,
+      "note": "White fascia, red italic wordmark, orange and red stripes."
+    },
+    {
+      "match": "まいばすけっと",
+      "text": "まいばすけっと",
+      "bg": "#ffffff",
+      "fg": "#e8380d",
+      "bands": ["#e8380d"],
+      "font": "round",
+      "note": "White fascia, orange-red rounded lettering."
+    },
+    {
+      "match": "スターバックス|Starbucks",
+      "text": "STARBUCKS COFFEE",
+      "bg": "#2b211c",
+      "fg": "#ffffff",
+      "mark": {
+        "shape": "circle",
+        "bg": "#00704a",
+        "fg": "#ffffff",
+        "text": "★"
+      },
+      "spacing": 0.08,
+      "note": "Dark brown fascia with white STARBUCKS letters, green siren (photo n160)."
+    },
+    {
+      "match": "ドトール",
+      "text": "DOUTOR",
+      "sub": "COFFEE SHOP",
+      "bg": "#ffffff",
+      "fg": "#1a1a1a",
+      "weight": 900,
+      "note": "White fascia, black DOUTOR letters, yellow awning (photo n24).",
+      "awning": "#ffcc00"
+    },
+    {
+      "match": "タリーズ|Tully",
+      "text": "TULLY'S COFFEE",
+      "bg": "#1b2a4a",
+      "fg": "#ffffff",
+      "font": "serif",
+      "note": "Navy fascia, white serif wordmark."
+    },
+    {
+      "match": "上島珈琲",
+      "text": "上島珈琲店",
+      "bg": "#2b1a12",
+      "fg": "#d9b977",
+      "font": "mincho",
+      "rim": "#5a3b25",
+      "note": "Dark brown, gold mincho lettering."
+    },
+    {
+      "match": "椿屋珈琲",
+      "text": "椿屋珈琲店",
+      "bg": "#6b0f1a",
+      "fg": "#e8d2a0",
+      "font": "mincho",
+      "rim": "#2b1a12",
+      "note": "Burgundy, cream mincho, Taisho-romance style."
+    },
+    {
+      "match": "星乃珈琲",
+      "text": "星乃珈琲店",
+      "bg": "#3a2418",
+      "fg": "#e9d6a8",
+      "font": "mincho",
+      "mark": {
+        "shape": "circle",
+        "bg": "#e9d6a8",
+        "fg": "#3a2418",
+        "text": "★"
+      },
+      "note": "Dark brown, cream lettering, star mark."
+    },
+    {
+      "match": "% ?Arabica",
+      "text": "%",
+      "sub": "ARABICA",
+      "bg": "#ffffff",
+      "fg": "#111111",
+      "font": "gothic",
+      "weight": 400,
+      "note": "Minimal white with black % logo."
+    },
+    {
+      "match": "^Verve",
+      "text": "VERVE COFFEE",
+      "bg": "#111111",
+      "fg": "#ffffff",
+      "spacing": 0.12,
+      "weight": 700,
+      "note": "Black with white spaced lettering."
+    },
+    {
+      "match": "^松屋$",
+      "text": "松屋",
+      "bg": "#ffd200",
+      "fg": "#0b318f",
+      "mark": {
+        "shape": "square",
+        "bg": "#e60012",
+        "fg": "#ffffff",
+        "text": "松"
+      },
+      "note": "Yellow board, blue 松屋 letters, red mark."
+    },
+    {
+      "match": "吉野家",
+      "text": "吉野家",
+      "bg": "#f08300",
+      "fg": "#2b1a12",
+      "font": "brush",
+      "note": "Orange board, dark brush lettering."
+    },
+    {
+      "match": "マクドナルド|McDonald",
+      "text": "M",
+      "sub": "McDonald's",
+      "bg": "#da291c",
+      "fg": "#ffc72c",
+      "weight": 900,
+      "note": "Red with yellow golden arches."
+    },
+    {
+      "match": "サブウェイ|SUBWAY",
+      "text": "SUBWAY",
+      "bg": "#008c15",
+      "fg": "#ffc20d",
+      "weight": 900,
+      "italic": true,
+      "note": "Green with yellow italic wordmark."
+    },
+    {
+      "match": "ウェンディーズ|Wendy",
+      "text": "Wendy's",
+      "sub": "FIRST KITCHEN",
+      "bg": "#e2203d",
+      "fg": "#ffffff",
+      "font": "script",
+      "note": "Red fascia, white Wendy's script (photo n199)."
+    },
+    {
+      "match": "ドミノ|Domino",
+      "text": "Domino's",
+      "bg": "#006491",
+      "fg": "#ffffff",
+      "mark": {
+        "shape": "diamond",
+        "bg": "#e31837",
+        "fg": "#ffffff",
+        "text": "•"
+      },
+      "weight": 900,
+      "note": "Blue with red-and-blue domino tile."
+    },
+    {
+      "match": "デニーズ|Denny",
+      "text": "Denny's",
+      "bg": "#fdb913",
+      "fg": "#d6001c",
+      "font": "script",
+      "note": "Yellow board, red script, レストラン (photo n7).",
+      "sub": "レストラン"
+    },
+    {
+      "match": "日高屋",
+      "text": "日高屋",
+      "sub": "中華そば",
+      "bg": "#e60012",
+      "fg": "#ffffff",
+      "font": "brush",
+      "bands": ["#ffd200"],
+      "note": "Red board, white lettering."
+    },
+    {
+      "match": "幸楽苑",
+      "text": "幸楽苑",
+      "bg": "#e60012",
+      "fg": "#ffffff",
+      "font": "brush",
+      "bands": ["#ffd200"],
+      "note": "Red with white brush lettering."
+    },
+    {
+      "match": "CoCo壱|ココイチ",
+      "text": "CoCo壱番屋",
+      "bg": "#ffd200",
+      "fg": "#5c2d0c",
+      "weight": 900,
+      "note": "Yellow board, brown lettering."
+    },
+    {
+      "match": "ゴーゴーカレー",
+      "text": "ゴーゴーカレー",
+      "bg": "#ffd400",
+      "fg": "#d7000f",
+      "weight": 900,
+      "bands": ["#111111"],
+      "note": "Yellow and black, red lettering, gorilla mascot."
+    },
+    {
+      "match": "富士そば",
+      "text": "名代 富士そば",
+      "bg": "#d7000f",
+      "fg": "#ffffff",
+      "font": "brush",
+      "noren": {
+        "bg": "#1a2a5a",
+        "fg": "#ffffff",
+        "text": "富士そば"
+      },
+      "note": "Red board, white lettering, navy noren."
+    },
+    {
+      "match": "磯丸水産",
+      "text": "磯丸水産",
+      "bg": "#ffffff",
+      "fg": "#d7000f",
+      "font": "brush",
+      "lanterns": "#e60012",
+      "note": "Huge white sign with red brush letters, lanterns."
+    },
+    {
+      "match": "Shake Shack",
+      "text": "SHAKE SHACK",
+      "bg": "#1f1f1f",
+      "fg": "#7cc242",
+      "spacing": 0.1,
+      "note": "Black, green burger-icon wordmark."
+    },
+    {
+      "match": "^AFURI",
+      "text": "AFURI",
+      "sub": "阿夫利",
+      "bg": "#111111",
+      "fg": "#ffffff",
+      "spacing": 0.2,
+      "note": "Black, white spaced lettering."
+    },
+    {
+      "match": "つるとんたん",
+      "text": "つるとんたん",
+      "bg": "#1a1a1a",
+      "fg": "#f2e6c8",
+      "font": "brush",
+      "noren": {
+        "bg": "#1a1a1a",
+        "fg": "#f2e6c8",
+        "text": "うどん"
+      },
+      "note": "Black with cream brush lettering."
+    },
+    {
+      "match": "銀だこ",
+      "text": "築地銀だこ",
+      "bg": "#e60012",
+      "fg": "#ffffff",
+      "font": "brush",
+      "note": "Red with white lettering and octopus."
+    },
+    {
+      "match": "^Hub|^HUB",
+      "text": "HUB",
+      "sub": "BRITISH PUB",
+      "bg": "#0f3b2a",
+      "fg": "#d8b45a",
+      "font": "serif",
+      "rim": "#d8b45a",
+      "note": "Dark green British pub fascia, gold serif letters."
+    },
+    {
+      "match": "キッチンオリジン",
+      "text": "キッチンオリジン",
+      "bg": "#e8380d",
+      "fg": "#ffffff",
+      "note": "Orange-red board, white letters."
+    },
+    {
+      "match": "牛たん一徹",
+      "text": "牛たん一徹",
+      "bg": "#1a1a1a",
+      "fg": "#ffffff",
+      "font": "brush"
+    },
+    {
+      "match": "とり鉄",
+      "text": "とり鉄",
+      "bg": "#2b1a12",
+      "fg": "#ffffff",
+      "font": "brush",
+      "lanterns": "#e60012"
+    },
+    {
+      "match": "つるまる",
+      "text": "つるまる饂飩",
+      "bg": "#ffffff",
+      "fg": "#1a1a1a",
+      "font": "brush",
+      "bands": ["#e60012"]
+    },
+    {
+      "match": "^au ?ショップ|^au ",
+      "text": "au",
+      "sub": "au Style / auショップ",
+      "bg": "#ffffff",
+      "fg": "#eb5505",
+      "weight": 900,
+      "note": "White with orange au."
+    },
+    {
+      "match": "ソフトバンク|SoftBank",
+      "text": "SoftBank",
+      "bg": "#ffffff",
+      "fg": "#111111",
+      "bands": ["#b5b5b6"],
+      "weight": 900,
+      "note": "White with black SoftBank, silver line."
+    },
+    {
+      "match": "ドコモ|docomo",
+      "text": "docomo",
+      "bg": "#ffffff",
+      "fg": "#cc0033",
+      "font": "round",
+      "note": "White with red rounded docomo."
+    },
+    {
+      "match": "マツモトキヨシ",
+      "text": "マツモトキヨシ",
+      "bg": "#ffe600",
+      "fg": "#0a2a8c",
+      "weight": 900,
+      "note": "Yellow board, blue lettering."
+    },
+    {
+      "match": "スギ薬局",
+      "text": "スギ薬局",
+      "bg": "#ffffff",
+      "fg": "#00a0e9",
+      "bands": ["#00a0e9"],
+      "note": "White with light-blue lettering."
+    },
+    {
+      "match": "セイムス",
+      "text": "ドラッグセイムス",
+      "bg": "#ffffff",
+      "fg": "#e60012",
+      "bands": ["#0068b7"],
+      "weight": 900
+    },
+    {
+      "match": "福太郎",
+      "text": "くすりの福太郎",
+      "bg": "#ffffff",
+      "fg": "#e60012",
+      "bands": ["#e60012"],
+      "weight": 900
+    },
+    {
+      "match": "カクヤス",
+      "text": "なんでも酒や カクヤス",
+      "bg": "#e60012",
+      "fg": "#ffffff",
+      "weight": 900,
+      "bands": ["#ffd200"]
+    },
+    {
+      "match": "明治屋",
+      "text": "明治屋",
+      "sub": "MEIDI-YA",
+      "bg": "#0e3b2e",
+      "fg": "#d8b45a",
+      "font": "mincho",
+      "rim": "#d8b45a",
+      "note": "Dark green, gold lettering."
+    },
+    {
+      "match": "青山フラワーマーケット",
+      "text": "Aoyama Flower Market",
+      "bg": "#ffffff",
+      "fg": "#2e6b3a",
+      "font": "serif",
+      "weight": 700,
+      "awning": "#2e6b3a"
+    },
+    {
+      "match": "KOMEHYO",
+      "text": "KOMEHYO",
+      "bg": "#1a1a1a",
+      "fg": "#ffffff",
+      "spacing": 0.15
+    },
+    {
+      "match": "おたからや",
+      "text": "おたからや",
+      "bg": "#ffd200",
+      "fg": "#d7000f",
+      "weight": 900,
+      "bands": ["#d7000f"]
+    },
+    {
+      "match": "Dr\\.? ?Stretch",
+      "text": "Dr.stretch",
+      "bg": "#ffffff",
+      "fg": "#e8380d",
+      "bands": ["#e8380d"],
+      "weight": 900
+    },
+    {
+      "match": "Bio ?C' ?Bon",
+      "text": "Bio c' Bon",
+      "bg": "#ffffff",
+      "fg": "#2c7a3a",
+      "font": "script",
+      "awning": "#2c7a3a"
+    },
+    {
+      "match": "^Picard",
+      "text": "Picard",
+      "bg": "#003da5",
+      "fg": "#ffffff",
+      "font": "serif",
+      "weight": 700
+    },
+    {
+      "match": "Louis Vuitton",
+      "text": "LOUIS VUITTON",
+      "bg": "#1a1a1a",
+      "fg": "#ffffff",
+      "shape": "letters",
+      "font": "gothic",
+      "weight": 500,
+      "spacing": 0.15,
+      "size": 1.3
+    },
+    {
+      "match": "Herm[eè]s",
+      "text": "HERMÈS",
+      "sub": "PARIS",
+      "bg": "#f37021",
+      "fg": "#ffffff",
+      "font": "serif",
+      "weight": 700,
+      "awning": "#f37021"
+    },
+    {
+      "match": "^Rolex",
+      "text": "ROLEX",
+      "bg": "#006039",
+      "fg": "#d4af37",
+      "font": "serif",
+      "mark": {
+        "shape": "circle",
+        "bg": "#d4af37",
+        "fg": "#006039",
+        "text": "♔"
+      }
+    },
+    {
+      "match": "Tiffany",
+      "text": "TIFFANY & CO.",
+      "bg": "#81d8d0",
+      "fg": "#111111",
+      "font": "serif",
+      "weight": 700
+    },
+    {
+      "match": "Burberry",
+      "text": "BURBERRY",
+      "bg": "#1a1a1a",
+      "fg": "#ffffff",
+      "font": "serif",
+      "shape": "letters",
+      "spacing": 0.1
+    },
+    {
+      "match": "^Ferrari",
+      "text": "Ferrari",
+      "bg": "#d40000",
+      "fg": "#ffffff",
+      "font": "script",
+      "mark": {
+        "shape": "square",
+        "bg": "#ffd700",
+        "fg": "#111111",
+        "text": "F"
+      }
+    },
+    {
+      "match": "^Mini$|^MINI",
+      "text": "MINI",
+      "bg": "#111111",
+      "fg": "#ffffff",
+      "spacing": 0.25
+    },
+    {
+      "match": "Barneys",
+      "text": "BARNEYS NEW YORK",
+      "bg": "#111111",
+      "fg": "#ffffff",
+      "spacing": 0.1,
+      "shape": "letters"
+    },
+    {
+      "match": "Intimissimi",
+      "text": "intimissimi",
+      "bg": "#111111",
+      "fg": "#ffffff",
+      "font": "serif"
+    },
+    {
+      "match": "^Enoteca",
+      "text": "ENOTECA",
+      "bg": "#5a0f1e",
+      "fg": "#e8d2a0",
+      "font": "serif"
+    },
+    {
+      "match": "^Trek$",
+      "text": "TREK",
+      "bg": "#111111",
+      "fg": "#ffffff",
+      "weight": 900,
+      "italic": true
+    },
+    {
+      "match": "^kitson",
+      "text": "kitson",
+      "bg": "#111111",
+      "fg": "#ffffff",
+      "font": "serif"
+    },
+    {
+      "match": "コインランドリー|Coin Laundry",
+      "text": "コインランドリー",
+      "bg": "#0a7fd1",
+      "fg": "#ffffff",
+      "font": "round"
+    },
+    {
+      "match": "クリーニング ?ポニー|^ポニー$",
+      "text": "ポニークリーニング",
+      "bg": "#ffffff",
+      "fg": "#e60012",
+      "bands": ["#0068b7"],
+      "font": "round",
+      "note": "Pony Cleaning: white board, red and blue."
+    },
+    {
+      "match": "交番|KOBAN",
+      "text": "交番",
+      "sub": "KOBAN",
+      "bg": "#ffffff",
+      "fg": "#1a2a5a",
+      "mark": {
+        "shape": "circle",
+        "bg": "#e60012",
+        "fg": "#ffffff",
+        "text": "★"
+      }
+    }
+  ],
+  "genres": [
+    {
+      "match": "焼鳥|やきとり|焼き鳥|鳥|鶏|とり|居酒屋|酒場|酒房|酒呑|宴|やきとん",
+      "bg": "#2a1d14",
+      "fg": "#ffffff",
+      "font": "brush",
+      "lanterns": "#c8102e",
+      "note": "Izakaya and yakitori: dark wood, white brush letters, red lanterns."
+    },
+    {
+      "match": "ラーメン|らーめん|麺|拉麺|中華そば",
+      "bg": "#c8102e",
+      "fg": "#ffffff",
+      "font": "brush",
+      "noren": {
+        "bg": "#c8102e",
+        "fg": "#ffffff",
+        "text": "ラーメン"
+      }
+    },
+    {
+      "match": "そば|蕎麦|うどん|饂飩|庵",
+      "bg": "#2a1d14",
+      "fg": "#f4efe4",
+      "font": "brush",
+      "noren": {
+        "bg": "#1c2d5a",
+        "fg": "#ffffff"
+      }
+    },
+    {
+      "match": "鮨|寿司|すし|Sushi",
+      "bg": "#f4efe4",
+      "fg": "#1a1a1a",
+      "font": "mincho",
+      "noren": {
+        "bg": "#f4efe4",
+        "fg": "#1a1a1a",
+        "text": "鮨"
+      }
+    },
+    {
+      "match": "焼肉|ホルモン|牛|肉",
+      "bg": "#111111",
+      "fg": "#e8b04a",
+      "font": "brush",
+      "rim": "#c8102e"
+    },
+    {
+      "match": "中華|飯店|菜館|苑$|香",
+      "bg": "#c8102e",
+      "fg": "#f4c430",
+      "font": "mincho"
+    },
+    {
+      "match": "珈琲|喫茶",
+      "bg": "#3a2418",
+      "fg": "#e9d6a8",
+      "font": "mincho"
+    },
+    {
+      "match": "^(Bar |BAR )|Bar$|BAR$|Lounge|Club|CLUB",
+      "bg": "#14051f",
+      "fg": "#ff7ad9",
+      "font": "script"
+    },
+    {
+      "match": "Cafe|CAFE|Café|Coffee|COFFEE|カフェ",
+      "bg": "#f4efe4",
+      "fg": "#5b3a29",
+      "font": "script",
+      "awning": "#5b3a29"
+    },
+    {
+      "match": "Pizza|PIZZA|ピザ|Trattoria|Osteria|Cucina|Italian",
+      "bg": "#1f6b3a",
+      "fg": "#ffffff",
+      "font": "serif",
+      "bands": ["#1f6b3a", "#ffffff", "#c8102e"]
+    },
+    {
+      "match": "Bistro|ビストロ|Brasserie|^Le |^La |^L'",
+      "bg": "#5a0f1e",
+      "fg": "#e8d2a0",
+      "font": "serif",
+      "awning": "#5a0f1e"
+    },
+    {
+      "match": "Hair|ヘア|美容|Barber|サロン|Salon|esthe|エステ|Spa",
+      "bg": "#ffffff",
+      "fg": "#3a3a3a",
+      "font": "serif",
+      "weight": 700
+    },
+    {
+      "match": "薬|ドラッグ",
+      "bg": "#ffffff",
+      "fg": "#00a0e9",
+      "bands": ["#00a0e9"]
+    },
+    {
+      "match": "花|Flower|フラワー",
+      "bg": "#ffffff",
+      "fg": "#2e6b3a",
+      "font": "serif",
+      "awning": "#2e6b3a"
+    },
+    {
+      "match": "パン|ベーカリー|Bakery|bread",
+      "bg": "#f4efe4",
+      "fg": "#7a3b1a",
+      "font": "script",
+      "awning": "#7a3b1a"
+    },
+    {
+      "match": "酒店|酒屋|さかや|リカー",
+      "bg": "#f6f2ea",
+      "fg": "#1a1a1a",
+      "font": "brush",
+      "mark": {
+        "shape": "square",
+        "bg": "#c8102e",
+        "fg": "#ffffff",
+        "text": "酒"
+      }
+    }
+  ]
+}
