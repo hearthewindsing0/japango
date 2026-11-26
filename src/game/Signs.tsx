@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import { buildingBase, type HeightFn } from './geometry'
 import { is24h, isOpen } from './hours'
@@ -13,7 +13,20 @@ import type { MapTile } from './map'
 // open shop has a 営業中 plate by the door; a closed one has its sign
 // switched off and its shutter down, with a 準備中 plate hung on it.
 
-const FONT = '"Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif'
+const FONT = '"M PLUS 1 Variable", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif'
+
+// Diorama: signs are little rounded toy boards with a cream rim. Corners
+// are cut out by alphaTest.
+function board(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, bg: string) {
+  ctx.beginPath()
+  ctx.roundRect(x + 2, y + 2, w - 4, h - 4, r)
+  ctx.fillStyle = '#fbf3e4'
+  ctx.fill()
+  ctx.beginPath()
+  ctx.roundRect(x + 6, y + 6, w - 12, h - 12, Math.max(2, r - 4))
+  ctx.fillStyle = bg
+  ctx.fill()
+}
 const ATLAS = 1024 // atlas width; its height fits the tile's signs
 const H_SLOT = { w: 256, h: 64 } // horizontal boards
 const V_SLOT = { w: 64, h: 256 } // vertical signs
@@ -40,36 +53,31 @@ function colorsFor(text: string, kind: Kind): [string, string] {
 
 function drawHorizontal(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, kind: Kind) {
   const [bg, fg] = colorsFor(text, kind)
-  ctx.fillStyle = bg
-  ctx.fillRect(x, y, H_SLOT.w, H_SLOT.h)
+  board(ctx, x, y, H_SLOT.w, H_SLOT.h, 16, bg)
   ctx.fillStyle = fg
-  let size = 40
-  ctx.font = `700 ${size}px ${FONT}`
+  let size = 36
+  ctx.font = `800 ${size}px ${FONT}`
   const w = ctx.measureText(text).width
-  if (w > H_SLOT.w - 16) {
-    size = Math.max(14, Math.floor((size * (H_SLOT.w - 16)) / w))
-    ctx.font = `700 ${size}px ${FONT}`
+  if (w > H_SLOT.w - 28) {
+    size = Math.max(14, Math.floor((size * (H_SLOT.w - 28)) / w))
+    ctx.font = `800 ${size}px ${FONT}`
   }
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText(text, x + H_SLOT.w / 2, y + H_SLOT.h / 2 + 2, H_SLOT.w - 12)
+  ctx.fillText(text, x + H_SLOT.w / 2, y + H_SLOT.h / 2 + 2, H_SLOT.w - 24)
 }
 
 function drawVertical(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, kind: Kind) {
   const [bg, fg] = colorsFor(text, kind)
-  ctx.fillStyle = bg
-  ctx.fillRect(x, y, V_SLOT.w, V_SLOT.h)
-  ctx.strokeStyle = fg
-  ctx.lineWidth = 3
-  ctx.strokeRect(x + 3, y + 3, V_SLOT.w - 6, V_SLOT.h - 6)
+  board(ctx, x, y, V_SLOT.w, V_SLOT.h, 16, bg)
   ctx.fillStyle = fg
   // Japanese reads top to bottom on vertical signs: one character per line.
   const chars = [...text].slice(0, 8)
-  const size = Math.min(44, Math.floor((V_SLOT.h - 16) / chars.length))
-  ctx.font = `700 ${size}px ${FONT}`
+  const size = Math.min(40, Math.floor((V_SLOT.h - 24) / chars.length))
+  ctx.font = `800 ${size}px ${FONT}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  chars.forEach((ch, i) => ctx.fillText(ch, x + V_SLOT.w / 2, y + 8 + size * (i + 0.5), V_SLOT.w - 8))
+  chars.forEach((ch, i) => ctx.fillText(ch, x + V_SLOT.w / 2, y + (V_SLOT.h - size * chars.length) / 2 + size * (i + 0.5), V_SLOT.w - 14))
 }
 
 /** Mostly Japanese names suit vertical signs; long Latin names don't. */
@@ -90,7 +98,22 @@ export function Signs({
   minute: number
   night: number
 }) {
+  // The sign font loads its glyphs on demand: draw again once this tile's
+  // characters are in.
+  const [fontV, setFontV] = useState(0)
+  useEffect(() => {
+    if (typeof document === 'undefined' || !tile.signs.length) return
+    let live = true
+    document.fonts
+      .load(`800 36px "M PLUS 1 Variable"`, tile.signs.map((s) => s.t).join(''))
+      .then((f) => live && f.length > 0 && setFontV((v) => v + 1))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [tile])
   const built = useMemo(() => {
+    void fontV
     const signs = tile.signs
     if (!signs.length || typeof document === 'undefined') return null
     // Horizontal boards first, then a band of vertical signs below them.
@@ -179,9 +202,9 @@ export function Signs({
     const tex = new THREE.CanvasTexture(canvas)
     tex.colorSpace = THREE.SRGBColorSpace
     tex.anisotropy = 4
-    const mat = new THREE.MeshBasicMaterial({ map: tex, clippingPlanes: clip, vertexColors: true })
+    const mat = new THREE.MeshBasicMaterial({ map: tex, clippingPlanes: clip, vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide })
     return { geo, tex, mat, ranges }
-  }, [tile, clip, height])
+  }, [tile, clip, height, fontV])
 
   useEffect(
     () => () => {

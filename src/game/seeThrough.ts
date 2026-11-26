@@ -36,7 +36,8 @@ export function seeThroughGlsl({ cone = 3.2, overhead = 0 } = {}) {
     float edge = smoothstep(r * 0.7, r, d);
     ${
       overhead > 0
-        ? `if (vWorld.y > uPlayer.y + 3.0 && t > 0.05) edge = min(edge, smoothstep(${(overhead * 0.6).toFixed(2)}, ${overhead.toFixed(2)}, d));`
+        ? // A wide cut (the diorama's view of the Shuto) takes the piers in front too, not just the decks.
+          `if ((${overhead >= 30 ? 'true' : 'false'} || vWorld.y > uPlayer.y + 3.0) && t > 0.05) edge = min(edge, smoothstep(${(overhead * 0.6).toFixed(2)}, ${overhead.toFixed(2)}, d));`
         : ''
     }
     float dither = fract(dot(floor(gl_FragCoord.xy), vec2(0.5, 0.25)) + 0.125);
