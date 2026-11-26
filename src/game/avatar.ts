@@ -4,7 +4,7 @@
 // Japanese name, so the creator doubles as a little vocabulary lesson and a
 // clothes shop later can reuse the same lists.
 
-export type Gender = 'man' | 'woman' | 'other'
+export type Gender = 'man' | 'woman'
 export type Build = 'slim' | 'average' | 'sturdy'
 export type Height = 'short' | 'average' | 'tall'
 export type Eyes = 'dot' | 'round' | 'smile' | 'sleepy'
@@ -49,7 +49,6 @@ export interface Choice<T extends string> {
 export const GENDERS: Choice<Gender>[] = [
   { v: 'man', ja: '男性', yomi: 'だんせい', en: 'Man' },
   { v: 'woman', ja: '女性', yomi: 'じょせい', en: 'Woman' },
-  { v: 'other', ja: 'その他', yomi: 'そのた', en: 'Other' },
 ]
 export const BUILDS: Choice<Build>[] = [
   { v: 'slim', ja: '細め', yomi: 'ほそめ', en: 'Slim' },
@@ -175,21 +174,6 @@ const PRESETS: Record<Gender, Omit<Avatar, 'v' | 'gender' | 'name' | 'kana' | 's
     hat: 'none',
     backpack: false,
   },
-  other: {
-    build: 'average',
-    height: 'average',
-    eyes: 'dot',
-    blush: true,
-    hair: 'bob',
-    hairColor: '#4f6fd1',
-    outfit: 'hoodie',
-    top: '#6fbf73',
-    bottom: '#2b3445',
-    accent: '#f2c94c',
-    glasses: 'round',
-    hat: 'none',
-    backpack: true,
-  },
 }
 
 export function presetFor(gender: Gender, keep?: Partial<Avatar>): Avatar {
@@ -232,7 +216,7 @@ export function loadAvatar(): Avatar | null {
     const raw = localStorage.getItem(KEY)
     if (!raw) return null
     const a = JSON.parse(raw) as Partial<Avatar>
-    if (a?.v !== 1 || !a.gender) return null
+    if (a?.v !== 1 || (a.gender !== 'man' && a.gender !== 'woman')) return null
     // Fill anything added since it was saved.
     return { ...presetFor(a.gender), ...a } as Avatar
   } catch {

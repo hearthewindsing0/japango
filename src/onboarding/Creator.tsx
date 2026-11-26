@@ -122,7 +122,7 @@ function LookTab({ tab, a, set }: { tab: Tab; a: Avatar; set: (p: Partial<Avatar
       return (
         <>
           <Section ja="性別" yomi="せいべつ" en="Gender">
-            <Choices items={GENDERS} value={a.gender} onPick={(g) => g !== a.gender && set(presetFor(g, a))} />
+            <Choices items={GENDERS} value={a.gender} onPick={(g) => g !== a.gender && set(presetFor(g, a))} cols={2} />
           </Section>
           <Section ja="体型" yomi="たいけい" en="Build">
             <Choices items={BUILDS} value={a.build} onPick={(build) => set({ build })} />
