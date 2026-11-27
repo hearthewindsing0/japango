@@ -4,13 +4,19 @@
 //                         key (see scripts/data.mjs; falls back to a copy
 //                         built into the site, if there is one)
 //   /api/progress         a player's found places and stamps, in D1
+//   /api/trains/live      live train delays and line status from ODPT
+//                         (worker/trains-live.ts; key stays here)
 //   /api/health           a quick check that the API is up
 // Everything else is the game itself, from the static assets.
+
+import { trainsLive } from './trains-live'
 
 interface Env {
   ASSETS: Fetcher
   DATA: R2Bucket
   DB: D1Database
+  /** ODPT developer key (Worker secret), for Tokyo Metro's live data. */
+  ODPT_TOKEN?: string
 }
 
 const PLAYER = /^[0-9a-f-]{36}$/
@@ -107,10 +113,11 @@ async function progress(req: Request, env: Env, url: URL) {
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url)
     if (DATA.test(url.pathname)) return data(req, env, url)
     if (url.pathname === '/api/progress') return progress(req, env, url)
+    if (url.pathname === '/api/trains/live') return trainsLive(url, env.ODPT_TOKEN, ctx)
     if (url.pathname === '/api/health') return json({ ok: true })
     if (url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404)
     return env.ASSETS.fetch(req)

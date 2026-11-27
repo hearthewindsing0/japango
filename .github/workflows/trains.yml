@@ -5,9 +5,8 @@
 # "Run workflow") and when its own script changes on main.
 #
 # Toei's GTFS (Ōedo Line) is public. Tokyo Metro's (Hibiya Line) needs an
-# ODPT developer key: once approved, add it as the ODPT_TOKEN repository
-# secret and run this again. TODO(ODPT): with the key, also move the game to
-# live train data (delays, positions); see README "Trains".
+# ODPT developer key: the ODPT_TOKEN repository secret. Live delays come
+# from the Worker (worker/trains-live.ts); see README "Trains".
 name: Train timetables
 
 on:

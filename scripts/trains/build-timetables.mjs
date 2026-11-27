@@ -11,12 +11,9 @@
 //     Without the key the game runs the Hibiya Line on an approximate
 //     schedule (src/game/trains.ts).
 //
-// TODO(ODPT): these are planned timetables only. When Henry's ODPT developer
-// account is approved, add ODPT_TOKEN as a repository secret: this script
-// then also builds Tokyo Metro's timetable, and the game can move to live
-// data (odpt:Train for train positions and delays, odpt:TrainInformation
-// for service status, or the GTFS-RT feeds) served through the Worker so
-// the key stays private. See README "Trains".
+// These are planned timetables. With the ODPT_TOKEN repository secret set
+// this also builds Tokyo Metro's. Live delays and line status come from the
+// Worker at play time (worker/trains-live.ts). See README "Trains".
 //
 // Usage: bun scripts/trains/build-timetables.mjs   (AREA=roppongi by default)
 // Reads GTFS zips from data/gtfs/ if they are already there (for testing),
@@ -211,7 +208,14 @@ async function main() {
   for (const spec of specs) {
     const info = FEEDS[spec.feed]
     if (!feeds.has(spec.feed)) {
-      const zip = await download(spec.feed, info.url)
+      let zip = null
+      try {
+        zip = await download(spec.feed, info.url)
+      } catch (e) {
+        // Never print the URL: it carries the key.
+        console.log(`::warning::${spec.ref}: couldn't download the ${info.operatorEn} timetable (${String(e.message).split('?')[0]}); keeping its fallback.`)
+        if (!info.publicUrl) throw e
+      }
       if (!zip) {
         console.log(`${spec.ref}: no ${info.operatorEn} key (ODPT_TOKEN), skipped; the game uses an approximate schedule.`)
         feeds.set(spec.feed, null)

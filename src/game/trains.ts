@@ -8,11 +8,11 @@
 // runs on an approximate schedule with the real first and last trains and
 // roughly the real gaps between trains for each hour.
 //
-// TODO(ODPT): move to live data when the ODPT developer account is
-// approved. Add ODPT_TOKEN as a repository secret (the timetable build then
-// includes Tokyo Metro), then add a Worker endpoint that reads odpt:Train
-// (positions and delays) or the GTFS-RT feeds with the key and have this
-// module shift each train by its live delay. Keep the key server-side.
+// Live data (useLiveTrains): the Worker's /api/trains/live reads ODPT's
+// odpt:Train and odpt:TrainInformation (the key stays on the server) and
+// says how late the trains coming into each platform are. Trains due in the
+// next while move by that delay, and the boards show 遅れ and the line's
+// status. Only while the game clock is the real one (no ?time=).
 import { useEffect, useState } from 'react'
 import type { Station } from './station'
 
@@ -36,6 +36,8 @@ export interface Timetable {
     version: string
     valid: [string, string]
   }[]
+  /** Live delays and status, merged in by the game (see useLiveTrains). */
+  live?: Live | null
   stations: Record<
     string,
     {
@@ -56,7 +58,53 @@ export interface Departure {
   toEn: string
   /** From the approximate schedule, not a published timetable. */
   approx?: boolean
+  /** Seconds late (live data): arr and dep already include it. */
+  late?: number
 }
+
+export interface LiveLine {
+  /** The operator's service status text, e.g. 現在、平常どおり運転しています。 */
+  text: string
+  textEn: string
+  /** Short status when something's wrong: 遅延, 運転見合わせ... */
+  status: string
+  statusEn: string
+  /** By the platform's next stop: seconds late. */
+  delays: Record<string, number>
+}
+export interface Live {
+  /** When it was read (ms). */
+  at: number
+  /** By station ref (H04, E23). */
+  lines: Record<string, LiveLine>
+}
+
+/** Live train delays and line status for an area, every minute. Off
+ *  (null) when `on` is false, e.g. when ?time= moves the game clock. */
+export function useLiveTrains(area: string | undefined, on: boolean) {
+  const [live, setLive] = useState<Live | null>(null)
+  useEffect(() => {
+    if (!area || !on) return setLive(null)
+    let alive = true
+    const get = () =>
+      fetch(`/api/trains/live?area=${encodeURIComponent(area)}`)
+        .then((r) => (r.ok ? (r.json() as Promise<Live>) : null))
+        .then((l) => alive && l && typeof l.at === 'number' && setLive(l))
+        .catch(() => {})
+    get()
+    const id = setInterval(get, 60_000)
+    return () => {
+      alive = false
+      clearInterval(id)
+    }
+  }, [area, on])
+  return live
+}
+
+/** Trains due from this long before the live reading to this long after it
+ *  run late by the platform's delay. Further out, the timetable. */
+const LIVE_BEFORE = 15 * 60
+const LIVE_AFTER = 45 * 60
 
 const cache = new Map<string, Promise<Timetable | null>>()
 export function loadTimetable(area: string) {
@@ -179,7 +227,7 @@ const dayCache = new Map<string, Departure[]>()
  *  that day's midnight: yesterday's trains after midnight come out
  *  negative, today's after midnight past 24:00. Sorted by departure. */
 export function departures(tt: Timetable | null, station: Station, platform: number, day: number): Departure[] {
-  const key = `${tt?.built ?? '-'}|${station.id}|${platform}|${day}`
+  const key = `${tt?.built ?? '-'}|${tt?.live?.at ?? 0}|${station.id}|${platform}|${day}`
   const hit = dayCache.get(key)
   if (hit) return hit
   const out: Departure[] = []
@@ -200,6 +248,18 @@ export function departures(tt: Timetable | null, station: Station, platform: num
       }
     } else {
       for (const x of approxDay(station, platform, holidayLike(tt, d))) out.push({ ...x, arr: x.arr + shift, dep: x.dep + shift })
+    }
+  }
+  // Live delays: move the trains due around now.
+  const delay = tt?.live && next ? (tt.live.lines[station.id]?.delays[next] ?? 0) : 0
+  if (delay > 0 && tt?.live) {
+    const at = tokyoNow(tt.live.at)
+    const now = at.sec + (at.day - day) * DAY
+    for (const d of out) {
+      if (d.dep < now - LIVE_BEFORE - delay || d.dep > now + LIVE_AFTER) continue
+      d.arr += delay
+      d.dep += delay
+      d.late = delay
     }
   }
   out.sort((a, b) => a.dep - b.dep)

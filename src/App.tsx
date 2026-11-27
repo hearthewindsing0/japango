@@ -21,8 +21,8 @@ import { World, type Focus } from './game/World'
 import { loadAround, useTileStream } from './game/stream'
 import { useProgressSync } from './game/progress'
 import { Underground, type Station } from './game/station'
-import { Stations, boardRows } from './game/Stations'
-import { useTimetable, type Timetable } from './game/trains'
+import { Stations, boardRows, liveNote } from './game/Stations'
+import { useLiveTrains, useTimetable, type Timetable } from './game/trains'
 import { useRiders } from './game/riders'
 import { buildInteriors, type InteriorPlace } from './game/interior'
 import { donkiDoor } from './game/landmarks/DonQuijote'
@@ -344,7 +344,15 @@ export default function App() {
   const hour = clock.h + clock.m / 60
   const week = tokyoWeekMinute(now)
   const timetable = useTimetable(map?.id)
-  const trainClock = useMemo(() => ({ timetable, offset: clockOffset }), [timetable, clockOffset])
+  // Live delays only while the game clock is the real one.
+  const live = useLiveTrains(map?.id, clockOffset === 0)
+  const trainClock = useMemo(
+    () => ({
+      timetable: live ? { ...(timetable ?? { area: map?.id ?? '', built: 'none', sources: [], stations: {} }), live } : timetable,
+      offset: clockOffset,
+    }),
+    [timetable, live, map?.id, clockOffset],
+  )
   const month = tokyoMonth(now)
   const holiday = isHoliday(now)
   const when = useMemo(() => ({ month, holiday, hour }), [month, holiday, hour])
@@ -447,6 +455,7 @@ export default function App() {
   const sign = under && ug ? ug.signNear(pos.x, pos.y, z) : null
   // A departure board's card reads out its next trains.
   const board = sign?.s.k === 'board' ? boardRows(sign.st as Station, sign.s.p ?? 0, trainClock, Date.now() + clockOffset) : null
+  const boardNote = sign?.s.k === 'board' ? liveNote(sign.st as Station, sign.s.p ?? 0, trainClock) : null
   const bg = under ? UNDERGROUND_BG : sky.background
   const ja = (t: string) => <JaText text={t} dict={dict} furigana={furigana} onWord={setWord} />
   const seg = (t: string) => jaSegments(t, dict)
@@ -698,7 +707,9 @@ export default function App() {
                     ? (board[0].done
                         ? `No more trains tonight. First train (始発): ${board[0].time} for ${board[0].toEn || board[0].to}`
                         : `Next train: ${board[0].time} for ${board[0].toEn || board[0].to}` +
-                          (board[1] ? `. After that (次発): ${board[1].time} for ${board[1].toEn || board[1].to}` : '')) + (board[0].approx ? ' (approximate times)' : '')
+                          (board[1] ? `. After that (次発): ${board[1].time} for ${board[1].toEn || board[1].to}` : '')) +
+                      (board[0].approx ? ' (approximate times)' : '') +
+                      (boardNote ? `. Live: ${boardNote.en} (${boardNote.ja})` : '')
                     : sign.s.en
                 }
                 note={sign.s.n ?? SIGN_NOTES[sign.s.k]}
@@ -879,6 +890,15 @@ function Credits({
           </a>
         </span>
       ))}
+      {timetable && (
+        <>
+          {' · '}Live train status: 公共交通オープンデータセンター (
+          <a href="https://developer.odpt.org/" target="_blank" rel="noreferrer">
+            ODPT
+          </a>
+          )
+        </>
+      )}
       {liveWeather && (
         <>
           {' · '}
@@ -996,7 +1016,7 @@ const SIGN_NOTES: Record<string, string> = {
   gate: '改札口 (かいさつぐち): the ticket gates. Tap your IC card (Suica, PASMO) on the blue reader.',
   platform: '番線 (ばんせん) is the track number, and 方面 (ほうめん) means "toward": trains here head for that end of the line.',
   name: '次 (つぎ) means next. The board shows this station and the next one down the line.',
-  board: '発車案内 (はっしゃあんない): departures. 先発 (せんぱつ) is the next train to leave, 次発 (じはつ) the one after, 〜行 (ゆき) means "bound for", and 始発 (しはつ) is the first train of the day.',
+  board: '発車案内 (はっしゃあんない): departures. 先発 (せんぱつ) is the next train to leave, 次発 (じはつ) the one after, 〜行 (ゆき) means "bound for", and 始発 (しはつ) is the first train of the day. 遅れ (おくれ) means late: 約3分遅れ, about 3 minutes late.',
 }
 
 function tokyoMonth(date: Date) {

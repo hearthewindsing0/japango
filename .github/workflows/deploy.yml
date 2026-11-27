@@ -27,6 +27,7 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      ODPT_TOKEN: ${{ secrets.ODPT_TOKEN }}
       WRANGLER_SEND_METRICS: 'false'
     steps:
       - name: Waiting for Cloudflare secrets
@@ -70,3 +71,9 @@ jobs:
         # wrangler.toml's [build] command builds the site first.
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' }}
         run: bunx wrangler deploy
+      - name: Give the Worker the ODPT key
+        # Tokyo Metro's live train data needs the ODPT developer key; it is
+        # kept as a Worker secret so it never reaches players. Skipped until
+        # the ODPT_TOKEN repository secret is set.
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' && env.ODPT_TOKEN != '' }}
+        run: printf '%s' "$ODPT_TOKEN" | bunx wrangler secret put ODPT_TOKEN
