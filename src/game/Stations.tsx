@@ -667,13 +667,30 @@ export function boardRows(station: Station, platform: number, clock: TrainClock,
   return (done ? next.slice(0, 1) : next).map((d, i) => ({
     label: done ? '始発' : i ? '次発' : '先発',
     kind: '各停',
-    time: clockText(d.dep),
+    // The planned time, as real boards show it, with how late it is.
+    time: clockText(d.dep - (d.late ?? 0)),
+    late: Math.round((d.late ?? 0) / 60),
     to: `${d.to}行`,
     toEn: d.toEn,
     approx: !!d.approx,
     done,
     arr: Math.round(d.arr - sec),
   }))
+}
+
+/** The live word on a platform's trains, for the boards and the sign
+ *  card: how late they are (約3分遅れ) and the line's status when something
+ *  is wrong (運転見合わせ...). Null when all is normal or there's no live
+ *  data. */
+export function liveNote(station: Station, platform: number, clock: TrainClock): { ja: string; en: string } | null {
+  const line = clock.timetable?.live?.lines[station.id]
+  if (!line) return null
+  const next = station.platforms[platform]?.next ?? ''
+  const min = Math.round((line.delays[next] ?? 0) / 60)
+  const bad = line.status && !/平常/.test(line.status)
+  if (bad) return { ja: `${line.status}　${line.text}`, en: line.statusEn || line.textEn || `Service: ${line.status}` }
+  if (min >= 1) return { ja: `ただいま 約${min}分 遅れて 運転しています`, en: `Trains are running about ${min} min late.` }
+  return null
 }
 
 // LED departure board: a matrix of 16-dot-high characters, like the
@@ -718,7 +735,7 @@ interface LedLine {
 
 /** What a board shows now: two trains, then a line that alternates (or
  *  scrolls) through announcements in Japanese and English. */
-function ledLines(station: Station, platform: number, rows: ReturnType<typeof boardRows>, phase: number): LedLine[] {
+function ledLines(station: Station, platform: number, rows: ReturnType<typeof boardRows>, phase: number, note: { ja: string; en: string } | null): LedLine[] {
   const p = station.platforms[platform]
   const en = phase % 2 === 1
   if (rows[0]?.done) {
@@ -756,6 +773,7 @@ function ledLines(station: Station, platform: number, rows: ReturnType<typeof bo
     ticker = en ? `The train for ${first.toEn} is arriving on track ${num}.` : `まもなく ${num}番線に ${first.to}が まいります`
   else if (first && first.arr <= -5)
     ticker = en ? `The doors are closing. Please stand back.` : `${first.to} ドアが閉まります ご注意ください`
+  else if (note) ticker = en ? note.en : note.ja
   else ticker = en ? `Track ${num}: trains ${p?.en ?? ''}` : `${num}番線 ${p?.ja ?? ''}`
   return [train(rows[0]), train(rows[1]), { parts: [{ t: ticker, c: LED.ticker, x: 2, en }], scroll: true }]
 }
@@ -847,7 +865,7 @@ function DepartureBoards({ station, clock }: { station: Station; clock: TrainClo
     for (const b of boards) {
       const rows = boardRows(station, b.s.p ?? 0, clock, now)
       // Japanese and English take turns, 6 seconds each.
-      const lines = ledLines(station, b.s.p ?? 0, rows, Math.floor(t / 6))
+      const lines = ledLines(station, b.s.p ?? 0, rows, Math.floor(t / 6), liveNote(station, b.s.p ?? 0, clock))
       const scrolling = platformView.on && lines.some((l) => l.scroll)
       const key = JSON.stringify(lines) + (scrolling ? Math.floor(t * 8) : '')
       if (key === b.shown) continue

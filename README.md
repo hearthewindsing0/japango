@@ -178,17 +178,28 @@ stop, plus the service calendar, so holidays run the 土休日 timetable). The
 and when the script changes on main. Timetables change a few times a year,
 so run it after each ダイヤ改正.
 
-**To do when ODPT access is approved (move to live data):**
+**Live data.** The Worker's `/api/trains/live?area=roppongi`
+(`worker/trains-live.ts`) reads ODPT's live `odpt:Train` (where each train
+is and how late) and `odpt:TrainInformation` (each line's status) and
+caches them for 30 seconds. The game asks for it every minute: trains due
+around now run late by the delay of the trains coming in that way, and the
+boards' bottom line says so (ただいま 約3分 遅れて 運転しています) or shows
+the line's status when something is wrong (運転見合わせ...). It only applies
+while the game clock is the real one (no `?time=`); otherwise, and when
+ODPT can't be reached, trains keep to the timetable.
 
-1. Add the key as the `ODPT_TOKEN` repository secret and run the Train
-   timetables Action: the Hibiya Line then uses Tokyo Metro's real
-   timetable instead of the approximate one.
-2. Move to live data: add a Worker endpoint that reads ODPT's live train
-   data (`odpt:Train` for positions and delays, `odpt:TrainInformation` for
-   service status, or the GTFS-RT feeds) with the key kept on the server,
-   and have `src/game/trains.ts` shift each train by its delay and show
-   status (遅延, 運転見合わせ) on the boards. The planned timetable stays as
-   the fallback.
+Toei's live data is public. Tokyo Metro's needs the ODPT developer key:
+
+1. Get the consumer key at [developer.odpt.org](https://developer.odpt.org/)
+   and add it as the `ODPT_TOKEN` repository secret.
+2. Run the **Train timetables** Action: the Hibiya Line then uses Tokyo
+   Metro's real timetable instead of the approximate one.
+3. Run the **Deploy** Action (or push to main): it copies the key into the
+   Worker secret `ODPT_TOKEN`, which turns on the Hibiya Line's live data.
+   The key never reaches players.
+
+To change which trains count for a platform's delay, or add a station,
+edit `LIVE_LINES` in `worker/trains-live.ts`.
 
 Start underground with `?at=x,y,z`, e.g. `?at=495,408.8,6.14` (Hibiya
 west gates) or `?at=662,350,-12.08` (Ōedo B7).
