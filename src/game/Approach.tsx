@@ -11,6 +11,10 @@ import { lifeLive, type Approachable, type ApproachLine, type LifePerson } from 
 // their day after. Their lines come from the person's approach profile,
 // written with the rest of their day (scripts/life/write-life.mjs).
 
+/** Fired to start talking to whoever is near, e.g. from the bubble over
+ *  their head. */
+export const TALK_EVENT = 'japango:talk'
+
 type Step = 'greet' | 'recommend' | 'directions' | 'topic' | 'bye'
 
 /** What the player can say, with the kind of answer each gets. */
@@ -72,8 +76,14 @@ export function Approach({
         end()
       }
     }
+    // Tapping the bubble over their head (ApproachMarker.tsx).
+    const onTalk = () => start()
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener(TALK_EVENT, onTalk)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener(TALK_EVENT, onTalk)
+    }
   })
 
   // While talking: they stand still facing you, you stand still, and the

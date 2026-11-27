@@ -311,7 +311,25 @@ export const lifeLive = {
   speaking: null as { outing: string; person: string } | null,
   /** People stopped to talk to the player: they stand still, facing them. */
   paused: new Set<string>(),
+  /** Where the player is, for people to face them while talking. */
+  player: { x: 0, y: 0 },
 }
+
+/** Someone on the street who isn't in the life data: a passer-by
+ *  (Crowd.tsx) or one of a talking-spot pair (Talkers.tsx). */
+export interface StreetFigure {
+  id: string
+  x: number
+  y: number
+  walking: boolean
+  /** Who they are (passersby.ts), made when you walk up. */
+  person: () => LifePerson
+  /** Figures with the same group stand and talk together. */
+  group?: string
+}
+
+/** Each source of street figures, by key: a function listing them now. */
+export const streetLive = new Map<string, () => StreetFigure[]>()
 
 const NEAR = 3.2 // meters: close enough to talk to someone walking past
 const NEAR_GROUP = 5 // and to join a group standing and talking
@@ -321,8 +339,10 @@ const NEAR_GROUP = 5 // and to join a group standing and talking
 export interface Approachable {
   person: LifePerson
   group: LifePerson[]
-  outing: Outing
+  outing?: Outing
   walking: boolean
+  /** Where they are now, for the marker over their head. */
+  where: () => { x: number; y: number } | null
 }
 
 /** Polls who is close enough to talk to, a few times a second. */
@@ -333,26 +353,58 @@ export function useApproachable(life: Life | null, focus: { current: { x: number
     stop.current = frozen
   }, [frozen])
   useEffect(() => {
-    if (!life) return
     let shown = ''
     const timer = window.setInterval(() => {
-      if (stop.current) return
       const f = focus.current
+      lifeLive.player = { x: f.x, y: f.y }
+      if (stop.current) return
       let best: Whereabouts | null = null
       let bd = Infinity
-      const all = f.under ? [] : whereabouts(life, tokyoMinute(new Date()))
+      const all = f.under || !life ? [] : whereabouts(life, tokyoMinute(new Date()))
       for (const w of all) {
         const d = Math.hypot(w.x - f.x, w.y - f.y)
         if (d < (w.walking ? NEAR : NEAR_GROUP) && d < bd && w.person.approach) [bd, best] = [d, w]
       }
-      const next: Approachable | null = best
-        ? {
-            person: best.person,
-            group: best.walking ? [best.person] : all.filter((w) => !w.walking && w.outing.id === best.outing.id).map((w) => w.person),
-            outing: best.outing,
-            walking: best.walking,
+      // Everyone else on the street: passers-by and talking pairs.
+      let fig: StreetFigure | null = null
+      let figs: StreetFigure[] = []
+      let figKey = ''
+      if (!f.under)
+        for (const [key, list] of streetLive) {
+          const here = list()
+          for (const w of here) {
+            const d = Math.hypot(w.x - f.x, w.y - f.y)
+            if (d < (w.walking ? NEAR : NEAR_GROUP) && d < bd) [bd, fig, best, figs, figKey] = [d, w, null, here, key]
           }
-        : null
+        }
+      let next: Approachable | null = null
+      if (best) {
+        const b = best
+        next = {
+          person: b.person,
+          group: b.walking ? [b.person] : all.filter((w) => !w.walking && w.outing.id === b.outing.id).map((w) => w.person),
+          outing: b.outing,
+          walking: b.walking,
+          where: () => {
+            const w = life && whereabouts(life, tokyoMinute(new Date())).find((w) => w.person.id === b.person.id)
+            return w ? { x: w.x, y: w.y } : null
+          },
+        }
+      } else if (fig) {
+        const id = fig.id
+        const mates = fig.group ? figs.filter((w) => w.group === fig.group) : [fig]
+        const people = mates.map((w) => (w.id === id ? fig.person() : w.person()))
+        const src = figKey
+        next = {
+          person: people[mates.indexOf(fig)],
+          group: people,
+          walking: fig.walking,
+          where: () => {
+            const w = streetLive.get(src)?.().find((w) => w.id === id)
+            return w ? { x: w.x, y: w.y } : null
+          },
+        }
+      }
       const key = next ? `${next.person.id}:${next.group.length}` : ''
       if (key !== shown) {
         shown = key

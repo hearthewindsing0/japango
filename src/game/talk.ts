@@ -80,6 +80,8 @@ export const talkLive = {
   speaking: null as { spot: string; s: number } | null,
   /** Which spot has a conversation going. */
   active: null as string | null,
+  /** The names of each spot's two people in their latest conversation. */
+  names: new Map<string, [string, string]>(),
 }
 
 const GAP = 0.6 // seconds between lines

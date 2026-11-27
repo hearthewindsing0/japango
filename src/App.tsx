@@ -34,9 +34,10 @@ import { ORDER_SPOT, toLocal } from './game/interiors/antnbee'
 import { Talkers } from './game/Talkers'
 import { LifePeople } from './game/LifePeople'
 import { loadLife, useApproachable, useLifeTalk, type Life } from './game/life'
-import { Approach } from './game/Approach'
+import { Approach, TALK_EVENT } from './game/Approach'
+import { ApproachMarker } from './game/ApproachMarker'
 import { TalkCaption } from './game/TalkCaption'
-import { loadTalk, useTalk, type Talk } from './game/talk'
+import { loadTalk, talkLive, useTalk, type Talk } from './game/talk'
 import { DEFAULT_AVATAR, loadAvatar, saveAvatar, type Avatar } from './game/avatar'
 import { Creator } from './onboarding/Creator'
 import { Title } from './onboarding/Title'
@@ -367,11 +368,28 @@ export default function App() {
     return map?.stations?.length || interiors.length ? new Underground(map?.stations ?? [], interiors) : null
   }, [map, landmarkDoors])
   useAmbience({ map, focus, under, when, night: sky.night, rain: sky.rain, muted, credits: soundCredits })
-  const spotCaption = useTalk({ map, talk, focus, hour, rain: sky.rain, muted })
-  // A group meeting nearby, when no talking spot is.
   // Walking up to someone to talk (Space), which pauses listening in.
   const [chatting, setChatting] = useState(false)
+  const spotCaption = useTalk({ map, talk, focus, hour, rain: sky.rain, muted: muted || chatting })
+  // A group meeting nearby, when no talking spot is.
   const approachable = useApproachable(life, focus, chatting)
+  // A tip about talking to people until the player first does.
+  const [talkHint, setTalkHint] = useState(() => {
+    try {
+      return localStorage.getItem('japango.talkHint') !== 'done'
+    } catch {
+      return true
+    }
+  })
+  useEffect(() => {
+    if (!chatting || !talkHint) return
+    setTalkHint(false)
+    try {
+      localStorage.setItem('japango.talkHint', 'done')
+    } catch {
+      // Shown again next visit; fine.
+    }
+  }, [chatting, talkHint])
   const lifeCaption = useLifeTalk(life, focus, !spotCaption && !chatting)
   const caption = chatting ? null : (spotCaption ?? lifeCaption)
   // Each spot's people look like the voices of their latest conversation.
@@ -379,6 +397,7 @@ export default function App() {
   const talkingConv = spotCaption?.conv
   useEffect(() => {
     if (!talkingConv) return
+    talkLive.names.set(talkingConv.spot, [talkingConv.speakers[0]?.name ?? '', talkingConv.speakers[1]?.name ?? ''])
     const v: [string, string] = [talkingConv.speakers[0]?.voice ?? '', talkingConv.speakers[1]?.voice ?? '']
     setVoices((old) => (old[talkingConv.spot]?.join() === v.join() ? old : { ...old, [talkingConv.spot]: v }))
   }, [talkingConv])
@@ -533,6 +552,9 @@ export default function App() {
         </Toy>
         {talk && !under && <Talkers talk={talk} voices={voices} rain={sky.rain > 0.2} />}
         {life && map && !under && <LifePeople life={life} map={map} focus={focus} rain={sky.rain > 0.2} />}
+        {!under && !onboarding && !chatting && !book && (
+          <ApproachMarker near={approachable} map={map} onTap={() => window.dispatchEvent(new Event(TALK_EVENT))} />
+        )}
         {onboarding && <TitleCamera map={map} at={map.spawn} distance={TITLE_DIST * LENS} />}
         {!onboarding && (
           <Player
@@ -673,6 +695,11 @@ export default function App() {
             {wordHint && dict && !book && (caption || approachable || chatting) && (
               <div className="corner-sm w-full animate-pulse bg-kin px-3 py-1.5 text-sm text-sumi drop-hard-sm motion-reduce:animate-none">
                 👆 Tap an <u>underlined</u> Japanese word for its word card: meaning, kanji and an example.
+              </div>
+            )}
+            {talkHint && !onboarding && !book && !under && !chatting && !caption && !here && !sign && !door && (
+              <div className="corner-sm pointer-events-auto w-full bg-kin px-3 py-1.5 text-sm text-sumi drop-hard-sm">
+                💬 Anyone on the street will talk to you. Walk right up to someone, then press <b>Space</b> or tap the bubble over their head.
               </div>
             )}
             {!book && !under && (approachable || chatting) && (
