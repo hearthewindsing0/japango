@@ -28,3 +28,10 @@ database_name = "japango"
 # fills in its id for the deploy Action.
 database_id = "f8849de2-e8c7-424c-9a42-b7ae822f5105"
 migrations_dir = "migrations"
+
+# Daily caps on the paid /api/ai/* endpoints (worker/gate.ts): calls a day
+# for everyone together, and for each invite code. A backstop only; the
+# AI provider's own spend limit is the real budget.
+[vars]
+AI_DAILY_CAP = "300"
+AI_PASS_DAILY_CAP = "100"

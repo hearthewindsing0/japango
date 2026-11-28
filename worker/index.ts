@@ -7,11 +7,16 @@
 //   /api/trains/live      live train delays and line status from ODPT
 //                         (worker/trains-live.ts; key stays here)
 //   /api/health           a quick check that the API is up
+//   /api/gate             invite-code passes for the paid endpoints
+//   /api/ai/*             anything that spends money per call (AI models,
+//                         hosted speech...); only with a pass, and capped
+//                         per day (worker/gate.ts)
 // Everything else is the game itself, from the static assets.
 
+import { gate, guardPaid, type GateEnv } from './gate'
 import { trainsLive } from './trains-live'
 
-interface Env {
+interface Env extends GateEnv {
   ASSETS: Fetcher
   DATA: R2Bucket
   DB: D1Database
@@ -22,6 +27,10 @@ interface Env {
 const PLAYER = /^[0-9a-f-]{36}$/
 const ITEM = /^[A-Za-z0-9_-]{1,40}$/
 const MAX_ITEMS = 1000
+/** Saves a day from one address. A player saves only when they find
+ *  something, so this is far above real play; it stops a script running
+ *  up D1 writes. */
+const MAX_SAVES = 500
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -98,6 +107,17 @@ async function progress(req: Request, env: Env, url: URL) {
     const found = list(body.found)
     const stamps = list(body.stamps)
     if (found.length + stamps.length > MAX_ITEMS) return json({ error: 'too many items' }, 413)
+    const ip = req.headers.get('cf-connecting-ip') ?? 'unknown'
+    const saves = await env.DB.prepare(
+      `INSERT INTO usage (day, who, calls) VALUES (date('now'), ?, 1)
+       ON CONFLICT(day, who) DO UPDATE SET calls = calls + 1 RETURNING calls`,
+    )
+      .bind(`save:${ip}`)
+      .first<{ calls: number }>()
+    if ((saves?.calls ?? 0) > MAX_SAVES) return json({ error: 'too many saves today' }, 429)
+    // Each player holds at most MAX_ITEMS things in all, however many saves.
+    const held = await env.DB.prepare('SELECT count(*) AS n FROM progress WHERE player_id = ?').bind(player).first<{ n: number }>()
+    if ((held?.n ?? 0) >= MAX_ITEMS) return json(await getProgress(env, player))
     // Progress only ever grows: add what's new, keep what's there.
     const add = env.DB.prepare('INSERT OR IGNORE INTO progress (player_id, kind, item) VALUES (?, ?, ?)')
     await env.DB.batch([
@@ -112,6 +132,11 @@ async function progress(req: Request, env: Env, url: URL) {
   return json({ error: 'method not allowed' }, 405)
 }
 
+/** Endpoints that spend money on every call, by the path after /api/ai/.
+ *  They only run for players with a pass, within the daily caps; never put
+ *  a paid call anywhere else. */
+const AI: Record<string, (req: Request, env: Env, ctx: ExecutionContext) => Promise<Response>> = {}
+
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url)
@@ -119,6 +144,14 @@ export default {
     if (url.pathname === '/api/progress') return progress(req, env, url)
     if (url.pathname === '/api/trains/live') return trainsLive(url, env.ODPT_TOKEN, ctx)
     if (url.pathname === '/api/health') return json({ ok: true })
+    if (url.pathname === '/api/gate') return gate(req, env)
+    if (url.pathname.startsWith('/api/ai/')) {
+      const route = AI[url.pathname.slice('/api/ai/'.length)]
+      if (!route) return json({ error: 'not found' }, 404)
+      const stop = await guardPaid(req, env)
+      if (stop) return stop
+      return route(req, env, ctx)
+    }
     if (url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404)
     return env.ASSETS.fetch(req)
   },
