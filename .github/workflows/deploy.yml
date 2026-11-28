@@ -28,6 +28,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       ODPT_TOKEN: ${{ secrets.ODPT_TOKEN }}
+      INVITE_CODES: ${{ secrets.INVITE_CODES }}
       WRANGLER_SEND_METRICS: 'false'
     steps:
       - name: Waiting for Cloudflare secrets
@@ -77,3 +78,9 @@ jobs:
         # the ODPT_TOKEN repository secret is set.
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' && env.ODPT_TOKEN != '' }}
         run: printf '%s' "$ODPT_TOKEN" | bunx wrangler secret put ODPT_TOKEN
+      - name: Give the Worker the invite codes
+        # Passes for the paid /api/ai/* endpoints (worker/gate.ts), as
+        # "name:code, name:code". Without the INVITE_CODES repository secret
+        # those endpoints stay shut for everyone.
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' && env.INVITE_CODES != '' }}
+        run: printf '%s' "$INVITE_CODES" | bunx wrangler secret put INVITE_CODES

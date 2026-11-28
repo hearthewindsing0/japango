@@ -266,6 +266,37 @@ and bucket if needed (`scripts/cf-setup.mjs`), applies database migrations,
 and deploys the site and API. It needs the `CLOUDFLARE_API_TOKEN` (Workers,
 R2 and D1 edit rights) and `CLOUDFLARE_ACCOUNT_ID` repository secrets.
 
+### What can cost money, and the gate
+
+Nothing the game does by itself spends Henry's money per player. Scripted
+conversations and voices are made ahead of time by the Conversations Action
+(Anthropic sign-in by workload identity, only on `main`) and served as
+files. Live AI chats use the player's own key, called straight from their
+browser; the voice input and speech are the browser's own.
+
+Anything that ever needs to spend the game's own money per call (an AI
+model, hosted speech) goes under **`/api/ai/*`** in `worker/index.ts`
+(the `AI` table) and nowhere else. Those endpoints sit behind a gate
+(`worker/gate.ts`):
+
+- A player unlocks them once at **`/unlock/`** with an invite code and gets
+  a signed cookie for 30 days. In the game, `src/game/gate.ts` has
+  `gateStatus()` and `aiFetch()`.
+- The codes are the `INVITE_CODES` repository secret, as
+  `name:code, name:code` (codes of 12+ characters). The Deploy Action copies
+  it to the Worker. Change or remove a code and its passes stop working at
+  the next deploy. With no codes set, the endpoints are shut for everyone.
+- Every call is counted in D1 (`usage`) before it runs, with a daily cap per
+  code (`AI_PASS_DAILY_CAP`) and for everyone (`AI_DAILY_CAP`), both
+  `[vars]` in `wrangler.toml`. 20 wrong codes from one address shut it out
+  for the day.
+
+The rest of the API is bounded too: `/api/progress` takes at most 500 saves
+a day from one address and 1,000 items per player, and `/api/trains/live`
+is cached for 30 s for everyone. The backstops outside the code are the
+spend limit on the Anthropic Console workspace and Cloudflare's Spend
+Management (Billing) and budget alerts.
+
 ### Where the data lives
 
 Git holds the code, the scripts and what people write by hand: `areas/`
