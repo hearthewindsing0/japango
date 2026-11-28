@@ -2,6 +2,8 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { PARTS, UMBRELLAS, hasPart, paintOf, randomLook, type Look } from './character'
+import { streetLive } from './life'
+import { hashId, passerby } from './passersby'
 import { talkLive, type Talk } from './talk'
 
 // The two people talking at each talking spot: standing on the pavement,
@@ -28,6 +30,30 @@ function lookFor(voice: string): Look {
 }
 
 export function Talkers({ talk, voices, rain }: { talk: Talk; voices: Record<string, [string, string]>; rain: boolean }) {
+  // You can walk up to each pair and talk to them (Approach.tsx).
+  useEffect(() => {
+    const keys = talk.spots.map((s) => {
+      const key = `spot:${s.id}`
+      const vs = voices[s.id] ?? defaultVoices(talk, s.id)
+      streetLive.set(key, () => {
+        const place = talkLive.places.get(s.id)
+        if (!place) return []
+        return [place.a, place.b].map((at, i) => ({
+          id: `${key}:${i}`,
+          x: at.x,
+          y: at.y,
+          walking: false,
+          group: key,
+          // Named as you heard them in their conversation.
+          person: () => passerby(`${key}:${i}`, hashId(vs[i]), lookFor(vs[i]), FEMALE.test(vs[i]), talkLive.names.get(s.id)?.[i]),
+        }))
+      })
+      return key
+    })
+    return () => {
+      for (const k of keys) streetLive.delete(k)
+    }
+  }, [talk, voices])
   return (
     <>
       {talk.spots.map((s) => (

@@ -2,7 +2,9 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { UMBRELLAS, crowdAttributes, crowdDepthMaterial, crowdGeometry, crowdMaterial, packColor, randomLook, type Look } from './character'
+import { lifeLive, streetLive } from './life'
 import { tileGroundAt, type MapTile } from './map'
+import { passerby } from './passersby'
 import { streetLevel, type FlowTime, type PeopleFlow } from './people-flow'
 
 // Passers-by walking the sidewalks and footpaths. How many are out comes
@@ -33,6 +35,14 @@ interface Walker {
   phase: number // walk cycle
   look: Look
   umbrella: string
+  /** Stable id, so the same walker is the same person (passersby.ts). */
+  id: string
+  seed: number
+  // Where they are now, for walking up to them (life.ts useApproachable).
+  x: number
+  y: number
+  facing: number
+  on: boolean
 }
 
 /** Walkable lines: footpaths, plus a line down each sidewalk. */
@@ -166,10 +176,32 @@ export function Crowd({ tile, clip, flow, when, rain }: { tile: MapTile; clip: T
         phase: rand() * Math.PI * 2,
         look: randomLook(rand),
         umbrella: UMBRELLAS[Math.floor(rand() * UMBRELLAS.length)],
+        id: `crowd:${tile.col}:${tile.row}:${i}`,
+        seed: Math.floor(rand() * 4294967296),
+        x: 0,
+        y: 0,
+        facing: 0,
+        on: false,
       })
     }
     return out
   }, [lines])
+
+  // Shared with useApproachable: everyone on this tile is someone you can
+  // walk up to and talk to.
+  useEffect(() => {
+    const key = `crowd:${tile.col}:${tile.row}`
+    streetLive.set(key, () => {
+      // Only those near the player: the rest are too far to talk to.
+      const f = lifeLive.player
+      const out = []
+      for (const w of walkers) if (w.on && Math.abs(w.x - f.x) < 8 && Math.abs(w.y - f.y) < 8) out.push({ id: w.id, x: w.x, y: w.y, walking: true, person: () => passerby(w.id, w.seed, w.look) })
+      return out
+    })
+    return () => {
+      streetLive.delete(key)
+    }
+  }, [walkers, tile])
 
   const measured = streetLevel(flow, (tile.x0 + tile.x1) / 2, (tile.y0 + tile.y1) / 2, when)
   const level = (measured ?? crowdLevel(when.hour)) * (rain > 0 ? 0.6 : 1)
@@ -212,8 +244,24 @@ export function Crowd({ tile, clip, flow, when, rain }: { tile: MapTile; clip: T
 
   useFrame((_, dtRaw) => {
     const dt = Math.min(dtRaw, 0.05)
+    for (let i = count; i < walkers.length; i++) walkers[i].on = false
     for (let i = 0; i < count; i++) {
       const w = walkers[i]
+      w.on = true
+      // Stopped to talk to the player: stand still and face them.
+      if (lifeLive.paused.has(w.id)) {
+        const f = lifeLive.player
+        let df = Math.atan2(f.x - w.x, f.y - w.y) - w.facing
+        df = Math.atan2(Math.sin(df), Math.cos(df))
+        w.facing += df * Math.min(1, dt * 6)
+        p.set(w.x, tileGroundAt(tile, w.x, w.y), w.y)
+        q.setFromAxisAngle(up, w.facing)
+        scale.setScalar(w.look.height)
+        m.compose(p, q, scale)
+        mesh.current?.setMatrixAt(i, m)
+        attrs.iPose.setXYZW(i, 0, w.look.backpack ? 1 : 0, w.look.longHair ? 1 : 0, wet ? 1 : 0)
+        continue
+      }
       const end = w.len[w.len.length - 1]
       w.d += w.speed * w.dir * dt
       if (w.d > end) {
@@ -238,7 +286,10 @@ export function Crowd({ tile, clip, flow, when, rain }: { tile: MapTile; clip: T
       const swing = Math.sin(w.phase) * 0.45
       const bob = Math.abs(Math.cos(w.phase)) * 0.04
       p.set(x, tileGroundAt(tile, x, y) + bob, y)
-      q.setFromAxisAngle(up, Math.atan2(dx * w.dir, dy * w.dir))
+      w.x = x
+      w.y = y
+      w.facing = Math.atan2(dx * w.dir, dy * w.dir)
+      q.setFromAxisAngle(up, w.facing)
       scale.setScalar(w.look.height)
       m.compose(p, q, scale)
       mesh.current?.setMatrixAt(i, m)

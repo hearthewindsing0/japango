@@ -20,7 +20,7 @@ import type { Station } from './station'
  *  with someone on it at busy times. */
 const RIDERS = 3000
 
-const FAMILY: [string, string][] = [
+export const FAMILY: [string, string][] = [
   ['佐藤', 'Satō'], ['鈴木', 'Suzuki'], ['高橋', 'Takahashi'], ['田中', 'Tanaka'], ['伊藤', 'Itō'], ['渡辺', 'Watanabe'],
   ['山本', 'Yamamoto'], ['中村', 'Nakamura'], ['小林', 'Kobayashi'], ['加藤', 'Katō'], ['吉田', 'Yoshida'], ['山田', 'Yamada'],
   ['佐々木', 'Sasaki'], ['山口', 'Yamaguchi'], ['松本', 'Matsumoto'], ['井上', 'Inoue'], ['木村', 'Kimura'], ['林', 'Hayashi'],
@@ -28,17 +28,17 @@ const FAMILY: [string, string][] = [
   ['阿部', 'Abe'], ['石川', 'Ishikawa'], ['山下', 'Yamashita'], ['中島', 'Nakajima'], ['石井', 'Ishii'], ['小川', 'Ogawa'],
   ['前田', 'Maeda'], ['岡田', 'Okada'], ['長谷川', 'Hasegawa'], ['藤田', 'Fujita'], ['後藤', 'Gotō'], ['近藤', 'Kondō'],
 ]
-const GIVEN_F: [string, string][] = [
+export const GIVEN_F: [string, string][] = [
   ['陽菜', 'Hina'], ['結衣', 'Yui'], ['美咲', 'Misaki'], ['さくら', 'Sakura'], ['葵', 'Aoi'], ['真由美', 'Mayumi'],
   ['恵子', 'Keiko'], ['裕子', 'Yūko'], ['明美', 'Akemi'], ['彩', 'Aya'], ['舞', 'Mai'], ['千尋', 'Chihiro'],
   ['奈々', 'Nana'], ['由美', 'Yumi'], ['香織', 'Kaori'], ['麻衣', 'Mai'], ['理恵', 'Rie'], ['美穂', 'Miho'],
 ]
-const GIVEN_M: [string, string][] = [
+export const GIVEN_M: [string, string][] = [
   ['翔太', 'Shōta'], ['大輝', 'Daiki'], ['拓海', 'Takumi'], ['健太', 'Kenta'], ['誠', 'Makoto'], ['浩', 'Hiroshi'],
   ['隆', 'Takashi'], ['直樹', 'Naoki'], ['亮', 'Ryō'], ['陸', 'Riku'], ['蓮', 'Ren'], ['和也', 'Kazuya'],
   ['達也', 'Tatsuya'], ['修', 'Osamu'], ['悠真', 'Yūma'], ['健一', 'Ken\'ichi'], ['剛', 'Tsuyoshi'], ['聡', 'Satoshi'],
 ]
-const JOBS = {
+export const JOBS = {
   office: ['office worker', 'sales rep', 'software engineer', 'accountant', 'marketing planner', 'bank clerk', 'consultant', 'designer', 'lawyer', 'HR coordinator'],
   service: ['hotel staff', 'restaurant cook', 'shop clerk', 'hairdresser', 'bartender', 'konbini part-timer', 'nurse', 'security guard', 'cleaner'],
   other: ['university student', 'high school student', 'retiree', 'homemaker', 'freelance writer', 'tourist from Osaka', 'musician'],
