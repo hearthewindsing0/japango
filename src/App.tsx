@@ -36,6 +36,8 @@ import { LifePeople } from './game/LifePeople'
 import { loadLife, useApproachable, useLifeTalk, type Life } from './game/life'
 import { Approach, TALK_EVENT } from './game/Approach'
 import { ApproachMarker } from './game/ApproachMarker'
+import { AiSettingsPanel } from './game/AiSettings'
+import { finishSignIn, loadAi } from './game/ai'
 import { TalkCaption } from './game/TalkCaption'
 import { loadTalk, talkLive, useTalk, type Talk } from './game/talk'
 import { DEFAULT_AVATAR, loadAvatar, saveAvatar, type Avatar } from './game/avatar'
@@ -370,6 +372,19 @@ export default function App() {
   useAmbience({ map, focus, under, when, night: sky.night, rain: sky.rain, muted, credits: soundCredits })
   // Walking up to someone to talk (Space), which pauses listening in.
   const [chatting, setChatting] = useState(false)
+  // Bring-your-own-AI settings (ai.ts), and finishing an OpenRouter sign-in
+  // when the page comes back from one.
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiOn, setAiOn] = useState(() => !!loadAi())
+  useEffect(() => {
+    const on = () => setAiOn(!!loadAi())
+    window.addEventListener('japango:ai', on)
+    finishSignIn().then((r) => {
+      if (r === 'connected') toast({ title: 'AI connected', body: 'Walk up to anyone and talk: they’ll answer whatever you say.' })
+      else if (r === 'failed') toast({ title: 'OpenRouter sign-in failed', body: 'Try again from AI settings, or paste a key.' })
+    })
+    return () => window.removeEventListener('japango:ai', on)
+  }, [])
   const spotCaption = useTalk({ map, talk, focus, hour, rain: sky.rain, muted: muted || chatting })
   // A group meeting nearby, when no talking spot is.
   const approachable = useApproachable(life, focus, chatting)
@@ -703,7 +718,17 @@ export default function App() {
               </div>
             )}
             {!book && !under && (approachable || chatting) && (
-              <Approach near={approachable} dict={dict} furigana={furigana} english={english} onWord={setWord} onChat={setChatting} />
+              <Approach
+                near={approachable}
+                dict={dict}
+                furigana={furigana}
+                english={english}
+                muted={muted}
+                place={{ where: 'Roppongi', time: `${japaneseTime(now)} (${WEATHER_WORDS[weather.kind].en})` }}
+                onWord={setWord}
+                onChat={setChatting}
+                onAiSettings={() => setAiOpen(true)}
+              />
             )}
             {caption && !book && !(barOpen && inside) && (
               <TalkCaption caption={caption} dict={dict} furigana={furigana} english={english} onWord={setWord} onEnglish={() => setEnglish((v) => !v)} />
@@ -800,6 +825,7 @@ export default function App() {
                   : []),
                 { id: 'furigana', icon: 'あ', label: 'ふりがな', shortcut: 'F', active: furigana, onClick: () => setFurigana((f) => !f) },
                 { id: 'english', icon: 'EN', label: 'English', shortcut: 'T', active: english, onClick: () => setEnglish((v) => !v) },
+                { id: 'ai', icon: '🤖', label: aiOn ? 'AI on' : 'AI', active: aiOn || aiOpen, onClick: () => setAiOpen((o) => !o) },
                 { id: 'sound', icon: muted ? '🔇' : '🔊', label: muted ? 'Muted' : 'Sound', shortcut: 'N', active: !muted, onClick: () => setMuted((m) => !m) },
                 ...(coarse
                   ? []
@@ -836,6 +862,9 @@ export default function App() {
             subtitle="Stamp rally · B closes"
           >
             <StampBook stampSize={68} spots={rally.map((d) => ({ id: d.id, ja: d.ja, en: d.en, got: stamps.has(d.id) }))} found={found.size} total={map.discoveries?.length ?? 0} />
+          </Window>
+          <Window open={aiOpen} onOpenChange={setAiOpen} width={480} title="AIと話す" subtitle="Talk with your own AI">
+            <AiSettingsPanel />
           </Window>
           <Window open={help && !coarse} onOpenChange={setHelp} width={440} title="操作" subtitle="Controls · H closes">
             <ControlsHelp controls={HELP} />
@@ -1028,6 +1057,7 @@ const HELP: [string, string][] = [
   ['N', 'Sound on/off'],
   ['T', 'English under talk'],
   ['Space', 'Talk to someone nearby'],
+  ['V (hold)', 'Speak Japanese while talking'],
   ['[ / ]', 'Smaller / bigger'],
   ['H', 'This list'],
   ['Tap a word', 'Word card'],
